@@ -2,11 +2,15 @@ import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { BLIND_SPOT_SURVEY, SURVEY_CATEGORIES, SurveyQuestion } from "@/data/blindSpotSurvey";
+import { BLIND_SPOT_SURVEY, SURVEY_CATEGORIES } from "@/data/blindSpotSurvey";
 import { CheckCircle2, ArrowRight, ArrowLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/hooks/useAuth";
+import { saveSurveyResult } from "@/hooks/useSurveyResults";
+import { toast } from "sonner";
 
 export default function SurveyPage() {
+  const { user } = useAuth();
   const [current, setCurrent] = useState(0);
   const [answers, setAnswers] = useState<Record<string, number>>({});
   const [completed, setCompleted] = useState(false);
@@ -18,9 +22,30 @@ export default function SurveyPage() {
     setAnswers((prev) => ({ ...prev, [question.id]: value }));
   };
 
-  const handleNext = () => {
-    if (current < BLIND_SPOT_SURVEY.length - 1) setCurrent((c) => c + 1);
-    else setCompleted(true);
+  const handleNext = async () => {
+    if (current < BLIND_SPOT_SURVEY.length - 1) {
+      setCurrent((c) => c + 1);
+    } else {
+      // Calculate scores and save
+      const categoryScores: Record<string, number> = {};
+      Object.keys(SURVEY_CATEGORIES).forEach((key) => {
+        const qs = BLIND_SPOT_SURVEY.filter((q) => q.category === key);
+        const total = qs.reduce((sum, q) => sum + (answers[q.id] || 0), 0);
+        const max = qs.length * 4;
+        categoryScores[key] = Math.round((total / max) * 100);
+      });
+
+      if (user) {
+        try {
+          await saveSurveyResult(user.id, answers, categoryScores);
+          toast.success("Results saved to your profile");
+        } catch (e) {
+          console.error(e);
+          toast.error("Could not save results — they are shown below");
+        }
+      }
+      setCompleted(true);
+    }
   };
 
   const handleBack = () => {

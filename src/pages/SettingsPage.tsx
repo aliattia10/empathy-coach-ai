@@ -2,12 +2,16 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Copy, Share2, Users } from "lucide-react";
+import { Copy, Share2 } from "lucide-react";
 import { toast } from "sonner";
-import { useState } from "react";
+import { useAuth } from "@/hooks/useAuth";
+import { useProfile } from "@/hooks/useProfile";
 
 export default function SettingsPage() {
-  const [referralCode] = useState("SHIFTED-" + Math.random().toString(36).substring(2, 8).toUpperCase());
+  const { user } = useAuth();
+  const { profile, loading } = useProfile(user?.id);
+
+  const referralCode = profile?.referral_code || "—";
 
   const copyReferral = () => {
     navigator.clipboard.writeText(`https://shifted-ai.com/join?ref=${referralCode}`);
@@ -34,19 +38,15 @@ export default function SettingsPage() {
           <div className="space-y-2">
             <Label className="text-xs">Your Referral Code</Label>
             <div className="flex gap-2">
-              <Input value={referralCode} readOnly className="font-mono text-sm" />
-              <Button variant="outline" size="icon" onClick={copyReferral}>
+              <Input value={loading ? "Loading…" : referralCode} readOnly className="font-mono text-sm" />
+              <Button variant="outline" size="icon" onClick={copyReferral} disabled={!profile}>
                 <Copy className="w-4 h-4" />
               </Button>
             </div>
           </div>
-          <div className="bg-muted rounded-lg p-3 flex items-center gap-3">
-            <Users className="w-5 h-5 text-secondary" />
-            <div>
-              <p className="text-sm font-medium text-foreground">3 referrals</p>
-              <p className="text-xs text-muted-foreground">2 active · 1 pending</p>
-            </div>
-          </div>
+          {!user && (
+            <p className="text-xs text-muted-foreground">Sign in to get your referral code.</p>
+          )}
         </CardContent>
       </Card>
 

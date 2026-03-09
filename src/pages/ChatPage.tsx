@@ -4,6 +4,8 @@ import AvatarDisplay from "@/components/chat/AvatarDisplay";
 import ChatMessage from "@/components/chat/ChatMessage";
 import ChatInput from "@/components/chat/ChatInput";
 import { detectCrisis, CRISIS_RESPONSE } from "@/components/safety/CrisisDetector";
+import { useAuth } from "@/hooks/useAuth";
+import { createChatSession, saveChatMessage } from "@/hooks/useChatSession";
 
 interface Message {
   id: string;
@@ -21,7 +23,7 @@ I'm here to help you practice **constructive feedback** conversations through re
 Let's start: **Tell me about a situation where you need to deliver difficult feedback to a team member.** What's happening, and what makes it challenging for you?`,
 };
 
-// Simulated Socratic responses (will be replaced with LLM)
+// Simulated Socratic responses (will be replaced with LLM edge function)
 function generateSocraticResponse(userMessage: string): string {
   const responses = [
     `That's a really thoughtful observation. Before we jump to solutions, let me ask you something:\n\n**How do you think your team member would describe this situation from their perspective?**\n\nUnderstanding their viewpoint is the first step toward empathetic feedback.`,
@@ -34,34 +36,59 @@ function generateSocraticResponse(userMessage: string): string {
 }
 
 export default function ChatPage() {
+  const { user } = useAuth();
   const [messages, setMessages] = useState<Message[]>([INITIAL_MESSAGE]);
   const [isTyping, setIsTyping] = useState(false);
+  const [sessionId, setSessionId] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+
+  // Create a chat session when page loads (if user is logged in)
+  useEffect(() => {
+    if (user && !sessionId) {
+      createChatSession(user.id).then((session) => {
+        setSessionId(session.id);
+        // Save the initial assistant message
+        saveChatMessage(session.id, "assistant", INITIAL_MESSAGE.content).catch(console.error);
+      }).catch(console.error);
+    }
+  }, [user, sessionId]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  const handleSend = (text: string) => {
+  const handleSend = async (text: string) => {
     const userMsg: Message = { id: Date.now().toString(), role: "user", content: text };
     setMessages((prev) => [...prev, userMsg]);
+
+    // Persist user message
+    if (sessionId) {
+      saveChatMessage(sessionId, "user", text).catch(console.error);
+    }
 
     // Crisis detection
     if (detectCrisis(text)) {
       const crisisMsg: Message = { id: (Date.now() + 1).toString(), role: "assistant", content: CRISIS_RESPONSE };
       setMessages((prev) => [...prev, crisisMsg]);
+      if (sessionId) saveChatMessage(sessionId, "assistant", CRISIS_RESPONSE).catch(console.error);
       return;
     }
 
     setIsTyping(true);
-    setTimeout(() => {
+    setTimeout(async () => {
+      const content = generateSocraticResponse(text);
       const reply: Message = {
         id: (Date.now() + 1).toString(),
         role: "assistant",
-        content: generateSocraticResponse(text),
+        content,
       };
       setMessages((prev) => [...prev, reply]);
       setIsTyping(false);
+
+      // Persist assistant message
+      if (sessionId) {
+        saveChatMessage(sessionId, "assistant", content).catch(console.error);
+      }
     }, 1200 + Math.random() * 800);
   };
 

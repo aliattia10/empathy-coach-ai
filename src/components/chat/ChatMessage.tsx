@@ -32,7 +32,9 @@ export default function ChatMessage({ role, content }: Props) {
             : "bg-card text-card-foreground shadow-soft rounded-tl-md border border-border"
         )}
       >
-        <ReactMarkdown className="prose prose-sm max-w-none [&>p]:m-0">{content}</ReactMarkdown>
+        <div className="prose prose-sm max-w-none [&>p]:m-0">
+          <ReactMarkdown>{content}</ReactMarkdown>
+        </div>
       </div>
     </div>
   );

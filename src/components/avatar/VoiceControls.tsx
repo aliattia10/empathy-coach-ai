@@ -44,10 +44,10 @@ export default function VoiceControls({
           <div className="w-14 h-14 rounded-full bg-muted flex items-center justify-center text-muted-foreground group-hover:bg-muted/80 transition-all">
             <MicOff className="w-5 h-5" />
           </div>
-          <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Mute</span>
+          <span className="text-xs font-semibold text-foreground uppercase tracking-wider">Mute</span>
         </button>
 
-        {/* Main: Pause when active, else Mic */}
+        {/* Main: Mic / processing - solid primary for clarity */}
         <motion.div
           animate={isListening ? { scale: [1, 1.05, 1] } : {}}
           transition={{ repeat: isListening ? Infinity : 0, duration: 2, ease: "easeInOut" }}
@@ -58,10 +58,8 @@ export default function VoiceControls({
             onClick={onMicClick}
             disabled={disabled}
             className={cn(
-              "w-20 h-20 rounded-full shadow-lg transition-all",
-              isActive
-                ? "bg-primary text-primary-foreground shadow-primary/30 hover:scale-105"
-                : "bg-primary text-primary-foreground shadow-primary/30 hover:scale-105"
+              "w-20 h-20 rounded-full bg-[#a16ae8] text-white shadow-lg shadow-[#a16ae8]/35 hover:bg-[#8f5ad4] hover:scale-105 transition-all",
+              isProcessing && "animate-pulse"
             )}
             aria-label={isProcessing ? "Processing" : isSpeaking ? "AI speaking" : isListening ? "Listening" : "Start"}
           >
@@ -83,11 +81,11 @@ export default function VoiceControls({
           <div className="w-14 h-14 rounded-full bg-muted flex items-center justify-center text-muted-foreground group-hover:bg-muted/80 transition-all">
             <Volume2 className="w-5 h-5" />
           </div>
-          <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Speaker</span>
+          <span className="text-xs font-semibold text-foreground uppercase tracking-wider">Speaker</span>
         </button>
       </div>
 
-      <span className="text-xs font-bold text-primary uppercase tracking-widest">Session</span>
+      <span className="text-xs font-bold text-foreground uppercase tracking-widest">Session</span>
 
       {/* Optional: Pause / End */}
       <div className="flex items-center gap-2">
@@ -98,7 +96,7 @@ export default function VoiceControls({
             size="sm"
             onClick={onPause}
             disabled={!sessionActive || disabled}
-            className="rounded-xl gap-1.5 border-primary/20 text-primary hover:bg-primary/10"
+            className="rounded-xl gap-1.5 border-2 border-primary bg-primary/10 text-primary font-semibold hover:bg-primary/20"
           >
             <Pause className="w-4 h-4" /> Pause
           </Button>
@@ -110,7 +108,7 @@ export default function VoiceControls({
             size="sm"
             onClick={onEndSession}
             disabled={!sessionActive || disabled}
-            className="rounded-xl gap-1.5 text-muted-foreground hover:text-destructive"
+            className="rounded-xl gap-1.5 text-foreground/90 hover:text-destructive hover:bg-destructive/10"
           >
             End session
           </Button>

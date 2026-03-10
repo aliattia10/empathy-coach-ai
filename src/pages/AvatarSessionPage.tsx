@@ -142,7 +142,7 @@ export default function AvatarSessionPage() {
           <h1 className="font-display text-foreground text-3xl md:text-4xl font-bold leading-tight mb-2">
             {statusLabel}
           </h1>
-          <p className="text-muted-foreground text-sm max-w-md mx-auto">
+          <p className="text-foreground/80 text-sm max-w-md mx-auto">
             &ldquo;How can I help you with your learning today?&rdquo;
           </p>
         </div>
@@ -160,7 +160,7 @@ export default function AvatarSessionPage() {
             className="rounded-xl gap-1.5"
           >
             {voiceEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
-            <span className="text-xs font-bold uppercase tracking-wider">{voiceEnabled ? "Voice ON" : "Voice off"}</span>
+            <span className="text-xs font-bold text-foreground uppercase tracking-wider">{voiceEnabled ? "Voice ON" : "Voice off"}</span>
           </Button>
         </div>
 

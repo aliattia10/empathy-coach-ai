@@ -22,7 +22,7 @@ export default function ChatTranscript({ messages, className }: ChatTranscriptPr
     >
       <div className="space-y-3">
         {messages.length === 0 ? (
-          <p className="text-sm text-muted-foreground text-center py-6">Conversation will appear here.</p>
+          <p className="text-sm text-foreground/70 text-center py-6">Conversation will appear here.</p>
         ) : (
           messages.map((msg) => (
             <div

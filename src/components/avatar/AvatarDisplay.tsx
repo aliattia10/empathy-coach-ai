@@ -53,7 +53,7 @@ export default function AvatarDisplay({ status = "idle", className }: AvatarDisp
 
       <div className="text-center">
         <p className="font-display font-semibold text-foreground">AI Simulation Partner</p>
-        <p className="text-xs text-muted-foreground mt-0.5 uppercase tracking-wider">{status}</p>
+        <p className="text-sm font-semibold text-foreground mt-0.5 uppercase tracking-wider">{status}</p>
       </div>
     </div>
   );

@@ -10,7 +10,7 @@ export default function DisclaimerBanner() {
       <div className="flex items-center gap-2">
         <Shield className="w-3.5 h-3.5 text-secondary" />
         <span className="font-medium text-foreground">
-          ShiftED AI is a training tool, not a therapeutic service.
+          This AI is a training simulation and not therapy.
         </span>
         <span className="text-muted-foreground hidden sm:inline">
           If you're in crisis: Samaritans 116 123 · NHS 111 · Mind 0300 123 3393

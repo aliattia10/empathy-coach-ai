@@ -1,0 +1,172 @@
+import { useState, useRef, useEffect } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import AvatarDisplay from "@/components/avatar/AvatarDisplay";
+import VoiceControls, { type VoiceState } from "@/components/avatar/VoiceControls";
+import ChatTranscript from "@/components/avatar/ChatTranscript";
+import ScenarioSidebar from "@/components/avatar/ScenarioSidebar";
+import ChatInput from "@/components/chat/ChatInput";
+import { detectCrisis, CRISIS_RESPONSE } from "@/components/safety/CrisisDetector";
+import { useAuth } from "@/hooks/useAuth";
+import { useSpeechSynthesis } from "@/hooks/useSpeechSynthesis";
+import { createChatSession, saveChatMessage } from "@/hooks/useChatSession";
+import { stripMarkdownForSpeech } from "@/lib/speech";
+import { Button } from "@/components/ui/button";
+import { Volume2, VolumeX } from "lucide-react";
+import type { TranscriptMessage } from "@/components/avatar/ChatTranscript";
+
+const INITIAL_MESSAGE: TranscriptMessage = {
+  id: "init",
+  role: "assistant",
+  content: `Welcome! I'm **Alex**, your AI simulation partner.
+
+I'm here to help you practice **constructive feedback** through realistic conversations.
+
+**Tell me about a situation where you need to deliver difficult feedback.** What's happening, and what makes it challenging?`,
+};
+
+function generateFallbackResponse(): string {
+  const responses = [
+    "That's a thoughtful observation. **How do you think your team member would describe this situation?**",
+    "**What specific behavior are you addressing?** Try to separate the person from the action.",
+    "Consider: **Situation — Behavior — Impact.** Can you frame your feedback using these three elements?",
+  ];
+  return responses[Math.floor(Math.random() * responses.length)];
+}
+
+const DEFAULT_SCENARIO = {
+  title: "Constructive Feedback",
+  objective: "Deliver feedback clearly, show empathy, and encourage reflection.",
+  cues: ["Use 'I' statements", "Describe impact, not intent", "Invite their perspective"],
+};
+
+export default function AvatarSessionPage() {
+  const { user } = useAuth();
+  const [messages, setMessages] = useState<TranscriptMessage[]>([INITIAL_MESSAGE]);
+  const [sessionActive, setSessionActive] = useState(true);
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [voiceEnabled, setVoiceEnabled] = useState(true);
+  const [voiceState, setVoiceState] = useState<VoiceState>("idle");
+  const bottomRef = useRef<HTMLDivElement>(null);
+  const { speak, stop, isSpeaking } = useSpeechSynthesis();
+
+  useEffect(() => {
+    if (user && !sessionId) {
+      createChatSession(user.id).then((s) => {
+        setSessionId(s.id);
+        saveChatMessage(s.id, "assistant", INITIAL_MESSAGE.content).catch(console.error);
+      }).catch(console.error);
+    }
+  }, [user, sessionId]);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  useEffect(() => {
+    if (isSpeaking) setVoiceState("speaking");
+    else setVoiceState((s) => (s === "speaking" ? "idle" : s));
+  }, [isSpeaking]);
+
+  const handleSend = async (text: string) => {
+    const userMsg: TranscriptMessage = { id: Date.now().toString(), role: "user", content: text };
+    setMessages((prev) => [...prev, userMsg]);
+    if (sessionId) saveChatMessage(sessionId, "user", text).catch(console.error);
+
+    if (detectCrisis(text)) {
+      const crisisMsg: TranscriptMessage = { id: (Date.now() + 1).toString(), role: "assistant", content: CRISIS_RESPONSE };
+      setMessages((prev) => [...prev, crisisMsg]);
+      if (sessionId) saveChatMessage(sessionId, "assistant", CRISIS_RESPONSE).catch(console.error);
+      return;
+    }
+
+    setVoiceState("processing");
+    const chatHistory = messages.map((m) => ({ role: m.role, content: m.content }));
+
+    try {
+      const response = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userMessage: text, chatHistory }),
+      });
+      const data = await response.json();
+      const content = response.ok ? (data.reply ?? "") : "";
+      const reply: TranscriptMessage = {
+        id: (Date.now() + 1).toString(),
+        role: "assistant",
+        content: content || "I didn't get a response. Please try again.",
+      };
+      setMessages((prev) => [...prev, reply]);
+      if (sessionId) saveChatMessage(sessionId, "assistant", reply.content).catch(console.error);
+      if (voiceEnabled) {
+        const plain = stripMarkdownForSpeech(reply.content);
+        if (plain) setTimeout(() => speak(plain), 300);
+      }
+      setVoiceState("idle");
+    } catch {
+      const content = generateFallbackResponse();
+      const reply: TranscriptMessage = { id: (Date.now() + 1).toString(), role: "assistant", content };
+      setMessages((prev) => [...prev, reply]);
+      if (sessionId) saveChatMessage(sessionId, "assistant", content).catch(console.error);
+      if (voiceEnabled) {
+        const plain = stripMarkdownForSpeech(content);
+        if (plain) setTimeout(() => speak(plain), 300);
+      }
+      setVoiceState("idle");
+    }
+  };
+
+  const avatarStatus = voiceState === "processing" ? "thinking" : voiceState === "speaking" ? "speaking" : voiceState === "listening" ? "listening" : "idle";
+  const progressPercent = messages.length <= 1 ? 0 : Math.min(100, (messages.filter((m) => m.role === "user").length / 5) * 25);
+
+  return (
+    <div className="min-h-[calc(100vh-8rem)] flex flex-col items-center px-4 py-6">
+      <ScenarioSidebar
+        scenarioTitle={DEFAULT_SCENARIO.title}
+        objective={DEFAULT_SCENARIO.objective}
+        cues={DEFAULT_SCENARIO.cues}
+        progressPercent={progressPercent}
+      />
+
+      <div className="flex flex-col items-center gap-6 max-w-2xl w-full">
+        {/* Header with voice toggle */}
+        <div className="flex items-center justify-between w-full">
+          <h2 className="font-display font-semibold text-foreground">Avatar simulation</h2>
+          <Button
+            type="button"
+            variant={voiceEnabled ? "secondary" : "ghost"}
+            size="sm"
+            onClick={() => setVoiceEnabled((v) => !v)}
+            title={voiceEnabled ? "Voice on" : "Voice off"}
+          >
+            {voiceEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
+            <span className="sr-only">{voiceEnabled ? "Voice on" : "Voice off"}</span>
+          </Button>
+        </div>
+
+        {/* Avatar display */}
+        <AvatarDisplay status={avatarStatus} />
+
+        {/* Voice controls */}
+        <VoiceControls
+          state={voiceState}
+          sessionActive={sessionActive}
+          onMicClick={() => setVoiceState((s) => (s === "listening" ? "idle" : "listening"))}
+          onStartSession={() => setSessionActive(true)}
+          onEndSession={() => setSessionActive(false)}
+          disabled={!sessionActive}
+        />
+
+        {/* Transcript */}
+        <div className="w-full">
+          <ChatTranscript messages={messages} />
+          <div ref={bottomRef} />
+        </div>
+
+        {/* Text input for MVP (voice input later) */}
+        <div className="w-full pt-2">
+          <ChatInput onSend={handleSend} disabled={voiceState === "processing"} />
+        </div>
+      </div>
+    </div>
+  );
+}

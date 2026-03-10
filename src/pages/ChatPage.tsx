@@ -5,7 +5,11 @@ import ChatMessage from "@/components/chat/ChatMessage";
 import ChatInput from "@/components/chat/ChatInput";
 import { detectCrisis, CRISIS_RESPONSE } from "@/components/safety/CrisisDetector";
 import { useAuth } from "@/hooks/useAuth";
+import { useSpeechSynthesis } from "@/hooks/useSpeechSynthesis";
 import { createChatSession, saveChatMessage } from "@/hooks/useChatSession";
+import { stripMarkdownForSpeech } from "@/lib/speech";
+import { Button } from "@/components/ui/button";
+import { Volume2, VolumeX } from "lucide-react";
 
 interface Message {
   id: string;
@@ -40,7 +44,9 @@ export default function ChatPage() {
   const [messages, setMessages] = useState<Message[]>([INITIAL_MESSAGE]);
   const [isTyping, setIsTyping] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
+  const [voiceEnabled, setVoiceEnabled] = useState(true);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const { speak, stop, isSpeaking } = useSpeechSynthesis();
 
   // Create a chat session when page loads (if user is logged in)
   useEffect(() => {
@@ -75,7 +81,44 @@ export default function ChatPage() {
     }
 
     setIsTyping(true);
-    setTimeout(async () => {
+
+    // Build chat history for vLLM (role + content only)
+    const chatHistory = messages.map((m) => ({ role: m.role, content: m.content }));
+
+    try {
+      const response = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userMessage: text,
+          chatHistory,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Avatar unavailable");
+      }
+
+      const content = data.reply ?? "";
+      const reply: Message = {
+        id: (Date.now() + 1).toString(),
+        role: "assistant",
+        content: content || "I didn't get a response. Please try again.",
+      };
+      setMessages((prev) => [...prev, reply]);
+
+      if (sessionId) {
+        saveChatMessage(sessionId, "assistant", reply.content).catch(console.error);
+      }
+
+      if (voiceEnabled) {
+        const plain = stripMarkdownForSpeech(content);
+        if (plain) setTimeout(() => speak(plain), 300);
+      }
+    } catch (err) {
+      // Fallback to simulated response when vLLM is unavailable (e.g. dev without backend)
       const content = generateSocraticResponse(text);
       const reply: Message = {
         id: (Date.now() + 1).toString(),
@@ -83,24 +126,40 @@ export default function ChatPage() {
         content,
       };
       setMessages((prev) => [...prev, reply]);
-      setIsTyping(false);
-
-      // Persist assistant message
       if (sessionId) {
         saveChatMessage(sessionId, "assistant", content).catch(console.error);
       }
-    }, 1200 + Math.random() * 800);
+      if (voiceEnabled) {
+        const plain = stripMarkdownForSpeech(content);
+        if (plain) setTimeout(() => speak(plain), 300);
+      }
+    } finally {
+      setIsTyping(false);
+    }
   };
 
   return (
     <div className="flex flex-col h-[calc(100vh-2rem)] md:h-screen">
       <div className="p-4 border-b border-border bg-card">
-        <div className="flex items-center gap-4">
-          <AvatarDisplay speaking={isTyping} />
-          <div>
-            <h2 className="font-display font-semibold text-foreground">Constructive Feedback</h2>
-            <p className="text-xs text-muted-foreground">Practice delivering difficult feedback empathetically</p>
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <AvatarDisplay speaking={isTyping || isSpeaking} />
+            <div>
+              <h2 className="font-display font-semibold text-foreground">Constructive Feedback</h2>
+              <p className="text-xs text-muted-foreground">Practice delivering difficult feedback empathetically</p>
+            </div>
           </div>
+          <Button
+            type="button"
+            variant={voiceEnabled ? "secondary" : "ghost"}
+            size="sm"
+            className="shrink-0"
+            onClick={() => setVoiceEnabled((v) => !v)}
+            title={voiceEnabled ? "Voice on (new replies play aloud)" : "Voice off"}
+          >
+            {voiceEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
+            <span className="sr-only">{voiceEnabled ? "Voice on" : "Voice off"}</span>
+          </Button>
         </div>
       </div>
 
@@ -113,7 +172,13 @@ export default function ChatPage() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.3 }}
             >
-              <ChatMessage role={msg.role} content={msg.content} />
+              <ChatMessage
+                role={msg.role}
+                content={msg.content}
+                onSpeak={speak}
+                onStopSpeaking={stop}
+                isSpeaking={isSpeaking}
+              />
             </motion.div>
           ))}
         </AnimatePresence>

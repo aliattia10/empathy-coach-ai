@@ -6,21 +6,21 @@ import { MessageSquare, ClipboardList, BarChart3, Shield, ArrowRight, Bot } from
 const features = [
   {
     icon: Bot,
-    title: "AI Avatar Coach",
-    desc: "Practice tough conversations with an empathetic AI that uses Socratic questioning.",
-    to: "/chat",
+    title: "Avatar simulation",
+    desc: "Practice with a talking AI partner. Voice-first, with a calm coaching space.",
+    to: "/avatar",
   },
   {
     icon: ClipboardList,
-    title: "Blind Spot Assessment",
-    desc: "Identify gaps in staff satisfaction, legal awareness, and communication.",
-    to: "/survey",
+    title: "Scenarios",
+    desc: "Constructive feedback, conflict, difficult conversations, empathy practice.",
+    to: "/scenarios",
   },
   {
     icon: BarChart3,
-    title: "Organisation Dashboard",
-    desc: "Track anonymised progress across your management team.",
-    to: "/dashboard",
+    title: "Progress & resources",
+    desc: "Track your practice and access support resources.",
+    to: "/progress",
   },
 ];
 
@@ -51,12 +51,12 @@ export default function Index() {
 
           <div className="flex flex-col sm:flex-row gap-3 justify-center mt-8">
             <Button asChild size="lg" className="bg-secondary text-secondary-foreground hover:bg-secondary/90 rounded-xl gap-2 shadow-glow">
-              <Link to="/chat">
-                <MessageSquare className="w-4 h-4" /> Start Practicing <ArrowRight className="w-4 h-4" />
+              <Link to="/avatar">
+                <MessageSquare className="w-4 h-4" /> Start with Avatar <ArrowRight className="w-4 h-4" />
               </Link>
             </Button>
             <Button asChild variant="outline" size="lg" className="rounded-xl border-primary-foreground/20 text-primary-foreground hover:bg-sidebar-accent/30">
-              <Link to="/survey">Take Assessment</Link>
+              <Link to="/onboarding">Short survey</Link>
             </Button>
           </div>
         </motion.div>

@@ -1,13 +1,13 @@
 import { Link, useLocation } from "react-router-dom";
-import { MessageSquare, BarChart3, ClipboardList, Settings, Home } from "lucide-react";
+import { Home, LayoutGrid, Bot, TrendingUp, BookOpen } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const navItems = [
   { to: "/", icon: Home, label: "Home" },
-  { to: "/chat", icon: MessageSquare, label: "Coach" },
-  { to: "/survey", icon: ClipboardList, label: "Assess" },
-  { to: "/dashboard", icon: BarChart3, label: "Stats" },
-  { to: "/settings", icon: Settings, label: "Settings" },
+  { to: "/scenarios", icon: LayoutGrid, label: "Scenarios" },
+  { to: "/avatar", icon: Bot, label: "Avatar" },
+  { to: "/progress", icon: TrendingUp, label: "Progress" },
+  { to: "/resources", icon: BookOpen, label: "Resources" },
 ];
 
 export default function MobileNav() {

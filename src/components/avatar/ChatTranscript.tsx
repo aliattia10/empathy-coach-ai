@@ -16,8 +16,7 @@ export default function ChatTranscript({ messages, className }: ChatTranscriptPr
   return (
     <div
       className={cn(
-        "rounded-2xl border border-white/50 shadow-glass p-4 min-h-[160px] max-h-[280px] overflow-y-auto",
-        "glass-panel",
+        "rounded-2xl min-h-[160px] max-h-[280px] overflow-y-auto space-y-3",
         className
       )}
     >

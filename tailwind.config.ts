@@ -77,11 +77,19 @@ export default {
           DEFAULT: "hsl(var(--teal))",
           light: "hsl(var(--teal-light))",
         },
+        "background-light": "#f8f6f6",
+        "background-dark": "#221610",
       },
       borderRadius: {
-        lg: "var(--radius)",
-        md: "calc(var(--radius) - 2px)",
-        sm: "calc(var(--radius) - 4px)",
+        DEFAULT: "0.25rem",
+        lg: "0.5rem",
+        xl: "0.75rem",
+        "2xl": "1rem",
+        "3xl": "24px",
+        full: "9999px",
+      },
+      fontFamily: {
+        display: ["Public Sans", "Inter", "sans-serif"],
       },
       keyframes: {
         "accordion-down": {

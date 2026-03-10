@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { Mic, Square, Play, Pause, RotateCcw } from "lucide-react";
+import { Mic, MicOff, Volume2, Pause } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -9,7 +9,8 @@ interface VoiceControlsProps {
   state: VoiceState;
   sessionActive: boolean;
   onMicClick: () => void;
-  onStartSession?: () => void;
+  onMute?: () => void;
+  onSpeaker?: () => void;
   onPause?: () => void;
   onEndSession?: () => void;
   disabled?: boolean;
@@ -19,7 +20,8 @@ export default function VoiceControls({
   state,
   sessionActive,
   onMicClick,
-  onStartSession,
+  onMute,
+  onSpeaker,
   onPause,
   onEndSession,
   disabled,
@@ -31,72 +33,64 @@ export default function VoiceControls({
 
   return (
     <div className="flex flex-col items-center gap-4">
-      {/* Large mic button */}
-      <motion.div
-        className="relative"
-        animate={
-          isListening
-            ? { scale: [1, 1.08, 1] }
-            : isSpeaking
-              ? { scale: [1, 1.04, 1] }
-              : {}
-        }
-        transition={{ repeat: Infinity, duration: 2, ease: "easeInOut" }}
-      >
-        <Button
+      <div className="flex items-center justify-between gap-6 w-full max-w-sm">
+        {/* Mute */}
+        <button
           type="button"
-          size="icon"
-          onClick={onMicClick}
-          disabled={disabled}
-          className={cn(
-            "h-20 w-20 rounded-full shadow-elevated transition-all duration-300",
-            isListening && "bg-primary ring-4 ring-primary/30",
-            isProcessing && "bg-muted animate-pulse",
-            isSpeaking && "bg-secondary",
-            !isActive && "gradient-hero text-primary-foreground hover:opacity-90"
-          )}
-          aria-label={
-            isListening ? "Listening" : isProcessing ? "Processing" : isSpeaking ? "AI speaking" : "Start speaking"
-          }
+          onClick={onMute}
+          className="flex flex-col items-center gap-2 group"
+          aria-label="Mute"
         >
-          {isProcessing ? (
-            <span className="w-8 h-8 rounded-full border-2 border-primary-foreground border-t-transparent animate-spin" />
-          ) : (
-            <Mic className={cn("w-9 h-9", isListening && "animate-pulse")} />
-          )}
-        </Button>
-        {isListening && (
-          <motion.div
-            className="absolute inset-0 rounded-full border-2 border-primary"
-            animate={{ scale: [1, 1.4], opacity: [0.5, 0] }}
-            transition={{ repeat: Infinity, duration: 1.5, ease: "easeOut" }}
-            style={{ pointerEvents: "none" }}
-          />
-        )}
-      </motion.div>
+          <div className="w-14 h-14 rounded-full bg-muted flex items-center justify-center text-muted-foreground group-hover:bg-muted/80 transition-all">
+            <MicOff className="w-5 h-5" />
+          </div>
+          <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Mute</span>
+        </button>
 
-      <p className="text-sm text-muted-foreground capitalize">
-        {state === "idle" && !sessionActive && "Tap mic or start session"}
-        {state === "idle" && sessionActive && "Ready"}
-        {state === "listening" && "Listening…"}
-        {state === "processing" && "Thinking…"}
-        {state === "speaking" && "AI speaking"}
-      </p>
-
-      {/* Session controls */}
-      <div className="flex items-center gap-2">
-        {onStartSession && (
+        {/* Main: Pause when active, else Mic */}
+        <motion.div
+          animate={isListening ? { scale: [1, 1.05, 1] } : {}}
+          transition={{ repeat: isListening ? Infinity : 0, duration: 2, ease: "easeInOut" }}
+        >
           <Button
             type="button"
-            variant="outline"
-            size="sm"
-            onClick={onStartSession}
-            disabled={sessionActive || disabled}
-            className="rounded-xl gap-1.5"
+            size="icon"
+            onClick={onMicClick}
+            disabled={disabled}
+            className={cn(
+              "w-20 h-20 rounded-full shadow-lg transition-all",
+              isActive
+                ? "bg-primary text-primary-foreground shadow-primary/30 hover:scale-105"
+                : "bg-primary text-primary-foreground shadow-primary/30 hover:scale-105"
+            )}
+            aria-label={isProcessing ? "Processing" : isSpeaking ? "AI speaking" : isListening ? "Listening" : "Start"}
           >
-            <Play className="w-4 h-4" /> Start session
+            {isProcessing ? (
+              <span className="w-8 h-8 rounded-full border-2 border-primary-foreground border-t-transparent animate-spin" />
+            ) : (
+              <Mic className={cn("w-9 h-9", isListening && "animate-pulse")} />
+            )}
           </Button>
-        )}
+        </motion.div>
+
+        {/* Speaker */}
+        <button
+          type="button"
+          onClick={onSpeaker}
+          className="flex flex-col items-center gap-2 group"
+          aria-label="Speaker"
+        >
+          <div className="w-14 h-14 rounded-full bg-muted flex items-center justify-center text-muted-foreground group-hover:bg-muted/80 transition-all">
+            <Volume2 className="w-5 h-5" />
+          </div>
+          <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Speaker</span>
+        </button>
+      </div>
+
+      <span className="text-xs font-bold text-primary uppercase tracking-widest">Session</span>
+
+      {/* Optional: Pause / End */}
+      <div className="flex items-center gap-2">
         {onPause && (
           <Button
             type="button"
@@ -104,7 +98,7 @@ export default function VoiceControls({
             size="sm"
             onClick={onPause}
             disabled={!sessionActive || disabled}
-            className="rounded-xl gap-1.5"
+            className="rounded-xl gap-1.5 border-primary/20 text-primary hover:bg-primary/10"
           >
             <Pause className="w-4 h-4" /> Pause
           </Button>
@@ -118,7 +112,7 @@ export default function VoiceControls({
             disabled={!sessionActive || disabled}
             className="rounded-xl gap-1.5 text-muted-foreground hover:text-destructive"
           >
-            <RotateCcw className="w-4 h-4" /> End simulation
+            End session
           </Button>
         )}
       </div>

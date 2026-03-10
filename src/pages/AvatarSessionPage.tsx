@@ -118,6 +118,8 @@ export default function AvatarSessionPage() {
   const avatarStatus = voiceState === "processing" ? "thinking" : voiceState === "speaking" ? "speaking" : voiceState === "listening" ? "listening" : "idle";
   const progressPercent = messages.length <= 1 ? 0 : Math.min(100, (messages.filter((m) => m.role === "user").length / 5) * 25);
 
+  const statusLabel = avatarStatus === "thinking" ? "Thinking..." : avatarStatus === "speaking" ? "Speaking..." : avatarStatus === "listening" ? "Listening..." : "Ready";
+
   return (
     <div className="min-h-[calc(100vh-8rem)] flex flex-col items-center px-4 py-6">
       <ScenarioSidebar
@@ -127,43 +129,59 @@ export default function AvatarSessionPage() {
         progressPercent={progressPercent}
       />
 
-      <div className="flex flex-col items-center gap-6 max-w-2xl w-full">
-        {/* Header with voice toggle */}
-        <div className="flex items-center justify-between w-full">
-          <h2 className="font-display font-semibold text-foreground">Avatar simulation</h2>
+      <div className="flex flex-col items-center gap-8 max-w-2xl w-full">
+        {/* Live Session badge + status */}
+        <div className="text-center">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 text-primary text-xs font-bold uppercase tracking-widest mb-4">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75" />
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-primary" />
+            </span>
+            Live Session
+          </div>
+          <h1 className="font-display text-foreground text-3xl md:text-4xl font-bold leading-tight mb-2">
+            {statusLabel}
+          </h1>
+          <p className="text-muted-foreground text-sm max-w-md mx-auto">
+            &ldquo;How can I help you with your learning today?&rdquo;
+          </p>
+        </div>
+
+        {/* Abstract minimalist avatar */}
+        <AvatarDisplay status={avatarStatus} />
+
+        {/* Voice toggle */}
+        <div className="flex items-center gap-2">
           <Button
             type="button"
             variant={voiceEnabled ? "secondary" : "ghost"}
             size="sm"
             onClick={() => setVoiceEnabled((v) => !v)}
-            title={voiceEnabled ? "Voice on" : "Voice off"}
+            className="rounded-xl gap-1.5"
           >
             {voiceEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
-            <span className="sr-only">{voiceEnabled ? "Voice on" : "Voice off"}</span>
+            <span className="text-xs font-bold uppercase tracking-wider">{voiceEnabled ? "Voice ON" : "Voice off"}</span>
           </Button>
         </div>
 
-        {/* Avatar display */}
-        <AvatarDisplay status={avatarStatus} />
-
-        {/* Voice controls */}
+        {/* Session controls: Mute | Mic/Pause | Speaker */}
         <VoiceControls
           state={voiceState}
           sessionActive={sessionActive}
           onMicClick={() => setVoiceState((s) => (s === "listening" ? "idle" : "listening"))}
-          onStartSession={() => setSessionActive(true)}
+          onPause={() => setSessionActive(false)}
           onEndSession={() => setSessionActive(false)}
           disabled={!sessionActive}
         />
 
-        {/* Transcript */}
-        <div className="w-full">
+        {/* Transcript in glass card */}
+        <div className="w-full glass rounded-2xl p-6 border border-primary/5">
           <ChatTranscript messages={messages} />
           <div ref={bottomRef} />
         </div>
 
-        {/* Text input for MVP (voice input later) */}
-        <div className="w-full pt-2">
+        {/* Text input */}
+        <div className="w-full">
           <ChatInput onSend={handleSend} disabled={voiceState === "processing"} />
         </div>
       </div>

@@ -10,64 +10,50 @@ interface AvatarDisplayProps {
 
 export default function AvatarDisplay({ status = "idle", className }: AvatarDisplayProps) {
   const isActive = status === "listening" || status === "thinking" || status === "speaking";
-  const isPulsing = status === "speaking";
+  const isSpeaking = status === "speaking";
 
   return (
     <div className={cn("flex flex-col items-center gap-4", className)}>
-      {/* Large circular container - gradient orb placeholder (avatar-ready) */}
-      <div className="relative">
-        {/* Breathing glow */}
-        <motion.div
-          className="absolute inset-0 rounded-full bg-gradient-to-br from-[#7C6CF3] via-[#A16AE8] to-[#C770D6] opacity-40 blur-2xl"
-          animate={
-            isActive
-              ? { scale: [1, 1.15, 1], opacity: [0.3, 0.5, 0.3] }
-              : { scale: [1, 1.05, 1], opacity: [0.25, 0.35, 0.25] }
-          }
-          transition={{ repeat: Infinity, duration: 3, ease: "easeInOut" }}
-        />
-        {/* Orb / silhouette - future: replace with talking avatar, lip sync, expressions */}
-        <motion.div
-          className="relative w-40 h-40 rounded-full gradient-hero flex items-center justify-center shadow-elevated border-2 border-white/20"
-          animate={
-            isPulsing
-              ? { scale: [1, 1.03, 1] }
-              : isActive
-                ? { scale: [1, 1.02, 1] }
-                : {}
-          }
-          transition={{
-            repeat: isActive ? Infinity : 0,
-            duration: 1.2,
-            ease: "easeInOut",
-          }}
-        >
-          {/* Waveform ripple when speaking */}
-          {status === "speaking" && (
-            <>
-              {[0, 1, 2].map((i) => (
-                <motion.div
-                  key={i}
-                  className="absolute inset-0 rounded-full border-2 border-primary-foreground/40"
-                  animate={{ scale: [1, 1.25], opacity: [0.5, 0] }}
-                  transition={{
-                    repeat: Infinity,
-                    duration: 1.5,
-                    delay: i * 0.25,
-                    ease: "easeOut",
-                  }}
-                />
-              ))}
-            </>
-          )}
-          {/* Inner soft circle - placeholder for face/avatar asset */}
-          <div className="w-24 h-24 rounded-full bg-white/10 flex items-center justify-center" />
-        </motion.div>
+      {/* Outer decorative voice rings */}
+      <div className="relative flex items-center justify-center w-64 h-64 md:w-80 md:h-80">
+        <div className="absolute inset-0 rounded-full voice-ring scale-110 opacity-10" />
+        <div className="absolute inset-0 rounded-full voice-ring scale-125 opacity-5" />
+
+        {/* Glassmorphic face circle */}
+        <div className="relative w-full h-full rounded-full glass shadow-2xl flex flex-col items-center justify-center overflow-hidden border border-primary/20">
+          {/* Abstract face: two eyes */}
+          <div className="flex gap-12 mb-8">
+            <motion.div
+              className="w-4 h-4 rounded-full bg-primary shadow-[0_0_15px_rgba(161,106,232,0.5)]"
+              animate={isSpeaking ? { scale: [1, 1.2, 1], opacity: [1, 0.8, 1] } : {}}
+              transition={{ repeat: isSpeaking ? Infinity : 0, duration: 0.6 }}
+            />
+            <motion.div
+              className="w-4 h-4 rounded-full bg-primary shadow-[0_0_15px_rgba(161,106,232,0.5)]"
+              animate={isSpeaking ? { scale: [1, 1.2, 1], opacity: [1, 0.8, 1] } : {}}
+              transition={{ repeat: isSpeaking ? Infinity : 0, duration: 0.6, delay: 0.1 }}
+            />
+          </div>
+          {/* Mouth: animated line */}
+          <div className="w-24 h-1 bg-gradient-to-r from-transparent via-primary to-transparent rounded-full opacity-80" />
+          {/* Waveform overlay (subtle) */}
+          <div className="absolute bottom-10 flex items-end gap-1 h-8">
+            <div className="w-1 bg-primary/40 rounded-full h-4" />
+            <div className="w-1 bg-primary/60 rounded-full h-6" />
+            <motion.div
+              className="w-1 bg-primary rounded-full h-8"
+              animate={isActive ? { scaleY: [1, 1.2, 1] } : {}}
+              transition={{ repeat: isActive ? Infinity : 0, duration: 0.6 }}
+            />
+            <div className="w-1 bg-primary/60 rounded-full h-5" />
+            <div className="w-1 bg-primary/40 rounded-full h-3" />
+          </div>
+        </div>
       </div>
 
       <div className="text-center">
         <p className="font-display font-semibold text-foreground">AI Simulation Partner</p>
-        <p className="text-xs text-muted-foreground mt-0.5 capitalize">{status}</p>
+        <p className="text-xs text-muted-foreground mt-0.5 uppercase tracking-wider">{status}</p>
       </div>
     </div>
   );

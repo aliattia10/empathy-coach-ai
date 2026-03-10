@@ -92,11 +92,10 @@ export default function VoiceControls({
         {onPause && (
           <Button
             type="button"
-            variant="outline"
             size="sm"
             onClick={onPause}
             disabled={!sessionActive || disabled}
-            className="rounded-xl gap-1.5 border-2 border-primary bg-primary/10 text-primary font-semibold hover:bg-primary/20"
+            className="rounded-xl gap-1.5 bg-[#a16ae8] text-white font-semibold hover:bg-[#8f5ad4] shadow-md"
           >
             <Pause className="w-4 h-4" /> Pause
           </Button>

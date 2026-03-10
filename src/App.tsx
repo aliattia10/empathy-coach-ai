@@ -18,6 +18,7 @@ import ScenariosPage from "./pages/ScenariosPage";
 import ProgressPage from "./pages/ProgressPage";
 import ResourcesPage from "./pages/ResourcesPage";
 import OnboardingPage from "./pages/OnboardingPage";
+import LoginPage from "./pages/LoginPage";
 
 const queryClient = new QueryClient();
 
@@ -45,6 +46,7 @@ const App = () => {
               <Route path="/progress" element={<ProgressPage />} />
               <Route path="/resources" element={<ResourcesPage />} />
               <Route path="/onboarding" element={<OnboardingPage />} />
+              <Route path="/login" element={<LoginPage />} />
               <Route path="/chat" element={<ChatPage />} />
               <Route path="/survey" element={<SurveyPage />} />
               <Route path="/dashboard" element={<DashboardPage />} />

@@ -42,7 +42,7 @@ export default function Index() {
 
           <h1 className="text-4xl md:text-5xl font-display font-bold text-primary-foreground leading-tight">
             Build empathetic leaders,<br />
-            <span className="text-secondary">one conversation at a time</span>
+            <span className="text-white">one conversation at a time</span>
           </h1>
 
           <p className="mt-4 text-primary-foreground/70 text-lg max-w-lg mx-auto leading-relaxed">
@@ -55,7 +55,7 @@ export default function Index() {
                 <MessageSquare className="w-4 h-4" /> Start with Avatar <ArrowRight className="w-4 h-4" />
               </Link>
             </Button>
-            <Button asChild variant="outline" size="lg" className="rounded-xl border-primary-foreground/20 text-primary-foreground hover:bg-sidebar-accent/30">
+            <Button asChild variant="outline" size="lg" className="rounded-xl bg-white/95 border-white/40 text-[#2d2d3a] hover:bg-white hover:border-white font-semibold shadow-md">
               <Link to="/onboarding">Short survey</Link>
             </Button>
           </div>

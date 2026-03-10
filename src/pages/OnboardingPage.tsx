@@ -2,11 +2,21 @@ import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import OnboardingSurvey from "@/components/avatar/OnboardingSurvey";
 import type { OnboardingAnswers } from "@/components/avatar/OnboardingSurvey";
+import { useAuth } from "@/hooks/useAuth";
+import { saveOnboardingResponses } from "@/hooks/useSurveyResults";
 
 export default function OnboardingPage() {
   const navigate = useNavigate();
+  const { user } = useAuth();
 
-  const handleComplete = (_answers: OnboardingAnswers) => {
+  const handleComplete = async (answers: OnboardingAnswers) => {
+    if (user?.id) {
+      try {
+        await saveOnboardingResponses(user.id, answers);
+      } catch (e) {
+        console.error("Failed to save onboarding to Supabase:", e);
+      }
+    }
     localStorage.setItem("shifted_onboarding_done", "true");
     navigate("/scenarios");
   };

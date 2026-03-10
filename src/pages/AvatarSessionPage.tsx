@@ -8,6 +8,7 @@ import ChatInput from "@/components/chat/ChatInput";
 import { detectCrisis, CRISIS_RESPONSE } from "@/components/safety/CrisisDetector";
 import { useAuth } from "@/hooks/useAuth";
 import { useSpeechSynthesis } from "@/hooks/useSpeechSynthesis";
+import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
 import { createChatSession, saveChatMessage } from "@/hooks/useChatSession";
 import { stripMarkdownForSpeech } from "@/lib/speech";
 import { Button } from "@/components/ui/button";
@@ -47,7 +48,22 @@ export default function AvatarSessionPage() {
   const [voiceEnabled, setVoiceEnabled] = useState(true);
   const [voiceState, setVoiceState] = useState<VoiceState>("idle");
   const bottomRef = useRef<HTMLDivElement>(null);
+  const handleSendRef = useRef<(text: string) => void>(() => {});
   const { speak, stop, isSpeaking } = useSpeechSynthesis();
+
+  const {
+    isListening: isRecognitionListening,
+    displayTranscript,
+    error: recognitionError,
+    start: startRecognition,
+    stop: stopRecognition,
+    supported: recognitionSupported,
+  } = useSpeechRecognition({
+    onFinalTranscript: (text) => {
+      handleSendRef.current?.(text);
+      stopRecognition();
+    },
+  });
 
   useEffect(() => {
     if (user && !sessionId) {
@@ -114,6 +130,21 @@ export default function AvatarSessionPage() {
       setVoiceState("idle");
     }
   };
+  handleSendRef.current = handleSend;
+
+  const onMicClick = () => {
+    if (voiceState === "listening") {
+      stopRecognition();
+      setVoiceState("idle");
+    } else if (sessionActive && voiceState !== "processing" && voiceState !== "speaking") {
+      if (recognitionSupported) {
+        startRecognition();
+        setVoiceState("listening");
+      } else {
+        setVoiceState("idle");
+      }
+    }
+  };
 
   const avatarStatus = voiceState === "processing" ? "thinking" : voiceState === "speaking" ? "speaking" : voiceState === "listening" ? "listening" : "idle";
   const progressPercent = messages.length <= 1 ? 0 : Math.min(100, (messages.filter((m) => m.role === "user").length / 5) * 25);
@@ -168,11 +199,32 @@ export default function AvatarSessionPage() {
         <VoiceControls
           state={voiceState}
           sessionActive={sessionActive}
-          onMicClick={() => setVoiceState((s) => (s === "listening" ? "idle" : "listening"))}
+          onMicClick={onMicClick}
           onPause={() => setSessionActive(false)}
           onEndSession={() => setSessionActive(false)}
           disabled={!sessionActive}
         />
+
+        {/* Live transcription: verify mic and Avatar/voice session */}
+        <div className="w-full rounded-xl border border-primary/20 bg-primary/5 px-4 py-3">
+          <p className="text-xs font-semibold text-foreground uppercase tracking-wider mb-1.5">Live transcription</p>
+          {!recognitionSupported && (
+            <p className="text-sm text-muted-foreground">Use Chrome or Edge to see your speech as text and test the mic.</p>
+          )}
+          {recognitionSupported && (
+            <>
+              {recognitionError && (
+                <p className="text-sm text-destructive mb-1">{recognitionError}</p>
+              )}
+              <p className="text-sm text-foreground min-h-[1.5rem]">
+                {isRecognitionListening && !displayTranscript && "Listening… speak now."}
+                {displayTranscript && <span className="text-muted-foreground">You&apos;re saying: </span>}
+                {displayTranscript && <span className="font-medium">{displayTranscript}</span>}
+                {!isRecognitionListening && !displayTranscript && !recognitionError && "Click the mic to speak; your words appear here and are sent when you pause."}
+              </p>
+            </>
+          )}
+        </div>
 
         {/* Transcript in glass card */}
         <div className="w-full glass rounded-2xl p-6 border border-primary/5">

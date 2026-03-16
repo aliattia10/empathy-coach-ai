@@ -20,7 +20,7 @@ export default function ProgressPage() {
           Track your practice sessions, strengths, and areas to develop. Coming soon.
         </p>
         <Button asChild variant="outline" className="rounded-xl gap-2" size="lg">
-          <Link to="/dashboard">
+          <Link to="/testing/dashboard">
             View dashboard <ArrowRight className="w-4 h-4" />
           </Link>
         </Button>

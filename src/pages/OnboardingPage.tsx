@@ -18,12 +18,12 @@ export default function OnboardingPage() {
       }
     }
     localStorage.setItem("shifted_onboarding_done", "true");
-    navigate("/scenarios");
+    navigate("/testing/scenarios");
   };
 
   const handleSkip = () => {
     localStorage.setItem("shifted_onboarding_done", "true");
-    navigate("/avatar");
+    navigate("/testing/avatar");
   };
 
   return (

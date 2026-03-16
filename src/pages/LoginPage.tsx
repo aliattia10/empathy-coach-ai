@@ -25,12 +25,12 @@ export default function LoginPage() {
         const { error } = await supabase.auth.signUp({ email: email.trim(), password });
         if (error) throw error;
         toast.success("Check your email to confirm your account.");
-        navigate("/");
+        navigate("/testing");
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
         if (error) throw error;
         toast.success("Signed in.");
-        navigate("/");
+        navigate("/testing");
       }
     } catch (err: any) {
       toast.error(err?.message || "Something went wrong.");
@@ -85,7 +85,7 @@ export default function LoginPage() {
           {isSignUp ? "Already have an account? Sign in" : "No account? Sign up"}
         </button>
         <p className="mt-4 text-center">
-          <Link to="/" className="text-sm text-primary hover:underline">Back to Home</Link>
+          <Link to="/testing" className="text-sm text-primary hover:underline">Back to Home</Link>
         </p>
       </div>
     </div>

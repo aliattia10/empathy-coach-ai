@@ -1,5 +1,9 @@
 # Test LLM + Voice
 
+**Where to set the OpenRouter key:** See **`docs/ENV-VARIABLES-AND-NETLIFY.md`** (section “Link OpenRouter API”) for Netlify vs local `.env`. Never put the key in a file committed to GitHub.
+
+---
+
 ## Live on Netlify
 
 On Netlify, the chat API runs as a **serverless function** and reads env vars from the Netlify dashboard.

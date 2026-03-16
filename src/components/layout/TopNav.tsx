@@ -5,11 +5,11 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 
 const navTabs = [
-  { to: "/", icon: Home, label: "Home" },
-  { to: "/scenarios", icon: LayoutGrid, label: "Scenarios" },
-  { to: "/avatar", icon: Bot, label: "Avatar" },
-  { to: "/progress", icon: TrendingUp, label: "Progress" },
-  { to: "/resources", icon: BookOpen, label: "Resources" },
+  { to: "/testing", icon: Home, label: "Home" },
+  { to: "/testing/scenarios", icon: LayoutGrid, label: "Scenarios" },
+  { to: "/testing/avatar", icon: Bot, label: "Avatar" },
+  { to: "/testing/progress", icon: TrendingUp, label: "Progress" },
+  { to: "/testing/resources", icon: BookOpen, label: "Resources" },
 ];
 
 export default function TopNav() {
@@ -23,7 +23,7 @@ export default function TopNav() {
   return (
     <header className="glass-nav sticky top-0 z-40 w-full">
       <div className="container flex h-14 items-center justify-between px-4">
-        <Link to="/" className="flex items-center gap-2 font-display font-bold text-white tracking-tight">
+        <Link to="/testing" className="flex items-center gap-2 font-display font-bold text-white tracking-tight">
           <img src="/logo.png" alt="" className="h-8 w-8 rounded-lg object-contain" aria-hidden />
           <span className="text-lg">ShiftED</span>
           <span className="text-lg text-white/90">AI</span>
@@ -31,7 +31,7 @@ export default function TopNav() {
 
         <nav className="hidden md:flex items-center gap-1">
           {navTabs.map((item) => {
-            const active = location.pathname === item.to || (item.to !== "/" && location.pathname.startsWith(item.to));
+            const active = location.pathname === item.to || (item.to !== "/testing" && location.pathname.startsWith(item.to));
             return (
               <Link
                 key={item.to}
@@ -67,14 +67,14 @@ export default function TopNav() {
             </>
           ) : (
             <Link
-              to="/login"
+              to="/testing/login"
               className="flex items-center gap-2 px-3 py-2 rounded-xl text-white/90 hover:text-white hover:bg-white/10 transition-colors border border-white/10 text-sm font-medium"
             >
               <LogIn className="w-4 h-4" /> Sign in
             </Link>
           )}
           <Link
-            to="/settings"
+            to="/testing/settings"
             className="p-2 rounded-xl text-white/80 hover:text-white hover:bg-white/10 transition-colors border border-white/10"
             aria-label="Profile and settings"
           >

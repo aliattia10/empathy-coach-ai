@@ -3,11 +3,11 @@ import { Home, LayoutGrid, Bot, TrendingUp, BookOpen } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const navItems = [
-  { to: "/", icon: Home, label: "Home" },
-  { to: "/scenarios", icon: LayoutGrid, label: "Scenarios" },
-  { to: "/avatar", icon: Bot, label: "Avatar" },
-  { to: "/progress", icon: TrendingUp, label: "Progress" },
-  { to: "/resources", icon: BookOpen, label: "Resources" },
+  { to: "/testing", icon: Home, label: "Home" },
+  { to: "/testing/scenarios", icon: LayoutGrid, label: "Scenarios" },
+  { to: "/testing/avatar", icon: Bot, label: "Avatar" },
+  { to: "/testing/progress", icon: TrendingUp, label: "Progress" },
+  { to: "/testing/resources", icon: BookOpen, label: "Resources" },
 ];
 
 export default function MobileNav() {

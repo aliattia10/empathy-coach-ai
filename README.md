@@ -1,73 +1,47 @@
-# Welcome to your Lovable project
+# ShiftED AI — Empathy Training for Managers
 
-## Project info
+Practice-based empathy and critical thinking training for first-time managers using AI avatars. **Not therapy.**
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
+## Structure
 
-## How can I edit this code?
+- **`/`** — Main landing page (ShiftED AI platform).
+- **`/testing`** — Testing area: Avatar, Scenarios, Progress, Resources, onboarding, login, and all current features.
 
-There are several ways of editing your application.
-
-**Use Lovable**
-
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
-
-Changes made via Lovable will be committed automatically to this repo.
-
-**Use your preferred IDE**
-
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
+## Run locally
 
 ```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
+npm install
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+Open the URL shown (e.g. http://localhost:8080). Use **Go to Testing** or **Enter Testing** to open the app at `/testing`.
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+### Backend (for chat/LLM)
 
-**Use GitHub Codespaces**
+```sh
+cd server
+npm install
+cp .env.example .env
+# Set LLM_API_KEY (e.g. OpenRouter) in server/.env
+node server.js
+```
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+See `docs/ENV-VARIABLES-AND-NETLIFY.md` and `docs/TEST-LLM-AND-VOICE.md` for OpenRouter and env setup.
 
-## What technologies are used for this project?
+## Deploy (Netlify)
 
-This project is built with:
+- Build: `npm run build` — publish `dist`.
+- Set env vars in Netlify (e.g. `LLM_API_KEY`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`). See `docs/ENV-VARIABLES-AND-NETLIFY.md`.
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+## Tech
 
-## How can I deploy this project?
+- Vite, React, TypeScript, Tailwind CSS, shadcn/ui
+- Supabase (auth, survey, chat storage)
+- Netlify (hosting + serverless chat function)
 
-Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
+## Docs
 
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+- `docs/ENV-VARIABLES-AND-NETLIFY.md` — Env vars and OpenRouter
+- `docs/TEST-LLM-AND-VOICE.md` — Test LLM and voice
+- `docs/NEXT-STEPS-AND-BUDGET.md` — Cloud, voice, avatar roadmap
+- `docs/HOW-TO-START-TRAINING-THE-MODEL.md` — Fine-tune with OpenRouter + Supabase

@@ -8,19 +8,19 @@ const features = [
     icon: Bot,
     title: "Avatar simulation",
     desc: "Practice with a talking AI partner. Voice-first, with a calm coaching space.",
-    to: "/avatar",
+    to: "/testing/avatar",
   },
   {
     icon: ClipboardList,
     title: "Scenarios",
     desc: "Constructive feedback, conflict, difficult conversations, empathy practice.",
-    to: "/scenarios",
+    to: "/testing/scenarios",
   },
   {
     icon: BarChart3,
     title: "Progress & resources",
     desc: "Track your practice and access support resources.",
-    to: "/progress",
+    to: "/testing/progress",
   },
 ];
 
@@ -51,12 +51,12 @@ export default function Index() {
 
           <div className="flex flex-col sm:flex-row gap-3 justify-center mt-8">
             <Button asChild size="lg" className="bg-secondary text-secondary-foreground hover:bg-secondary/90 rounded-xl gap-2 shadow-glow">
-              <Link to="/avatar">
+              <Link to="/testing/avatar">
                 <MessageSquare className="w-4 h-4" /> Start with Avatar <ArrowRight className="w-4 h-4" />
               </Link>
             </Button>
             <Button asChild variant="outline" size="lg" className="rounded-xl bg-white/95 border-white/40 text-[#2d2d3a] hover:bg-white hover:border-white font-semibold shadow-md">
-              <Link to="/onboarding">Short survey</Link>
+              <Link to="/testing/onboarding">Short survey</Link>
             </Button>
           </div>
         </motion.div>

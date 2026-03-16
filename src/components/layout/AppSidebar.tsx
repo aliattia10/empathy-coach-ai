@@ -3,11 +3,11 @@ import { MessageSquare, BarChart3, ClipboardList, Settings, Home, Shield } from 
 import { cn } from "@/lib/utils";
 
 const navItems = [
-  { to: "/", icon: Home, label: "Home" },
-  { to: "/chat", icon: MessageSquare, label: "AI Coach" },
-  { to: "/survey", icon: ClipboardList, label: "Assessments" },
-  { to: "/dashboard", icon: BarChart3, label: "Dashboard" },
-  { to: "/settings", icon: Settings, label: "Settings" },
+  { to: "/testing", icon: Home, label: "Home" },
+  { to: "/testing/chat", icon: MessageSquare, label: "AI Coach" },
+  { to: "/testing/survey", icon: ClipboardList, label: "Assessments" },
+  { to: "/testing/dashboard", icon: BarChart3, label: "Dashboard" },
+  { to: "/testing/settings", icon: Settings, label: "Settings" },
 ];
 
 export default function AppSidebar() {

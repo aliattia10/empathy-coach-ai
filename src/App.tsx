@@ -6,6 +6,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import AppLayout from "@/components/layout/AppLayout";
 import GDPRConsentModal from "@/components/safety/GDPRConsentModal";
+import MainLandingPage from "./pages/MainLandingPage";
 import Index from "./pages/Index";
 import ChatPage from "./pages/ChatPage";
 import SurveyPage from "./pages/SurveyPage";
@@ -38,19 +39,20 @@ const App = () => {
         <GDPRConsentModal open={!consented} onConsent={handleConsent} />
         <BrowserRouter>
           <Routes>
-            <Route element={<AppLayout />}>
-              <Route path="/" element={<Index />} />
-              <Route path="/scenarios" element={<ScenariosPage />} />
-              <Route path="/avatar" element={<AvatarPage />} />
-              <Route path="/avatar/session" element={<AvatarSessionPage />} />
-              <Route path="/progress" element={<ProgressPage />} />
-              <Route path="/resources" element={<ResourcesPage />} />
-              <Route path="/onboarding" element={<OnboardingPage />} />
-              <Route path="/login" element={<LoginPage />} />
-              <Route path="/chat" element={<ChatPage />} />
-              <Route path="/survey" element={<SurveyPage />} />
-              <Route path="/dashboard" element={<DashboardPage />} />
-              <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/" element={<MainLandingPage />} />
+            <Route path="/testing" element={<AppLayout />}>
+              <Route index element={<Index />} />
+              <Route path="scenarios" element={<ScenariosPage />} />
+              <Route path="avatar" element={<AvatarPage />} />
+              <Route path="avatar/session" element={<AvatarSessionPage />} />
+              <Route path="progress" element={<ProgressPage />} />
+              <Route path="resources" element={<ResourcesPage />} />
+              <Route path="onboarding" element={<OnboardingPage />} />
+              <Route path="login" element={<LoginPage />} />
+              <Route path="chat" element={<ChatPage />} />
+              <Route path="survey" element={<SurveyPage />} />
+              <Route path="dashboard" element={<DashboardPage />} />
+              <Route path="settings" element={<SettingsPage />} />
             </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>

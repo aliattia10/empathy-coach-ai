@@ -23,12 +23,12 @@ export default function AvatarPage() {
         </p>
         <div className="flex flex-col sm:flex-row gap-3 justify-center pt-4">
           <Button asChild size="lg" className="rounded-xl gap-2 gradient-hero text-primary-foreground hover:opacity-90">
-            <Link to="/avatar/session">
+            <Link to="/testing/avatar/session">
               <Bot className="w-5 h-5" /> Start avatar session <ArrowRight className="w-5 h-5" />
             </Link>
           </Button>
           <Button asChild variant="outline" size="lg" className="rounded-xl gap-2">
-            <Link to="/scenarios">
+            <Link to="/testing/scenarios">
               <LayoutGrid className="w-5 h-5" /> Choose scenario
             </Link>
           </Button>

@@ -23,3 +23,6 @@ server/.env
 *.njsproj
 *.sln
 *.sw?
+
+# Cloned landing page repo (reference only)
+shifted-landing-temp/

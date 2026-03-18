@@ -57,8 +57,8 @@ export default function MainLandingPage() {
                 </Link>
               </Button>
               <Button asChild variant="outline" size="lg" className="rounded-xl bg-white/10 border-white/30 text-white hover:bg-white/20 font-semibold">
-                <Link to="/testing/avatar">
-                  <MessageSquare className="w-5 h-5" /> Try Avatar
+                <Link to="/testing/login">
+                  <MessageSquare className="w-5 h-5" /> Sign in to start
                 </Link>
               </Button>
             </div>
@@ -66,22 +66,12 @@ export default function MainLandingPage() {
         </section>
 
         <section className="px-6 py-16 max-w-4xl mx-auto">
-          <h2 className="font-display text-2xl font-bold text-foreground text-center mb-8">What you can do in Testing</h2>
-          <div className="grid md:grid-cols-3 gap-6">
-            <Link to="/testing/avatar" className="block p-6 rounded-2xl bg-card border border-border hover:shadow-elevated transition-shadow text-center">
+          <h2 className="font-display text-2xl font-bold text-foreground text-center mb-8">Current testing focus</h2>
+          <div className="grid md:grid-cols-1 gap-6 max-w-xl mx-auto">
+            <Link to="/testing/login" className="block p-6 rounded-2xl bg-card border border-border hover:shadow-elevated transition-shadow text-center">
               <MessageSquare className="w-10 h-10 mx-auto mb-3 text-[#a16ae8]" />
-              <h3 className="font-display font-semibold text-foreground mb-1">Avatar</h3>
-              <p className="text-sm text-muted-foreground">Voice-first practice with an AI partner.</p>
-            </Link>
-            <Link to="/testing/scenarios" className="block p-6 rounded-2xl bg-card border border-border hover:shadow-elevated transition-shadow text-center">
-              <span className="text-2xl mb-3 block">📋</span>
-              <h3 className="font-display font-semibold text-foreground mb-1">Scenarios</h3>
-              <p className="text-sm text-muted-foreground">Feedback, conflict, difficult conversations.</p>
-            </Link>
-            <Link to="/testing/progress" className="block p-6 rounded-2xl bg-card border border-border hover:shadow-elevated transition-shadow text-center">
-              <span className="text-2xl mb-3 block">📈</span>
-              <h3 className="font-display font-semibold text-foreground mb-1">Progress & Resources</h3>
-              <p className="text-sm text-muted-foreground">Track practice and access support.</p>
+              <h3 className="font-display font-semibold text-foreground mb-1">One guided session</h3>
+              <p className="text-sm text-muted-foreground">Sign in, practice a difficult feedback conversation, and help us collect training data.</p>
             </Link>
           </div>
           <p className="text-center mt-8">

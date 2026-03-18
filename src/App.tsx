@@ -1,24 +1,15 @@
 import { useState } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import AppLayout from "@/components/layout/AppLayout";
 import GDPRConsentModal from "@/components/safety/GDPRConsentModal";
+import RequireAuth from "@/components/auth/RequireAuth";
 import MainLandingPage from "./pages/MainLandingPage";
-import Index from "./pages/Index";
-import ChatPage from "./pages/ChatPage";
-import SurveyPage from "./pages/SurveyPage";
-import DashboardPage from "./pages/DashboardPage";
-import SettingsPage from "./pages/SettingsPage";
 import NotFound from "./pages/NotFound";
-import AvatarPage from "./pages/AvatarPage";
 import AvatarSessionPage from "./pages/AvatarSessionPage";
-import ScenariosPage from "./pages/ScenariosPage";
-import ProgressPage from "./pages/ProgressPage";
-import ResourcesPage from "./pages/ResourcesPage";
-import OnboardingPage from "./pages/OnboardingPage";
 import LoginPage from "./pages/LoginPage";
 
 const queryClient = new QueryClient();
@@ -40,19 +31,13 @@ const App = () => {
         <BrowserRouter>
           <Routes>
             <Route path="/" element={<MainLandingPage />} />
-            <Route path="/testing" element={<AppLayout />}>
-              <Route index element={<Index />} />
-              <Route path="scenarios" element={<ScenariosPage />} />
-              <Route path="avatar" element={<AvatarPage />} />
-              <Route path="avatar/session" element={<AvatarSessionPage />} />
-              <Route path="progress" element={<ProgressPage />} />
-              <Route path="resources" element={<ResourcesPage />} />
-              <Route path="onboarding" element={<OnboardingPage />} />
-              <Route path="login" element={<LoginPage />} />
-              <Route path="chat" element={<ChatPage />} />
-              <Route path="survey" element={<SurveyPage />} />
-              <Route path="dashboard" element={<DashboardPage />} />
-              <Route path="settings" element={<SettingsPage />} />
+            <Route path="/testing/login" element={<LoginPage />} />
+            <Route path="/testing" element={<RequireAuth />}>
+              <Route element={<AppLayout />}>
+                <Route index element={<Navigate to="/testing/avatar/session" replace />} />
+                <Route path="avatar/session" element={<AvatarSessionPage />} />
+                <Route path="*" element={<Navigate to="/testing/avatar/session" replace />} />
+              </Route>
             </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>

@@ -1,15 +1,11 @@
 import { Link, useLocation } from "react-router-dom";
-import { Home, LayoutGrid, Bot, TrendingUp, BookOpen, User, LogIn, LogOut } from "lucide-react";
+import { Bot, LogIn, LogOut, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 
 const navTabs = [
-  { to: "/testing", icon: Home, label: "Home" },
-  { to: "/testing/scenarios", icon: LayoutGrid, label: "Scenarios" },
-  { to: "/testing/avatar", icon: Bot, label: "Avatar" },
-  { to: "/testing/progress", icon: TrendingUp, label: "Progress" },
-  { to: "/testing/resources", icon: BookOpen, label: "Resources" },
+  { to: "/testing/avatar/session", icon: Bot, label: "Session" },
 ];
 
 export default function TopNav() {
@@ -73,13 +69,15 @@ export default function TopNav() {
               <LogIn className="w-4 h-4" /> Sign in
             </Link>
           )}
-          <Link
-            to="/testing/settings"
-            className="p-2 rounded-xl text-white/80 hover:text-white hover:bg-white/10 transition-colors border border-white/10"
-            aria-label="Profile and settings"
-          >
-            <User className="w-5 h-5" />
-          </Link>
+          {user ? (
+            <Link
+              to="/testing/avatar/session"
+              className="p-2 rounded-xl text-white/80 hover:text-white hover:bg-white/10 transition-colors border border-white/10"
+              aria-label="Session"
+            >
+              <User className="w-5 h-5" />
+            </Link>
+          ) : null}
         </div>
       </div>
     </header>

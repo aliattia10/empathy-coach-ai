@@ -10,6 +10,7 @@ import RequireAuth from "@/components/auth/RequireAuth";
 import MainLandingPage from "./pages/MainLandingPage";
 import NotFound from "./pages/NotFound";
 import AvatarSessionPage from "./pages/AvatarSessionPage";
+import AdminAccessPage from "./pages/AdminAccessPage";
 import LoginPage from "./pages/LoginPage";
 
 const queryClient = new QueryClient();
@@ -31,6 +32,7 @@ const App = () => {
         <BrowserRouter>
           <Routes>
             <Route path="/" element={<MainLandingPage />} />
+            <Route path="/testing/admin" element={<AdminAccessPage />} />
             <Route path="/testing/login" element={<LoginPage />} />
             <Route path="/testing" element={<RequireAuth />}>
               <Route element={<AppLayout />}>

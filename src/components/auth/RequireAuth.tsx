@@ -1,5 +1,6 @@
 import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
+import { hasAdminAccess } from "@/pages/AdminAccessPage";
 
 export default function RequireAuth() {
   const { user, loading } = useAuth();
@@ -13,7 +14,7 @@ export default function RequireAuth() {
     );
   }
 
-  if (!user) {
+  if (!user && !hasAdminAccess()) {
     return <Navigate to="/testing/login" replace state={{ from: location.pathname }} />;
   }
 

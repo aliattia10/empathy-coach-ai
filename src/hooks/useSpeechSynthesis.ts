@@ -8,6 +8,10 @@ export function useSpeechSynthesis() {
     if (typeof window === "undefined" || !window.speechSynthesis) return;
     window.speechSynthesis.cancel();
     const u = new SpeechSynthesisUtterance(text);
+    u.lang = "en-GB"; // Force English so voice is not Spanish when system/browser is Spanish
+    const voices = window.speechSynthesis.getVoices();
+    const enVoice = voices.find((v) => v.lang.startsWith("en"));
+    if (enVoice) u.voice = enVoice;
     u.rate = 0.95;
     u.pitch = 1;
     u.volume = 1;

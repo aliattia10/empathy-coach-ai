@@ -42,9 +42,12 @@ Add these so the **live site** works:
 
 | Variable | Required | Description |
 |----------|----------|-------------|
+| **LLM_PROVIDER** | No | LLM backend provider. Use `openrouter` (default) or `groq`. |
 | **LLM_API_KEY** | Yes (for chat) | OpenRouter API key (or other open-source LLM provider). Used by the serverless `/api/chat` function. |
 | **VLLM_API_URL** | No (has default) | Chat API URL. Default: `https://openrouter.ai/api/v1/chat/completions`. |
 | **VLLM_MODEL** | No (has default) | Model id, e.g. `meta-llama/llama-3.2-3b-instruct:free`. |
+| **GROQ_API_KEY** | Only if `LLM_PROVIDER=groq` | Groq API key. Used by the serverless `/api/chat` function when using Groq. |
+| **GROQ_MODEL** | Only if `LLM_PROVIDER=groq` | Groq model id. Default: `llama-3.1-8b-instant`. |
 | **VITE_SUPABASE_URL** | Yes | Supabase project URL, e.g. `https://YOUR_PROJECT_REF.supabase.co`. Needed for auth, survey, chat storage. |
 | **VITE_SUPABASE_PUBLISHABLE_KEY** | Yes | Supabase anon/public key. Needed for auth and Supabase client in the browser. |
 
@@ -77,9 +80,15 @@ VITE_SUPABASE_PUBLISHABLE_KEY=your-anon-key
 ### `server/.env` (local backend / LLM)
 
 ```env
+LLM_PROVIDER=openrouter
 VLLM_API_URL=https://openrouter.ai/api/v1/chat/completions
 LLM_API_KEY=your-openrouter-api-key
 VLLM_MODEL=meta-llama/llama-3.2-3b-instruct:free
+
+# If using Groq instead of OpenRouter:
+# LLM_PROVIDER=groq
+# GROQ_API_KEY=your-groq-api-key
+# GROQ_MODEL=llama-3.1-8b-instant
 ```
 
 ### Scripts (generate data, export Supabase)

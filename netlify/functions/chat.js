@@ -37,28 +37,58 @@ exports.handler = async (event) => {
   const messages = [SYSTEM_PROMPT, ...history, { role: "user", content: userMessage }];
 
   const apiKey = process.env.LLM_API_KEY;
-  const headers = { "Content-Type": "application/json" };
-  if (apiKey) headers["Authorization"] = `Bearer ${apiKey}`;
+  if (!apiKey || apiKey.trim() === "") {
+    console.error("LLM not connected: LLM_API_KEY is not set in Netlify environment variables. Add it in Site configuration → Environment variables, then trigger a new deploy.");
+    return {
+      statusCode: 503,
+      body: JSON.stringify({ error: "Avatar is currently unavailable. (API key not configured.)" }),
+    };
+  }
 
-  try {
-    const res = await fetch(VLLM_API_URL, {
+  const headers = {
+    "Content-Type": "application/json",
+    "Authorization": `Bearer ${apiKey.trim()}`,
+  };
+
+  const model = process.env.VLLM_MODEL || "meta-llama/llama-3.2-3b-instruct:free";
+  const payload = {
+    model,
+    messages,
+    temperature: Number(process.env.VLLM_TEMPERATURE) || 0.7,
+    max_tokens: Number(process.env.VLLM_MAX_TOKENS) || 500,
+  };
+  const timeoutMs = Number(process.env.VLLM_TIMEOUT_MS) || 60000;
+
+  const doRequest = () =>
+    fetch(VLLM_API_URL, {
       method: "POST",
       headers,
-      body: JSON.stringify({
-        model: process.env.VLLM_MODEL || "meta-llama/llama-3.2-3b-instruct:free",
-        messages,
-        temperature: Number(process.env.VLLM_TEMPERATURE) || 0.7,
-        max_tokens: Number(process.env.VLLM_MAX_TOKENS) || 500,
-      }),
-      signal: AbortSignal.timeout(Number(process.env.VLLM_TIMEOUT_MS) || 60000),
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(timeoutMs),
     });
+
+  try {
+    let res = await doRequest();
+
+    // On 429 (rate limit), retry once after a short delay
+    if (res.status === 429) {
+      const waitMs = 2000;
+      console.warn("OpenRouter 429 rate limit, retrying in", waitMs, "ms");
+      await new Promise((r) => setTimeout(r, waitMs));
+      res = await doRequest();
+    }
 
     if (!res.ok) {
       const errText = await res.text();
-      console.error("LLM error:", res.status, errText);
+      console.error("OpenRouter error:", res.status, "URL:", VLLM_API_URL, "model:", model, "body:", errText);
+      const isRateLimit = res.status === 429;
       return {
-        statusCode: 500,
-        body: JSON.stringify({ error: "Avatar is currently unavailable." }),
+        statusCode: isRateLimit ? 429 : 502,
+        body: JSON.stringify({
+          error: isRateLimit
+            ? "The AI is in high demand. Please try again in a moment."
+            : "Avatar is currently unavailable. (LLM provider error.)",
+        }),
       };
     }
 
@@ -70,10 +100,10 @@ exports.handler = async (event) => {
       body: JSON.stringify({ reply }),
     };
   } catch (err) {
-    console.error("Error connecting to LLM:", err.message);
+    console.error("Error connecting to LLM:", err.message, "stack:", err.stack);
     return {
-      statusCode: 500,
-      body: JSON.stringify({ error: "Avatar is currently unavailable." }),
+      statusCode: 502,
+      body: JSON.stringify({ error: "Avatar is currently unavailable. (Network or server error.)" }),
     };
   }
 };

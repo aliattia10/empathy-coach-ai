@@ -105,7 +105,9 @@ export default function AvatarSessionPage() {
         body: JSON.stringify({ userMessage: text, chatHistory }),
       });
       const data = await response.json();
-      const content = response.ok ? (data.reply ?? "") : "";
+      const content = response.ok
+        ? (data.reply ?? "")
+        : (typeof data.error === "string" ? data.error : "");
       const reply: TranscriptMessage = {
         id: (Date.now() + 1).toString(),
         role: "assistant",

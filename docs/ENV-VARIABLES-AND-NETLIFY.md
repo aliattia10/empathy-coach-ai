@@ -112,6 +112,38 @@ After that, the live site will have both **chat (OpenRouter/open-source LLM)** a
 
 ---
 
+## If chat still fails (500 / “I didn’t get a response”)
+
+1. **Redeploy after changing env vars**  
+   Netlify functions only see environment variables from the deploy that was active when they ran. After adding or editing **LLM_API_KEY** (or any var), go to **Deploys** → **Trigger deploy** → **Deploy site** so the chat function gets the new values.
+
+2. **Variable name must be exact**  
+   The chat function expects **`LLM_API_KEY`** (not `OPENROUTER_API_KEY` or `VLLM_API_KEY`). In Netlify → Environment variables, the key must be exactly `LLM_API_KEY`.
+
+3. **Check function logs**  
+   In Netlify → **Logs** (or **Functions** → select the chat function → **Logs**), look for messages such as:
+   - `LLM not connected: LLM_API_KEY is not set` → add the key and redeploy.
+   - `OpenRouter error: 401 ...` → invalid or expired API key; create a new key at openrouter.ai and update **LLM_API_KEY**.
+   - `OpenRouter error: 404 ...` → wrong **VLLM_MODEL**; use a valid model id from [OpenRouter models](https://openrouter.ai/docs#models), e.g. `meta-llama/llama-3.2-3b-instruct:free`.
+
+4. **OpenRouter Activity shows 0 requests**  
+   That usually means the request never reaches OpenRouter: either **LLM_API_KEY** is missing/empty in the deploy, or the function crashes before `fetch`. Fix env + redeploy and check Netlify function logs as above.
+
+---
+
+## 429 Rate limit (free model “temporarily rate-limited”)
+
+If the logs show **OpenRouter error: 429** and a message like *"meta-llama/llama-3.2-3b-instruct:free is temporarily rate-limited upstream"*:
+
+- **What it means:** The free model on OpenRouter has a shared rate limit; when traffic is high, requests are throttled.
+- **What we do:** The chat function **retries once** after 2 seconds when it gets a 429. If it still gets 429, the user sees: *"The AI is in high demand. Please try again in a moment."*
+- **What you can do:**
+  1. **Try again shortly** — Limits usually reset after a short time.
+  2. **Use another free model** — In Netlify set **VLLM_MODEL** to a different [OpenRouter free model](https://openrouter.ai/docs#models) (e.g. another listed free model), then redeploy.
+  3. **Add your own key (BYOK)** — At [OpenRouter → Settings → Integrations](https://openrouter.ai/settings/integrations) you can add your own provider key (e.g. OpenAI, Anthropic). That can give you better rate limits for the same or other models.
+
+---
+
 ## See also
 
 - **Root:** `.env.example` — Supabase vars for frontend; copy to `.env` for local dev.

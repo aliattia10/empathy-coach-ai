@@ -49,6 +49,7 @@ export default function AvatarSessionPage() {
   const [voiceState, setVoiceState] = useState<VoiceState>("idle");
   const bottomRef = useRef<HTMLDivElement>(null);
   const handleSendRef = useRef<(text: string) => void>(() => {});
+  const pendingSpeakTimeoutRef = useRef<number | null>(null);
   const { speak, stop, isSpeaking } = useSpeechSynthesis();
 
   const {
@@ -77,6 +78,16 @@ export default function AvatarSessionPage() {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  useEffect(() => {
+    return () => {
+      if (pendingSpeakTimeoutRef.current !== null) {
+        window.clearTimeout(pendingSpeakTimeoutRef.current);
+        pendingSpeakTimeoutRef.current = null;
+      }
+      stop();
+    };
+  }, [stop]);
 
   useEffect(() => {
     if (isSpeaking) setVoiceState("speaking");
@@ -117,7 +128,13 @@ export default function AvatarSessionPage() {
       if (sessionId) saveChatMessage(sessionId, "assistant", reply.content).catch(console.error);
       if (voiceEnabled) {
         const plain = stripMarkdownForSpeech(reply.content);
-        if (plain) setTimeout(() => speak(plain), 300);
+        if (plain) {
+          if (pendingSpeakTimeoutRef.current !== null) window.clearTimeout(pendingSpeakTimeoutRef.current);
+          pendingSpeakTimeoutRef.current = window.setTimeout(() => {
+            speak(plain);
+            pendingSpeakTimeoutRef.current = null;
+          }, 300);
+        }
       }
       setVoiceState("idle");
     } catch {
@@ -127,7 +144,13 @@ export default function AvatarSessionPage() {
       if (sessionId) saveChatMessage(sessionId, "assistant", content).catch(console.error);
       if (voiceEnabled) {
         const plain = stripMarkdownForSpeech(content);
-        if (plain) setTimeout(() => speak(plain), 300);
+        if (plain) {
+          if (pendingSpeakTimeoutRef.current !== null) window.clearTimeout(pendingSpeakTimeoutRef.current);
+          pendingSpeakTimeoutRef.current = window.setTimeout(() => {
+            speak(plain);
+            pendingSpeakTimeoutRef.current = null;
+          }, 300);
+        }
       }
       setVoiceState("idle");
     }
@@ -146,6 +169,33 @@ export default function AvatarSessionPage() {
         setVoiceState("idle");
       }
     }
+  };
+
+  const stopAllAudioNow = () => {
+    if (pendingSpeakTimeoutRef.current !== null) {
+      window.clearTimeout(pendingSpeakTimeoutRef.current);
+      pendingSpeakTimeoutRef.current = null;
+    }
+    stop();
+    stopRecognition();
+    setVoiceState((s) => (s === "speaking" || s === "listening" ? "idle" : s));
+  };
+
+  const handleVoiceToggle = () => {
+    setVoiceEnabled((prev) => {
+      const next = !prev;
+      if (!next) stopAllAudioNow();
+      return next;
+    });
+  };
+
+  const handleMuteClick = () => {
+    stopAllAudioNow();
+    setVoiceEnabled(false);
+  };
+
+  const handleSpeakerClick = () => {
+    stopAllAudioNow();
   };
 
   const avatarStatus = voiceState === "processing" ? "thinking" : voiceState === "speaking" ? "speaking" : voiceState === "listening" ? "listening" : "idle";
@@ -189,7 +239,7 @@ export default function AvatarSessionPage() {
             type="button"
             variant={voiceEnabled ? "secondary" : "ghost"}
             size="sm"
-            onClick={() => setVoiceEnabled((v) => !v)}
+            onClick={handleVoiceToggle}
             className="rounded-xl gap-1.5"
           >
             {voiceEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
@@ -202,8 +252,16 @@ export default function AvatarSessionPage() {
           state={voiceState}
           sessionActive={sessionActive}
           onMicClick={onMicClick}
-          onPause={() => setSessionActive(false)}
-          onEndSession={() => setSessionActive(false)}
+          onMute={handleMuteClick}
+          onSpeaker={handleSpeakerClick}
+          onPause={() => {
+            stopAllAudioNow();
+            setSessionActive(false);
+          }}
+          onEndSession={() => {
+            stopAllAudioNow();
+            setSessionActive(false);
+          }}
           disabled={!sessionActive}
         />
 

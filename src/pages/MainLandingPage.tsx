@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
-import { MessageSquare, Shield, ArrowRight, FlaskConical } from "lucide-react";
+import { MessageSquare, Shield, ArrowRight } from "lucide-react";
 
 /**
  * Main landing page (/) — ShiftED AI platform.
@@ -19,10 +19,10 @@ export default function MainLandingPage() {
             <span className="text-lg text-white/90">AI</span>
           </Link>
           <Link
-            to="/testing"
+            to="/testing/login"
             className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/15 text-white hover:bg-white/25 text-sm font-medium transition-colors"
           >
-            <FlaskConical className="w-4 h-4" /> Go to Testing
+            Sign in / Sign up
           </Link>
         </div>
       </header>
@@ -52,8 +52,8 @@ export default function MainLandingPage() {
 
             <div className="flex flex-col sm:flex-row gap-4 justify-center mt-10">
               <Button asChild size="lg" className="bg-white text-[#2d2d3a] hover:bg-white/95 rounded-xl gap-2 shadow-lg font-semibold">
-                <Link to="/testing">
-                  <FlaskConical className="w-5 h-5" /> Enter Testing <ArrowRight className="w-5 h-5" />
+                <Link to="/testing/login">
+                  Sign in / Sign up <ArrowRight className="w-5 h-5" />
                 </Link>
               </Button>
               <Button asChild variant="outline" size="lg" className="rounded-xl bg-white/10 border-white/30 text-white hover:bg-white/20 font-semibold">
@@ -75,7 +75,7 @@ export default function MainLandingPage() {
             </Link>
           </div>
           <p className="text-center mt-8">
-            <Link to="/testing" className="text-[#a16ae8] font-medium hover:underline">Go to Testing →</Link>
+            <Link to="/testing/login" className="text-[#a16ae8] font-medium hover:underline">Sign in / Sign up →</Link>
           </p>
         </section>
       </main>

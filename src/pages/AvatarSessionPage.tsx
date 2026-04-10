@@ -9,7 +9,7 @@ import { detectCrisis, CRISIS_RESPONSE } from "@/components/safety/CrisisDetecto
 import { useAuth } from "@/hooks/useAuth";
 import { useSpeechSynthesis } from "@/hooks/useSpeechSynthesis";
 import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
-import { createChatSession, saveChatMessage } from "@/hooks/useChatSession";
+import { createChatSession, fetchChatHistory, fetchUserSessions, saveChatMessage } from "@/hooks/useChatSession";
 import { stripMarkdownForSpeech } from "@/lib/speech";
 import { Button } from "@/components/ui/button";
 import { Volume2, VolumeX } from "lucide-react";
@@ -45,6 +45,9 @@ export default function AvatarSessionPage() {
   const [messages, setMessages] = useState<TranscriptMessage[]>([INITIAL_MESSAGE]);
   const [sessionActive, setSessionActive] = useState(true);
   const [sessionId, setSessionId] = useState<string | null>(null);
+  const [isSessionLoading, setIsSessionLoading] = useState(true);
+  const [showSessionChoice, setShowSessionChoice] = useState(false);
+  const [lastSessionId, setLastSessionId] = useState<string | null>(null);
   const [voiceEnabled, setVoiceEnabled] = useState(true);
   const [voiceState, setVoiceState] = useState<VoiceState>("idle");
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -67,13 +70,87 @@ export default function AvatarSessionPage() {
   });
 
   useEffect(() => {
-    if (user && !sessionId) {
-      createChatSession(user.id).then((s) => {
-        setSessionId(s.id);
-        saveChatMessage(s.id, "assistant", INITIAL_MESSAGE.content).catch(console.error);
-      }).catch(console.error);
-    }
+    let isMounted = true;
+
+    const bootstrapSession = async () => {
+      if (!isMounted) return;
+
+      if (!user) {
+        setIsSessionLoading(false);
+        setShowSessionChoice(false);
+        return;
+      }
+
+      try {
+        setIsSessionLoading(true);
+        const sessions = await fetchUserSessions(user.id);
+        if (!isMounted) return;
+
+        if (sessions.length > 0) {
+          setLastSessionId(sessions[0].id);
+          setShowSessionChoice(true);
+        } else {
+          const s = await createChatSession(user.id);
+          if (!isMounted) return;
+          setSessionId(s.id);
+          await saveChatMessage(s.id, "assistant", INITIAL_MESSAGE.content);
+        }
+      } catch (err) {
+        console.error(err);
+      } finally {
+        if (isMounted) setIsSessionLoading(false);
+      }
+    };
+
+    if (!sessionId) bootstrapSession();
+
+    return () => {
+      isMounted = false;
+    };
   }, [user, sessionId]);
+
+  const startNewSession = async () => {
+    if (!user) return;
+    try {
+      setIsSessionLoading(true);
+      const s = await createChatSession(user.id);
+      setSessionId(s.id);
+      setMessages([INITIAL_MESSAGE]);
+      await saveChatMessage(s.id, "assistant", INITIAL_MESSAGE.content);
+      setShowSessionChoice(false);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsSessionLoading(false);
+    }
+  };
+
+  const continueLastSession = async () => {
+    if (!lastSessionId) return;
+    try {
+      setIsSessionLoading(true);
+      const history = await fetchChatHistory(lastSessionId);
+      const restored: TranscriptMessage[] = history.map((m) => ({
+        id: m.id,
+        role: m.role as "user" | "assistant",
+        content: m.content,
+      }));
+
+      setSessionId(lastSessionId);
+      setMessages(restored.length > 0 ? restored : [INITIAL_MESSAGE]);
+
+      // Ensure at least one assistant starter message exists in an empty/restored session.
+      if (restored.length === 0) {
+        await saveChatMessage(lastSessionId, "assistant", INITIAL_MESSAGE.content);
+      }
+      setShowSessionChoice(false);
+    } catch (err) {
+      console.error(err);
+      setShowSessionChoice(false);
+    } finally {
+      setIsSessionLoading(false);
+    }
+  };
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -95,6 +172,8 @@ export default function AvatarSessionPage() {
   }, [isSpeaking]);
 
   const handleSend = async (text: string) => {
+    if (showSessionChoice || isSessionLoading) return;
+
     const userMsg: TranscriptMessage = { id: Date.now().toString(), role: "user", content: text };
     setMessages((prev) => [...prev, userMsg]);
     if (sessionId) saveChatMessage(sessionId, "user", text).catch(console.error);
@@ -158,6 +237,8 @@ export default function AvatarSessionPage() {
   handleSendRef.current = handleSend;
 
   const onMicClick = () => {
+    if (showSessionChoice || isSessionLoading) return;
+
     if (voiceState === "listening") {
       stopRecognition();
       setVoiceState("idle");
@@ -288,13 +369,32 @@ export default function AvatarSessionPage() {
 
         {/* Transcript in glass card */}
         <div className="w-full glass rounded-2xl p-6 border border-primary/5">
+          {showSessionChoice && (
+            <div className="mb-4 rounded-xl border border-border bg-card p-4">
+              <p className="text-sm font-semibold text-foreground mb-3">
+                Continue your last session or start a new one?
+              </p>
+              <div className="flex gap-2">
+                <Button type="button" size="sm" onClick={continueLastSession} disabled={isSessionLoading}>
+                  Continue last session
+                </Button>
+                <Button type="button" size="sm" variant="outline" onClick={startNewSession} disabled={isSessionLoading}>
+                  Start new session
+                </Button>
+              </div>
+            </div>
+          )}
+
           <ChatTranscript messages={messages} />
           <div ref={bottomRef} />
         </div>
 
         {/* Text input */}
         <div className="w-full">
-          <ChatInput onSend={handleSend} disabled={voiceState === "processing"} />
+          <ChatInput
+            onSend={handleSend}
+            disabled={voiceState === "processing" || showSessionChoice || isSessionLoading}
+          />
         </div>
       </div>
     </div>

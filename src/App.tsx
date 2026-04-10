@@ -7,10 +7,11 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import AppLayout from "@/components/layout/AppLayout";
 import GDPRConsentModal from "@/components/safety/GDPRConsentModal";
 import RequireAuth from "@/components/auth/RequireAuth";
+import RequireAdmin from "@/components/auth/RequireAdmin";
 import MainLandingPage from "./pages/MainLandingPage";
 import NotFound from "./pages/NotFound";
 import AvatarSessionPage from "./pages/AvatarSessionPage";
-import AdminAccessPage from "./pages/AdminAccessPage";
+import AdminChatPage from "./pages/AdminChatPage";
 import LoginPage from "./pages/LoginPage";
 
 const queryClient = new QueryClient();
@@ -32,8 +33,14 @@ const App = () => {
         <BrowserRouter>
           <Routes>
             <Route path="/" element={<MainLandingPage />} />
-            <Route path="/testing/admin" element={<AdminAccessPage />} />
             <Route path="/testing/login" element={<LoginPage />} />
+            <Route path="/adminchat" element={<RequireAuth />}>
+              <Route element={<RequireAdmin />}>
+                <Route element={<AppLayout />}>
+                  <Route index element={<AdminChatPage />} />
+                </Route>
+              </Route>
+            </Route>
             <Route path="/testing" element={<RequireAuth />}>
               <Route element={<AppLayout />}>
                 <Route index element={<Navigate to="/testing/avatar/session" replace />} />

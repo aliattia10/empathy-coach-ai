@@ -56,11 +56,6 @@ export default function MainLandingPage() {
                   Sign in / Sign up <ArrowRight className="w-5 h-5" />
                 </Link>
               </Button>
-              <Button asChild variant="outline" size="lg" className="rounded-xl bg-white/10 border-white/30 text-white hover:bg-white/20 font-semibold">
-                <Link to="/testing/login">
-                  <MessageSquare className="w-5 h-5" /> Sign in to start
-                </Link>
-              </Button>
             </div>
           </motion.div>
         </section>

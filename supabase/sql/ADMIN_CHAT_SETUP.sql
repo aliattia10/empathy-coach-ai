@@ -47,31 +47,42 @@ as $$
   );
 $$;
 
+-- Joshua-only admin monitor: must NOT reference auth.users directly in the policy
+-- (authenticated role cannot SELECT auth.users — it breaks all users' chat queries).
+create or replace function public.is_josh_admin_chat_monitor()
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1
+    from auth.users u
+    where u.id = auth.uid()
+      and lower(coalesce(u.email, '')) = 'josh@admin.com'
+  )
+  and exists (
+    select 1
+    from public.user_roles r
+    where r.user_id = auth.uid()
+      and r.role = 'admin'::public.app_role
+  );
+$$;
+
+grant execute on function public.is_josh_admin_chat_monitor() to authenticated;
+
 drop policy if exists "Admins can view all sessions" on public.chat_sessions;
 create policy "Admins can view all sessions"
   on public.chat_sessions
   for select
-  using (
-    public.has_role(auth.uid(), 'admin')
-    and exists (
-      select 1 from auth.users u
-      where u.id = auth.uid()
-        and lower(u.email) = 'josh@admin.com'
-    )
-  );
+  using (public.is_josh_admin_chat_monitor());
 
 drop policy if exists "Admins can view all messages" on public.chat_messages;
 create policy "Admins can view all messages"
   on public.chat_messages
   for select
-  using (
-    public.has_role(auth.uid(), 'admin')
-    and exists (
-      select 1 from auth.users u
-      where u.id = auth.uid()
-        and lower(u.email) = 'josh@admin.com'
-    )
-  );
+  using (public.is_josh_admin_chat_monitor());
 
 -- Remove admin role from everyone except josh@admin.com
 delete from public.user_roles

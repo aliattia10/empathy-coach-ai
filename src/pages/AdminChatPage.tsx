@@ -4,6 +4,16 @@ import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { cn } from "@/lib/utils";
+import { jsPDF } from "jspdf";
 
 type SessionRow = {
   id: string;
@@ -19,6 +29,27 @@ type MessageRow = {
   created_at: string;
 };
 
+type UserRow = {
+  userId: string;
+  displayName: string | null;
+  sessionCount: number;
+  lastActivity: string;
+};
+
+function shortUserId(userId: string) {
+  return userId.length > 12 ? `${userId.slice(0, 8)}…` : userId;
+}
+
+function chunkArray<T>(arr: T[], size: number): T[][] {
+  return Array.from({ length: Math.ceil(arr.length / size) }, (_, i) =>
+    arr.slice(i * size, i * size + size),
+  );
+}
+
+function sanitizeFilename(value: string) {
+  return value.replace(/[\\/:*?"<>|]/g, "_");
+}
+
 const DEFAULT_ADMIN_CHAT_PASSWORD = "123josh*1";
 const ONLY_ADMIN_EMAIL = "josh@admin.com";
 
@@ -32,10 +63,14 @@ export default function AdminChatPage() {
   const [hasAdminRole, setHasAdminRole] = useState(false);
   const [checkingRole, setCheckingRole] = useState(true);
   const [sessions, setSessions] = useState<SessionRow[]>([]);
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const [messages, setMessages] = useState<MessageRow[]>([]);
+  const [profileNames, setProfileNames] = useState<Record<string, string | null>>({});
   const [loadingSessions, setLoadingSessions] = useState(false);
   const [loadingMessages, setLoadingMessages] = useState(false);
+  const [exportingSingle, setExportingSingle] = useState(false);
+  const [exportingAll, setExportingAll] = useState(false);
 
   const expectedPassword = useMemo(
     () => import.meta.env.VITE_ADMIN_CHAT_PASSWORD || DEFAULT_ADMIN_CHAT_PASSWORD,
@@ -73,7 +108,7 @@ export default function AdminChatPage() {
         .from("chat_sessions")
         .select("id,user_id,scenario,created_at")
         .order("created_at", { ascending: false })
-        .limit(200);
+        .limit(2000);
       setLoadingSessions(false);
       if (error) return;
       setSessions((data || []) as SessionRow[]);
@@ -81,6 +116,35 @@ export default function AdminChatPage() {
 
     loadSessions();
   }, [unlocked, hasAdminRole]);
+
+  useEffect(() => {
+    if (!unlocked || !hasAdminRole || sessions.length === 0) {
+      setProfileNames({});
+      return;
+    }
+
+    const ids = [...new Set(sessions.map((s) => s.user_id))];
+
+    let cancelled = false;
+    (async () => {
+      const map: Record<string, string | null> = {};
+      for (const part of chunkArray(ids, 100)) {
+        const { data, error } = await supabase
+          .from("profiles")
+          .select("user_id, display_name")
+          .in("user_id", part);
+        if (error || cancelled) break;
+        for (const row of data || []) {
+          map[row.user_id] = row.display_name;
+        }
+      }
+      if (!cancelled) setProfileNames(map);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [unlocked, hasAdminRole, sessions]);
 
   useEffect(() => {
     if (!unlocked || !selectedSessionId || !hasAdminRole) return;
@@ -118,7 +182,152 @@ export default function AdminChatPage() {
     setUnlocked(false);
     setSessions([]);
     setMessages([]);
+    setSelectedUserId(null);
     setSelectedSessionId(null);
+    setProfileNames({});
+  };
+
+  const userRows = useMemo((): UserRow[] => {
+    const byUser = new Map<string, { count: number; lastActivity: string }>();
+    for (const s of sessions) {
+      const prev = byUser.get(s.user_id);
+      if (!prev) {
+        byUser.set(s.user_id, { count: 1, lastActivity: s.created_at });
+      } else {
+        prev.count += 1;
+        if (new Date(s.created_at) > new Date(prev.lastActivity)) {
+          prev.lastActivity = s.created_at;
+        }
+      }
+    }
+    const rows: UserRow[] = [];
+    for (const [userId, { count, lastActivity }] of byUser) {
+      rows.push({
+        userId,
+        displayName: profileNames[userId] ?? null,
+        sessionCount: count,
+        lastActivity,
+      });
+    }
+    rows.sort(
+      (a, b) => new Date(b.lastActivity).getTime() - new Date(a.lastActivity).getTime(),
+    );
+    return rows;
+  }, [sessions, profileNames]);
+
+  const sessionsForSelectedUser = useMemo(() => {
+    if (!selectedUserId) return [];
+    return sessions
+      .filter((s) => s.user_id === selectedUserId)
+      .sort(
+        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+      );
+  }, [sessions, selectedUserId]);
+
+  const selectedSession = useMemo(
+    () => sessions.find((s) => s.id === selectedSessionId) || null,
+    [sessions, selectedSessionId],
+  );
+
+  const getUserLabel = (userId: string) =>
+    profileNames[userId]?.trim() || `user-${shortUserId(userId)}`;
+
+  const fetchMessagesBySessionId = async (sessionId: string) => {
+    const { data, error } = await supabase
+      .from("chat_messages")
+      .select("id,role,content,created_at")
+      .eq("session_id", sessionId)
+      .order("created_at", { ascending: true });
+    if (error) throw error;
+    return (data || []) as MessageRow[];
+  };
+
+  const downloadTranscriptPdf = (session: SessionRow, transcriptMessages: MessageRow[]) => {
+    const doc = new jsPDF({ unit: "pt", format: "a4" });
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const left = 40;
+    const right = 40;
+    const top = 40;
+    const bottom = 40;
+    const lineHeight = 14;
+    const maxWidth = pageWidth - left - right;
+    let y = top;
+
+    const addLine = (text: string, options?: { bold?: boolean; gapAfter?: number }) => {
+      doc.setFont("helvetica", options?.bold ? "bold" : "normal");
+      doc.setFontSize(11);
+      const lines = doc.splitTextToSize(text, maxWidth) as string[];
+      for (const line of lines) {
+        if (y + lineHeight > pageHeight - bottom) {
+          doc.addPage();
+          y = top;
+        }
+        doc.text(line, left, y);
+        y += lineHeight;
+      }
+      y += options?.gapAfter ?? 0;
+    };
+
+    addLine("ShiftED AI - Chat Transcript", { bold: true, gapAfter: 6 });
+    addLine(`Session ID: ${session.id}`);
+    addLine(`User: ${getUserLabel(session.user_id)} (${session.user_id})`);
+    addLine(`Scenario: ${session.scenario}`);
+    addLine(`Session created: ${new Date(session.created_at).toLocaleString()}`, { gapAfter: 8 });
+    addLine("------------------------------------------------------------", { gapAfter: 4 });
+
+    if (transcriptMessages.length === 0) {
+      addLine("No messages in this session.");
+    } else {
+      transcriptMessages.forEach((message, index) => {
+        addLine(
+          `${message.role.toUpperCase()} - ${new Date(message.created_at).toLocaleString()}`,
+          { bold: true },
+        );
+        addLine(message.content || "(empty message)", { gapAfter: 6 });
+        if (index < transcriptMessages.length - 1) {
+          addLine(" ");
+        }
+      });
+    }
+
+    const createdDate = new Date(session.created_at).toISOString().slice(0, 10);
+    const safeUser = sanitizeFilename(getUserLabel(session.user_id));
+    const safeSession = sanitizeFilename(session.id.slice(0, 8));
+    doc.save(`chat-transcript-${safeUser}-${createdDate}-${safeSession}.pdf`);
+  };
+
+  const handleDownloadSelectedTranscript = async () => {
+    if (!selectedSessionId || !selectedSession) return;
+    setExportingSingle(true);
+    try {
+      const transcriptMessages =
+        selectedSessionId === selectedSession?.id && messages.length > 0
+          ? messages
+          : await fetchMessagesBySessionId(selectedSessionId);
+      downloadTranscriptPdf(selectedSession, transcriptMessages);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to export transcript.";
+      alert(message);
+    } finally {
+      setExportingSingle(false);
+    }
+  };
+
+  const handleDownloadAllTranscripts = async () => {
+    if (sessions.length === 0) return;
+    setExportingAll(true);
+    try {
+      for (const session of sessions) {
+        const transcriptMessages = await fetchMessagesBySessionId(session.id);
+        downloadTranscriptPdf(session, transcriptMessages);
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to export all transcripts.";
+      alert(message);
+    } finally {
+      setExportingAll(false);
+    }
   };
 
   const onUnlock = () => {
@@ -236,39 +445,143 @@ export default function AdminChatPage() {
   }
 
   return (
-    <div className="px-4 py-6 max-w-6xl mx-auto">
-      <h1 className="text-2xl font-semibold mb-4">Admin Chat Monitor</h1>
-      <div className="grid md:grid-cols-3 gap-4">
-        <div className="md:col-span-1 rounded-xl border border-border bg-card p-3 max-h-[70vh] overflow-y-auto">
-          <h2 className="text-sm font-semibold mb-2">Sessions</h2>
-          {loadingSessions && <p className="text-sm text-muted-foreground">Loading sessions…</p>}
-          {!loadingSessions && sessions.length === 0 && (
-            <p className="text-sm text-muted-foreground">No sessions found.</p>
-          )}
-          <div className="space-y-2">
-            {sessions.map((s) => (
-              <button
-                type="button"
-                key={s.id}
-                onClick={() => setSelectedSessionId(s.id)}
-                className={`w-full text-left rounded-lg border p-2 text-xs ${
-                  selectedSessionId === s.id ? "border-primary bg-primary/5" : "border-border"
-                }`}
-              >
-                <div className="font-semibold truncate">{s.user_id}</div>
-                <div className="text-muted-foreground">{new Date(s.created_at).toLocaleString()}</div>
-                <div className="text-muted-foreground">Scenario: {s.scenario}</div>
-              </button>
-            ))}
+    <div className="px-4 py-6 max-w-[1400px] mx-auto space-y-4">
+      <div>
+        <h1 className="text-2xl font-semibold">Admin Chat Monitor</h1>
+        <p className="text-sm text-muted-foreground mt-1">
+          Users with at least one saved session. Select a user, then a session, to read the chat.
+        </p>
+        <div className="flex flex-wrap gap-2 mt-3">
+          <Button
+            variant="outline"
+            onClick={handleDownloadSelectedTranscript}
+            disabled={!selectedSessionId || loadingMessages || exportingSingle || exportingAll}
+          >
+            {exportingSingle ? "Generating PDF..." : "Download selected transcript PDF"}
+          </Button>
+          <Button
+            onClick={handleDownloadAllTranscripts}
+            disabled={sessions.length === 0 || loadingSessions || exportingAll || exportingSingle}
+          >
+            {exportingAll
+              ? "Generating all PDFs..."
+              : "Download all transcripts (one PDF per conversation)"}
+          </Button>
+        </div>
+      </div>
+
+      <div className="grid lg:grid-cols-12 gap-4">
+        <div className="lg:col-span-4 rounded-xl border border-border bg-card overflow-hidden flex flex-col max-h-[75vh]">
+          <div className="px-3 py-2 border-b border-border">
+            <h2 className="text-sm font-semibold">Users</h2>
+          </div>
+          <div className="overflow-y-auto flex-1 min-h-0">
+            {loadingSessions && (
+              <p className="text-sm text-muted-foreground p-3">Loading…</p>
+            )}
+            {!loadingSessions && userRows.length === 0 && (
+              <p className="text-sm text-muted-foreground p-3">No sessions yet.</p>
+            )}
+            {!loadingSessions && userRows.length > 0 && (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-[45%]">User</TableHead>
+                    <TableHead className="text-right">Sessions</TableHead>
+                    <TableHead className="hidden sm:table-cell">Last activity</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {userRows.map((row) => {
+                    const label =
+                      row.displayName?.trim() || `User ${shortUserId(row.userId)}`;
+                    const selected = selectedUserId === row.userId;
+                    return (
+                      <TableRow
+                        key={row.userId}
+                        data-state={selected ? "selected" : undefined}
+                        className={cn("cursor-pointer", selected && "bg-muted")}
+                        onClick={() => {
+                          setSelectedUserId(row.userId);
+                          setSelectedSessionId(null);
+                          setMessages([]);
+                        }}
+                      >
+                        <TableCell className="font-medium">
+                          <div className="truncate" title={row.userId}>
+                            {label}
+                          </div>
+                          <div className="text-xs text-muted-foreground font-normal truncate sm:hidden">
+                            {new Date(row.lastActivity).toLocaleString()}
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          {row.sessionCount}
+                        </TableCell>
+                        <TableCell className="hidden sm:table-cell text-muted-foreground text-xs whitespace-nowrap">
+                          {new Date(row.lastActivity).toLocaleString()}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            )}
           </div>
         </div>
-        <div className="md:col-span-2 rounded-xl border border-border bg-card p-3 max-h-[70vh] overflow-y-auto">
-          <h2 className="text-sm font-semibold mb-2">Messages</h2>
-          {!selectedSessionId && (
-            <p className="text-sm text-muted-foreground">Select a session to view messages.</p>
-          )}
-          {loadingMessages && <p className="text-sm text-muted-foreground">Loading messages…</p>}
-          <div className="space-y-3">
+
+        <div className="lg:col-span-4 rounded-xl border border-border bg-card overflow-hidden flex flex-col max-h-[75vh]">
+          <div className="px-3 py-2 border-b border-border">
+            <h2 className="text-sm font-semibold">Sessions</h2>
+          </div>
+          <div className="overflow-y-auto flex-1 min-h-0 p-2 space-y-2">
+            {!selectedUserId && (
+              <p className="text-sm text-muted-foreground p-2">Select a user to see their sessions.</p>
+            )}
+            {selectedUserId && sessionsForSelectedUser.length === 0 && (
+              <p className="text-sm text-muted-foreground p-2">No sessions for this user.</p>
+            )}
+            {selectedUserId &&
+              sessionsForSelectedUser.map((s) => (
+                <button
+                  type="button"
+                  key={s.id}
+                  onClick={() => setSelectedSessionId(s.id)}
+                  className={cn(
+                    "w-full text-left rounded-lg border p-2 text-xs transition-colors",
+                    selectedSessionId === s.id
+                      ? "border-primary bg-primary/5"
+                      : "border-border hover:bg-muted/50",
+                  )}
+                >
+                  <div className="font-medium text-foreground">
+                    {new Date(s.created_at).toLocaleString()}
+                  </div>
+                  <div className="text-muted-foreground mt-0.5">Scenario: {s.scenario}</div>
+                  <div className="text-muted-foreground font-mono text-[10px] mt-1 truncate" title={s.id}>
+                    {s.id}
+                  </div>
+                </button>
+              ))}
+          </div>
+        </div>
+
+        <div className="lg:col-span-4 rounded-xl border border-border bg-card overflow-hidden flex flex-col max-h-[75vh]">
+          <div className="px-3 py-2 border-b border-border">
+            <h2 className="text-sm font-semibold">Chat</h2>
+          </div>
+          <div className="overflow-y-auto flex-1 min-h-0 p-3 space-y-3">
+            {!selectedSessionId && (
+              <p className="text-sm text-muted-foreground">Select a session to view messages.</p>
+            )}
+            {loadingMessages && (
+              <p className="text-sm text-muted-foreground">Loading messages…</p>
+            )}
+            {selectedSessionId &&
+              !loadingMessages &&
+              messages.length === 0 && (
+                <p className="text-sm text-muted-foreground">No messages in this session.</p>
+              )}
             {messages.map((m) => (
               <div key={m.id} className="rounded-lg border border-border p-3">
                 <div className="text-xs text-muted-foreground mb-1">

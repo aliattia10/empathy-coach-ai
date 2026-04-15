@@ -32,6 +32,7 @@ type MessageRow = {
 type UserRow = {
   userId: string;
   displayName: string | null;
+  email: string | null;
   sessionCount: number;
   lastActivity: string;
 };
@@ -67,6 +68,7 @@ export default function AdminChatPage() {
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const [messages, setMessages] = useState<MessageRow[]>([]);
   const [profileNames, setProfileNames] = useState<Record<string, string | null>>({});
+  const [userEmails, setUserEmails] = useState<Record<string, string | null>>({});
   const [loadingSessions, setLoadingSessions] = useState(false);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [exportingSingle, setExportingSingle] = useState(false);
@@ -120,6 +122,7 @@ export default function AdminChatPage() {
   useEffect(() => {
     if (!unlocked || !hasAdminRole || sessions.length === 0) {
       setProfileNames({});
+      setUserEmails({});
       return;
     }
 
@@ -128,6 +131,7 @@ export default function AdminChatPage() {
     let cancelled = false;
     (async () => {
       const map: Record<string, string | null> = {};
+      const emailMap: Record<string, string | null> = {};
       for (const part of chunkArray(ids, 100)) {
         const { data, error } = await supabase
           .from("profiles")
@@ -138,7 +142,23 @@ export default function AdminChatPage() {
           map[row.user_id] = row.display_name;
         }
       }
-      if (!cancelled) setProfileNames(map);
+      const { data: directoryData, error: directoryError } = await supabase.rpc(
+        "admin_chat_user_directory",
+        { user_ids: ids },
+      );
+      if (!directoryError && Array.isArray(directoryData)) {
+        for (const row of directoryData) {
+          if (!row?.user_id) continue;
+          emailMap[row.user_id] = row.email ?? null;
+          if (row.display_name && !map[row.user_id]) {
+            map[row.user_id] = row.display_name;
+          }
+        }
+      }
+      if (!cancelled) {
+        setProfileNames(map);
+        setUserEmails(emailMap);
+      }
     })();
 
     return () => {
@@ -185,6 +205,7 @@ export default function AdminChatPage() {
     setSelectedUserId(null);
     setSelectedSessionId(null);
     setProfileNames({});
+    setUserEmails({});
   };
 
   const userRows = useMemo((): UserRow[] => {
@@ -205,6 +226,7 @@ export default function AdminChatPage() {
       rows.push({
         userId,
         displayName: profileNames[userId] ?? null,
+        email: userEmails[userId] ?? null,
         sessionCount: count,
         lastActivity,
       });
@@ -213,7 +235,7 @@ export default function AdminChatPage() {
       (a, b) => new Date(b.lastActivity).getTime() - new Date(a.lastActivity).getTime(),
     );
     return rows;
-  }, [sessions, profileNames]);
+  }, [sessions, profileNames, userEmails]);
 
   const sessionsForSelectedUser = useMemo(() => {
     if (!selectedUserId) return [];
@@ -230,7 +252,9 @@ export default function AdminChatPage() {
   );
 
   const getUserLabel = (userId: string) =>
-    profileNames[userId]?.trim() || `user-${shortUserId(userId)}`;
+    profileNames[userId]?.trim() ||
+    userEmails[userId]?.trim() ||
+    `user-${shortUserId(userId)}`;
 
   const fetchMessagesBySessionId = async (sessionId: string) => {
     const { data, error } = await supabase
@@ -494,7 +518,9 @@ export default function AdminChatPage() {
                 <TableBody>
                   {userRows.map((row) => {
                     const label =
-                      row.displayName?.trim() || `User ${shortUserId(row.userId)}`;
+                      row.displayName?.trim() ||
+                      row.email?.trim() ||
+                      `User ${shortUserId(row.userId)}`;
                     const selected = selectedUserId === row.userId;
                     return (
                       <TableRow
@@ -511,6 +537,11 @@ export default function AdminChatPage() {
                           <div className="truncate" title={row.userId}>
                             {label}
                           </div>
+                          {row.email && row.displayName && (
+                            <div className="text-xs text-muted-foreground truncate" title={row.email}>
+                              {row.email}
+                            </div>
+                          )}
                           <div className="text-xs text-muted-foreground font-normal truncate sm:hidden">
                             {new Date(row.lastActivity).toLocaleString()}
                           </div>

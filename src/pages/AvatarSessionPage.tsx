@@ -1,12 +1,9 @@
 import { useState, useRef, useEffect } from "react";
-import AvatarDisplay from "@/components/avatar/AvatarDisplay";
-import VoiceControls, { type VoiceState } from "@/components/avatar/VoiceControls";
 import ChatTranscript from "@/components/avatar/ChatTranscript";
 import ChatInput from "@/components/chat/ChatInput";
 import { detectCrisis, CRISIS_RESPONSE } from "@/components/safety/CrisisDetector";
 import { useAuth } from "@/hooks/useAuth";
 import { useSpeechSynthesis } from "@/hooks/useSpeechSynthesis";
-import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
 import {
   createChatSession,
   deleteChatSession,
@@ -19,18 +16,20 @@ import {
 import { stripMarkdownForSpeech } from "@/lib/speech";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import {
   Bot,
   Calendar,
+  ChevronDown,
   CheckCircle2,
   Circle,
   Clock3,
+  PanelLeft,
+  PanelRight,
   Pencil,
   Plus,
   Trash2,
-  Volume2,
-  VolumeX,
 } from "lucide-react";
 import type { TranscriptMessage } from "@/components/avatar/ChatTranscript";
 
@@ -70,32 +69,18 @@ async function blobToBase64(blob: Blob): Promise<string> {
 export default function AvatarSessionPage() {
   const { user } = useAuth();
   const [messages, setMessages] = useState<TranscriptMessage[]>([INITIAL_MESSAGE]);
-  const [sessionActive, setSessionActive] = useState(true);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [isSessionLoading, setIsSessionLoading] = useState(true);
   const [isSessionActionLoading, setIsSessionActionLoading] = useState(false);
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
   const [editingSessionName, setEditingSessionName] = useState("");
+  const [isToolsOpen, setIsToolsOpen] = useState(false);
   const [voiceEnabled, setVoiceEnabled] = useState(true);
-  const [voiceState, setVoiceState] = useState<VoiceState>("idle");
+  const [isAiResponding, setIsAiResponding] = useState(false);
   const handleSendRef = useRef<(text: string) => void>(() => {});
   const pendingSpeakTimeoutRef = useRef<number | null>(null);
   const { speak, stop, isSpeaking } = useSpeechSynthesis();
-
-  const {
-    isListening: isRecognitionListening,
-    displayTranscript,
-    error: recognitionError,
-    start: startRecognition,
-    stop: stopRecognition,
-    supported: recognitionSupported,
-  } = useSpeechRecognition({
-    onFinalTranscript: (text) => {
-      handleSendRef.current?.(text);
-      stopRecognition();
-    },
-  });
 
   useEffect(() => {
     let isMounted = true;
@@ -242,11 +227,6 @@ export default function AvatarSessionPage() {
     };
   }, [stop]);
 
-  useEffect(() => {
-    if (isSpeaking) setVoiceState("speaking");
-    else setVoiceState((s) => (s === "speaking" ? "idle" : s));
-  }, [isSpeaking]);
-
   const handleSend = async (text: string) => {
     if (isSessionLoading || isSessionActionLoading) return;
 
@@ -261,7 +241,7 @@ export default function AvatarSessionPage() {
       return;
     }
 
-    setVoiceState("processing");
+    setIsAiResponding(true);
     const chatHistory = messages.map((m) => ({ role: m.role, content: m.content }));
 
     try {
@@ -291,7 +271,7 @@ export default function AvatarSessionPage() {
           }, 300);
         }
       }
-      setVoiceState("idle");
+      setIsAiResponding(false);
     } catch {
       const content = generateFallbackResponse();
       const reply: TranscriptMessage = { id: (Date.now() + 1).toString(), role: "assistant", content };
@@ -307,26 +287,10 @@ export default function AvatarSessionPage() {
           }, 300);
         }
       }
-      setVoiceState("idle");
+      setIsAiResponding(false);
     }
   };
   handleSendRef.current = handleSend;
-
-  const onMicClick = () => {
-    if (isSessionLoading || isSessionActionLoading) return;
-
-    if (voiceState === "listening") {
-      stopRecognition();
-      setVoiceState("idle");
-    } else if (sessionActive && voiceState !== "processing" && voiceState !== "speaking") {
-      if (recognitionSupported) {
-        startRecognition();
-        setVoiceState("listening");
-      } else {
-        setVoiceState("idle");
-      }
-    }
-  };
 
   const stopAllAudioNow = () => {
     if (pendingSpeakTimeoutRef.current !== null) {
@@ -334,8 +298,6 @@ export default function AvatarSessionPage() {
       pendingSpeakTimeoutRef.current = null;
     }
     stop();
-    stopRecognition();
-    setVoiceState((s) => (s === "speaking" || s === "listening" ? "idle" : s));
   };
 
   const handleVoiceToggle = () => {
@@ -344,15 +306,6 @@ export default function AvatarSessionPage() {
       if (!next) stopAllAudioNow();
       return next;
     });
-  };
-
-  const handleMuteClick = () => {
-    stopAllAudioNow();
-    setVoiceEnabled(false);
-  };
-
-  const handleSpeakerClick = () => {
-    stopAllAudioNow();
   };
 
   const transcribeVoiceMessage = async (blob: Blob, mimeType: string) => {
@@ -369,9 +322,8 @@ export default function AvatarSessionPage() {
     return (data.text || "").trim();
   };
 
-  const avatarStatus = voiceState === "processing" ? "thinking" : voiceState === "speaking" ? "speaking" : voiceState === "listening" ? "listening" : "idle";
   const progressPercent = messages.length <= 1 ? 0 : Math.min(100, (messages.filter((m) => m.role === "user").length / 5) * 25);
-  const statusLabel = avatarStatus === "thinking" ? "Thinking..." : avatarStatus === "speaking" ? "Speaking..." : avatarStatus === "listening" ? "Listening..." : "Ready";
+  const statusLabel = isAiResponding ? "Thinking..." : isSpeaking ? "Speaking..." : "Ready";
   const selectedSession = sessions.find((session) => session.id === sessionId) || null;
   const userTurns = messages.filter((message) => message.role === "user").length;
   const empathyCuesWithStatus = DEFAULT_SCENARIO.cues.map((cue, index) => ({
@@ -380,7 +332,7 @@ export default function AvatarSessionPage() {
   }));
 
   const sessionsPanel = (
-    <aside className="rounded-2xl border border-border bg-card/95 backdrop-blur p-3 h-fit">
+    <div className="rounded-2xl border border-border bg-card p-3">
       <div className="flex items-center justify-between mb-3">
         <h2 className="text-lg font-semibold">Sessions</h2>
         <Button size="sm" type="button" onClick={startNewSession} disabled={isSessionLoading || isSessionActionLoading}>
@@ -478,11 +430,11 @@ export default function AvatarSessionPage() {
           <p className="text-xs text-muted-foreground p-2">No saved sessions yet.</p>
         )}
       </div>
-    </aside>
+    </div>
   );
 
   const progressPanel = (
-    <aside className="rounded-2xl border border-border bg-card/95 backdrop-blur p-4 h-fit">
+    <div className="rounded-2xl border border-border bg-card p-4">
       <h3 className="text-lg font-semibold">Progress & Goals</h3>
       <div className="mt-4 rounded-xl border border-border bg-muted/30 p-3 flex items-center justify-between">
         <div>
@@ -528,84 +480,49 @@ export default function AvatarSessionPage() {
           <p>{selectedSession?.session_name || "Current session"} - {userTurns} user messages</p>
         </div>
       </div>
-    </aside>
+    </div>
   );
 
   return (
     <div className="min-h-[calc(100vh-8rem)] px-3 md:px-5 py-4">
-      <div className="max-w-[1440px] mx-auto">
-        <div className="xl:hidden mb-4">
-          <Tabs defaultValue="chat" className="w-full">
-            <TabsList className="w-full grid grid-cols-3">
-              <TabsTrigger value="sessions">Sessions</TabsTrigger>
-              <TabsTrigger value="chat">Chat</TabsTrigger>
-              <TabsTrigger value="progress">Progress</TabsTrigger>
-            </TabsList>
-            <TabsContent value="sessions" className="mt-3">{sessionsPanel}</TabsContent>
-            <TabsContent value="chat" className="mt-3">
-              <main className="rounded-2xl border border-border bg-card/95 backdrop-blur p-4 md:p-5 flex flex-col gap-4">
-                <div className="flex items-center justify-between gap-3 flex-wrap">
-                  <div>
-                    <p className="text-xs uppercase tracking-wider text-muted-foreground mb-1">AI Coach</p>
-                    <h1 className="text-xl md:text-2xl font-semibold">{DEFAULT_SCENARIO.title}</h1>
-                  </div>
-                  <div className="inline-flex items-center gap-2 rounded-full px-3 py-1.5 bg-primary/10 text-primary text-sm font-medium">
-                    <span className="relative flex h-2.5 w-2.5">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75" />
-                      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-primary" />
-                    </span>
-                    {statusLabel}
-                  </div>
-                </div>
-                <div className="rounded-xl border border-border bg-muted/25 p-3">
-                  <AvatarDisplay status={avatarStatus} className="[&>div:first-child]:w-24 [&>div:first-child]:h-24 [&>div:last-child]:hidden" />
-                  <div className="mt-2 flex justify-center">
-                    <Button type="button" variant={voiceEnabled ? "secondary" : "ghost"} size="sm" onClick={handleVoiceToggle} className="rounded-xl gap-1.5">
-                      {voiceEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
-                      {voiceEnabled ? "Voice on" : "Voice off"}
-                    </Button>
-                  </div>
-                </div>
-                <div className="rounded-xl border border-border bg-background/70 p-3">
-                  <ChatTranscript messages={messages} className="max-h-[50vh] min-h-[300px] rounded-lg bg-transparent border-0 p-0" />
-                  <div className="mt-3">
-                    <ChatInput
-                      onSend={handleSend}
-                      onTranscribeAudio={transcribeVoiceMessage}
-                      disabled={voiceState === "processing" || isSessionLoading || isSessionActionLoading}
-                    />
-                  </div>
-                </div>
-                <VoiceControls
-                  state={voiceState}
-                  sessionActive={sessionActive}
-                  onMicClick={onMicClick}
-                  onMute={handleMuteClick}
-                  onSpeaker={handleSpeakerClick}
-                  onPause={() => {
-                    stopAllAudioNow();
-                    setSessionActive(false);
-                  }}
-                  onEndSession={() => {
-                    stopAllAudioNow();
-                    setSessionActive(false);
-                  }}
-                  disabled={!sessionActive}
-                />
-              </main>
-            </TabsContent>
-            <TabsContent value="progress" className="mt-3">{progressPanel}</TabsContent>
-          </Tabs>
+      <div className="max-w-5xl mx-auto relative">
+        <div className="fixed left-2 md:left-4 top-1/2 -translate-y-1/2 z-30">
+          <Sheet>
+            <SheetTrigger asChild>
+              <Button size="sm" variant="secondary" className="rounded-full shadow-md">
+                <PanelLeft className="w-4 h-4 mr-1" /> Sessions
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="left" className="w-[92vw] sm:w-[420px] p-4">
+              <SheetHeader className="mb-3">
+                <SheetTitle>Sessions</SheetTitle>
+              </SheetHeader>
+              {sessionsPanel}
+            </SheetContent>
+          </Sheet>
         </div>
-
-        <div className="hidden xl:grid gap-4 xl:grid-cols-[280px_minmax(0,1fr)_300px]">
-          {sessionsPanel}
+        <div className="fixed right-2 md:right-4 top-1/2 -translate-y-1/2 z-30">
+          <Sheet>
+            <SheetTrigger asChild>
+              <Button size="sm" variant="secondary" className="rounded-full shadow-md">
+                Progress <PanelRight className="w-4 h-4 ml-1" />
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="right" className="w-[92vw] sm:w-[420px] p-4">
+              <SheetHeader className="mb-3">
+                <SheetTitle>Progress & Goals</SheetTitle>
+              </SheetHeader>
+              {progressPanel}
+            </SheetContent>
+          </Sheet>
+        </div>
 
         <main className="rounded-2xl border border-border bg-card/95 backdrop-blur p-4 md:p-5 flex flex-col gap-4">
           <div className="flex items-center justify-between gap-3 flex-wrap">
             <div>
               <p className="text-xs uppercase tracking-wider text-muted-foreground mb-1">AI Coach</p>
               <h1 className="text-xl md:text-2xl font-semibold">{DEFAULT_SCENARIO.title}</h1>
+              <p className="text-xs text-muted-foreground mt-1">{selectedSession?.session_name || "Current session"}</p>
             </div>
             <div className="inline-flex items-center gap-2 rounded-full px-3 py-1.5 bg-primary/10 text-primary text-sm font-medium">
               <span className="relative flex h-2.5 w-2.5">
@@ -616,87 +533,47 @@ export default function AvatarSessionPage() {
             </div>
           </div>
 
-          <div className="grid md:grid-cols-[200px_minmax(0,1fr)] gap-4 items-start">
-            <div className="rounded-xl border border-border bg-muted/25 p-3">
-              <AvatarDisplay status={avatarStatus} className="[&>div:first-child]:w-28 [&>div:first-child]:h-28 [&>div:first-child]:md:w-32 [&>div:first-child]:md:h-32 [&>div:last-child]:hidden" />
-              <p className="text-sm font-medium text-center -mt-3">AI Simulation Partner</p>
-              <div className="mt-3 flex justify-center">
-                <Button
-                  type="button"
-                  variant={voiceEnabled ? "secondary" : "ghost"}
-                  size="sm"
-                  onClick={handleVoiceToggle}
-                  className="rounded-xl gap-1.5"
-                >
-                  {voiceEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
-                  {voiceEnabled ? "Voice on" : "Voice off"}
-                </Button>
-              </div>
-            </div>
-
-            <div className="rounded-xl border border-border bg-background/70 p-3">
-              <ChatTranscript
-                messages={messages}
-                className="max-h-[52vh] min-h-[320px] rounded-lg bg-transparent border-0 p-0"
-              />
-              <div className="mt-3">
-                <ChatInput
-                  onSend={handleSend}
-                  onTranscribeAudio={transcribeVoiceMessage}
-                  disabled={voiceState === "processing" || isSessionLoading || isSessionActionLoading}
-                />
-              </div>
-            </div>
-          </div>
-
-          <div className="grid md:grid-cols-2 gap-3">
-            <div className="rounded-xl border border-primary/20 bg-primary/5 px-4 py-3">
-              <p className="text-xs font-semibold text-foreground uppercase tracking-wider mb-1.5">Live transcription</p>
-              {!recognitionSupported && (
-                <p className="text-sm text-muted-foreground">Use Chrome or Edge to see your speech as text and test the mic.</p>
-              )}
-              {recognitionSupported && (
-                <>
-                  {recognitionError && (
-                    <p className="text-sm text-destructive mb-1">{recognitionError}</p>
-                  )}
-                  <p className="text-sm text-foreground min-h-[1.5rem]">
-                    {isRecognitionListening && !displayTranscript && "Listening... speak now."}
-                    {displayTranscript && <span className="text-muted-foreground">You&apos;re saying: </span>}
-                    {displayTranscript && <span className="font-medium">{displayTranscript}</span>}
-                    {!isRecognitionListening && !displayTranscript && !recognitionError && "Click the mic to speak; your words appear here and are sent when you pause."}
+          <Collapsible open={isToolsOpen} onOpenChange={setIsToolsOpen}>
+            <CollapsibleTrigger asChild>
+              <Button variant="outline" className="w-full justify-between rounded-xl">
+                Session tools
+                <ChevronDown className={`w-4 h-4 transition-transform ${isToolsOpen ? "rotate-180" : ""}`} />
+              </Button>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="mt-3">
+              <div className="grid md:grid-cols-2 gap-3">
+                <div className="rounded-xl border border-primary/20 bg-primary/5 px-4 py-3">
+                  <p className="text-xs font-semibold text-foreground uppercase tracking-wider mb-1.5">Voice input</p>
+                  <p className="text-sm text-muted-foreground">
+                    Use the mic button near send to record a voice message. It is transcribed and sent as text automatically.
                   </p>
-                </>
-              )}
-            </div>
-            <div className="rounded-xl border border-border bg-muted/30 px-4 py-3">
-              <p className="text-xs font-semibold text-foreground uppercase tracking-wider mb-1.5">Session focus</p>
-              <p className="text-sm text-muted-foreground">
-                Keep each message concrete: situation, thought, emotion, and your goal for the conversation.
-              </p>
+                </div>
+                <div className="rounded-xl border border-border bg-muted/30 px-4 py-3">
+                  <p className="text-xs font-semibold text-foreground uppercase tracking-wider mb-1.5">Session focus</p>
+                  <p className="text-sm text-muted-foreground">
+                    Keep each message concrete: situation, thought, emotion, and your goal for the conversation.
+                  </p>
+                </div>
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
+
+          <div className="rounded-xl border border-border bg-background/70 p-3">
+            <ChatTranscript
+              messages={messages}
+              className="max-h-[58vh] min-h-[360px] rounded-lg bg-transparent border-0 p-0"
+            />
+            <div className="mt-3">
+              <ChatInput
+                onSend={handleSend}
+                onTranscribeAudio={transcribeVoiceMessage}
+                voiceEnabled={voiceEnabled}
+                onToggleVoice={handleVoiceToggle}
+                disabled={isAiResponding || isSessionLoading || isSessionActionLoading}
+              />
             </div>
           </div>
-
-          <VoiceControls
-            state={voiceState}
-            sessionActive={sessionActive}
-            onMicClick={onMicClick}
-            onMute={handleMuteClick}
-            onSpeaker={handleSpeakerClick}
-            onPause={() => {
-              stopAllAudioNow();
-              setSessionActive(false);
-            }}
-            onEndSession={() => {
-              stopAllAudioNow();
-              setSessionActive(false);
-            }}
-            disabled={!sessionActive}
-          />
         </main>
-
-          {progressPanel}
-        </div>
       </div>
     </div>
   );

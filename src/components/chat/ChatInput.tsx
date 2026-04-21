@@ -1,14 +1,22 @@
 import { useRef, useState, KeyboardEvent } from "react";
-import { Loader2, Mic, Send, Square } from "lucide-react";
+import { Loader2, Mic, Send, Square, Volume2, VolumeX } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface Props {
   onSend: (message: string) => void;
   onTranscribeAudio?: (blob: Blob, mimeType: string) => Promise<string>;
+  voiceEnabled?: boolean;
+  onToggleVoice?: () => void;
   disabled?: boolean;
 }
 
-export default function ChatInput({ onSend, onTranscribeAudio, disabled }: Props) {
+export default function ChatInput({
+  onSend,
+  onTranscribeAudio,
+  voiceEnabled,
+  onToggleVoice,
+  disabled,
+}: Props) {
   const [value, setValue] = useState("");
   const [isRecording, setIsRecording] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
@@ -102,6 +110,19 @@ export default function ChatInput({ onSend, onTranscribeAudio, disabled }: Props
           ) : (
             <Mic className="w-4 h-4" />
           )}
+        </Button>
+      )}
+      {onToggleVoice && (
+        <Button
+          type="button"
+          size="icon"
+          variant={voiceEnabled ? "secondary" : "outline"}
+          onClick={onToggleVoice}
+          disabled={disabled || isTranscribing}
+          className="rounded-xl shrink-0"
+          title={voiceEnabled ? "Voice playback on" : "Voice playback off"}
+        >
+          {voiceEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
         </Button>
       )}
       <Button

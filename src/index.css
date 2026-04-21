@@ -202,4 +202,11 @@
     border: 2px solid hsl(var(--primary));
     opacity: 0.3;
   }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
 }

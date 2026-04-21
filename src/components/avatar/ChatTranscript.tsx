@@ -1,4 +1,5 @@
 import { cn } from "@/lib/utils";
+import { useEffect, useRef } from "react";
 import ReactMarkdown from "react-markdown";
 
 export interface TranscriptMessage {
@@ -13,10 +14,23 @@ interface ChatTranscriptProps {
 }
 
 export default function ChatTranscript({ messages, className }: ChatTranscriptProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    container.scrollTo({
+      top: container.scrollHeight,
+      behavior: "smooth",
+    });
+  }, [messages]);
+
   return (
     <div
+      ref={containerRef}
       className={cn(
-        "rounded-2xl min-h-[160px] max-h-[280px] overflow-y-auto space-y-3",
+        "rounded-2xl min-h-[220px] max-h-[440px] overflow-y-auto no-scrollbar space-y-3 px-1",
         className
       )}
     >

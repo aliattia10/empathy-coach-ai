@@ -61,7 +61,6 @@ export default function AvatarSessionPage() {
   const [editingSessionName, setEditingSessionName] = useState("");
   const [voiceEnabled, setVoiceEnabled] = useState(true);
   const [voiceState, setVoiceState] = useState<VoiceState>("idle");
-  const bottomRef = useRef<HTMLDivElement>(null);
   const handleSendRef = useRef<(text: string) => void>(() => {});
   const pendingSpeakTimeoutRef = useRef<number | null>(null);
   const { speak, stop, isSpeaking } = useSpeechSynthesis();
@@ -216,10 +215,6 @@ export default function AvatarSessionPage() {
   };
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
-
-  useEffect(() => {
     return () => {
       if (pendingSpeakTimeoutRef.current !== null) {
         window.clearTimeout(pendingSpeakTimeoutRef.current);
@@ -348,7 +343,7 @@ export default function AvatarSessionPage() {
   const statusLabel = avatarStatus === "thinking" ? "Thinking..." : avatarStatus === "speaking" ? "Speaking..." : avatarStatus === "listening" ? "Listening..." : "Ready";
 
   return (
-    <div className="min-h-[calc(100vh-8rem)] flex flex-col items-center px-4 py-6">
+    <div className="min-h-[calc(100vh-8rem)] px-4 py-6 lg:pl-80">
       <ScenarioSidebar
         scenarioTitle={DEFAULT_SCENARIO.title}
         objective={DEFAULT_SCENARIO.objective}
@@ -356,17 +351,17 @@ export default function AvatarSessionPage() {
         progressPercent={progressPercent}
       />
 
-      <div className="flex flex-col items-center gap-8 max-w-2xl w-full">
+      <div className="flex flex-col items-center gap-5 max-w-4xl w-full mx-auto">
         {/* Live Session badge + status */}
-        <div className="text-center">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 text-primary text-xs font-bold uppercase tracking-widest mb-4">
+        <div className="w-full glass rounded-2xl border border-primary/20 p-5 text-center">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 text-primary text-xs font-bold uppercase tracking-widest mb-3">
             <span className="relative flex h-2 w-2">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75" />
               <span className="relative inline-flex rounded-full h-2 w-2 bg-primary" />
             </span>
             Live Session
           </div>
-          <h1 className="font-display text-foreground text-3xl md:text-4xl font-bold leading-tight mb-2">
+          <h1 className="font-display text-foreground text-2xl md:text-3xl font-bold leading-tight mb-1">
             {statusLabel}
           </h1>
           <p className="text-foreground/80 text-sm max-w-md mx-auto">
@@ -409,31 +404,44 @@ export default function AvatarSessionPage() {
           disabled={!sessionActive}
         />
 
-        {/* Live transcription: verify mic and Avatar/voice session */}
-        <div className="w-full rounded-xl border border-primary/20 bg-primary/5 px-4 py-3">
-          <p className="text-xs font-semibold text-foreground uppercase tracking-wider mb-1.5">Live transcription</p>
-          {!recognitionSupported && (
-            <p className="text-sm text-muted-foreground">Use Chrome or Edge to see your speech as text and test the mic.</p>
-          )}
-          {recognitionSupported && (
-            <>
-              {recognitionError && (
-                <p className="text-sm text-destructive mb-1">{recognitionError}</p>
-              )}
-              <p className="text-sm text-foreground min-h-[1.5rem]">
-                {isRecognitionListening && !displayTranscript && "Listening… speak now."}
-                {displayTranscript && <span className="text-muted-foreground">You&apos;re saying: </span>}
-                {displayTranscript && <span className="font-medium">{displayTranscript}</span>}
-                {!isRecognitionListening && !displayTranscript && !recognitionError && "Click the mic to speak; your words appear here and are sent when you pause."}
-              </p>
-            </>
-          )}
+        <div className="w-full grid gap-3 md:grid-cols-2">
+          <div className="rounded-xl border border-primary/20 bg-primary/5 px-4 py-3">
+            <p className="text-xs font-semibold text-foreground uppercase tracking-wider mb-1.5">Live transcription</p>
+            {!recognitionSupported && (
+              <p className="text-sm text-muted-foreground">Use Chrome or Edge to see your speech as text and test the mic.</p>
+            )}
+            {recognitionSupported && (
+              <>
+                {recognitionError && (
+                  <p className="text-sm text-destructive mb-1">{recognitionError}</p>
+                )}
+                <p className="text-sm text-foreground min-h-[1.5rem]">
+                  {isRecognitionListening && !displayTranscript && "Listening... speak now."}
+                  {displayTranscript && <span className="text-muted-foreground">You&apos;re saying: </span>}
+                  {displayTranscript && <span className="font-medium">{displayTranscript}</span>}
+                  {!isRecognitionListening && !displayTranscript && !recognitionError && "Click the mic to speak; your words appear here and are sent when you pause."}
+                </p>
+              </>
+            )}
+          </div>
+          <div className="rounded-xl border border-border bg-card/70 px-4 py-3">
+            <p className="text-xs font-semibold text-foreground uppercase tracking-wider mb-1.5">Session focus</p>
+            <p className="text-sm text-muted-foreground">
+              Keep each message short and concrete. Describe what happened, what you thought, and how you felt.
+            </p>
+          </div>
         </div>
 
         {/* Transcript in glass card */}
         <div className="w-full glass rounded-2xl p-6 border border-primary/5">
-          <ChatTranscript messages={messages} />
-          <div ref={bottomRef} />
+          <div className="mb-3">
+            <h2 className="text-sm font-semibold text-foreground">Chat</h2>
+            <p className="text-xs text-muted-foreground">Latest message stays in view automatically.</p>
+          </div>
+          <ChatTranscript
+            messages={messages}
+            className="rounded-xl border border-border/60 bg-background/70 p-3"
+          />
         </div>
 
         {/* Text input */}
@@ -445,14 +453,14 @@ export default function AvatarSessionPage() {
         </div>
       </div>
 
-      <div className="fixed top-20 left-4 z-20 w-72 max-h-[75vh] overflow-hidden rounded-xl border border-border bg-card shadow-sm flex flex-col">
+      <div className="fixed top-20 left-4 z-20 w-72 max-h-[75vh] overflow-hidden rounded-xl border border-border bg-card/95 backdrop-blur shadow-sm flex flex-col">
         <div className="p-3 border-b border-border flex items-center justify-between gap-2">
           <p className="text-sm font-semibold">Sessions</p>
           <Button size="sm" type="button" onClick={startNewSession} disabled={isSessionLoading || isSessionActionLoading}>
             New
           </Button>
         </div>
-        <div className="flex-1 overflow-y-auto p-2 space-y-2">
+        <div className="flex-1 overflow-y-auto no-scrollbar p-2 space-y-2">
           {sessions.map((session, index) => {
             const isSelected = session.id === sessionId;
             const displayName = session.session_name?.trim() || `Session ${sessions.length - index}`;

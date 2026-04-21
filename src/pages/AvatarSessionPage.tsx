@@ -1,9 +1,7 @@
 import { useState, useRef, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
 import AvatarDisplay from "@/components/avatar/AvatarDisplay";
 import VoiceControls, { type VoiceState } from "@/components/avatar/VoiceControls";
 import ChatTranscript from "@/components/avatar/ChatTranscript";
-import ScenarioSidebar from "@/components/avatar/ScenarioSidebar";
 import ChatInput from "@/components/chat/ChatInput";
 import { detectCrisis, CRISIS_RESPONSE } from "@/components/safety/CrisisDetector";
 import { useAuth } from "@/hooks/useAuth";
@@ -21,7 +19,19 @@ import {
 import { stripMarkdownForSpeech } from "@/lib/speech";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Volume2, VolumeX } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Bot,
+  Calendar,
+  CheckCircle2,
+  Circle,
+  Clock3,
+  Pencil,
+  Plus,
+  Trash2,
+  Volume2,
+  VolumeX,
+} from "lucide-react";
 import type { TranscriptMessage } from "@/components/avatar/ChatTranscript";
 
 const INITIAL_MESSAGE: TranscriptMessage = {
@@ -48,6 +58,14 @@ const DEFAULT_SCENARIO = {
   objective: "Deliver feedback clearly, show empathy, and encourage reflection.",
   cues: ["Use 'I' statements", "Describe impact, not intent", "Invite their perspective"],
 };
+
+async function blobToBase64(blob: Blob): Promise<string> {
+  const arrayBuffer = await blob.arrayBuffer();
+  const bytes = new Uint8Array(arrayBuffer);
+  let binary = "";
+  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+  return btoa(binary);
+}
 
 export default function AvatarSessionPage() {
   const { user } = useAuth();
@@ -337,214 +355,347 @@ export default function AvatarSessionPage() {
     stopAllAudioNow();
   };
 
+  const transcribeVoiceMessage = async (blob: Blob, mimeType: string) => {
+    const audioBase64 = await blobToBase64(blob);
+    const response = await fetch("/api/transcribe", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ audioBase64, mimeType }),
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error || "Voice transcription failed.");
+    }
+    return (data.text || "").trim();
+  };
+
   const avatarStatus = voiceState === "processing" ? "thinking" : voiceState === "speaking" ? "speaking" : voiceState === "listening" ? "listening" : "idle";
   const progressPercent = messages.length <= 1 ? 0 : Math.min(100, (messages.filter((m) => m.role === "user").length / 5) * 25);
-
   const statusLabel = avatarStatus === "thinking" ? "Thinking..." : avatarStatus === "speaking" ? "Speaking..." : avatarStatus === "listening" ? "Listening..." : "Ready";
+  const selectedSession = sessions.find((session) => session.id === sessionId) || null;
+  const userTurns = messages.filter((message) => message.role === "user").length;
+  const empathyCuesWithStatus = DEFAULT_SCENARIO.cues.map((cue, index) => ({
+    cue,
+    complete: progressPercent >= (index + 1) * 30,
+  }));
 
-  return (
-    <div className="min-h-[calc(100vh-8rem)] px-4 py-6 lg:pl-80">
-      <ScenarioSidebar
-        scenarioTitle={DEFAULT_SCENARIO.title}
-        objective={DEFAULT_SCENARIO.objective}
-        cues={DEFAULT_SCENARIO.cues}
-        progressPercent={progressPercent}
-      />
+  const sessionsPanel = (
+    <aside className="rounded-2xl border border-border bg-card/95 backdrop-blur p-3 h-fit">
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="text-lg font-semibold">Sessions</h2>
+        <Button size="sm" type="button" onClick={startNewSession} disabled={isSessionLoading || isSessionActionLoading}>
+          <Plus className="w-4 h-4 mr-1" /> New
+        </Button>
+      </div>
+      <div className="space-y-2 max-h-[70vh] overflow-y-auto no-scrollbar pr-1">
+        {sessions.map((session, index) => {
+          const isSelected = session.id === sessionId;
+          const displayName = session.session_name?.trim() || `Session ${sessions.length - index}`;
 
-      <div className="flex flex-col items-center gap-5 max-w-4xl w-full mx-auto">
-        {/* Live Session badge + status */}
-        <div className="w-full glass rounded-2xl border border-primary/20 p-5 text-center">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 text-primary text-xs font-bold uppercase tracking-widest mb-3">
-            <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75" />
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-primary" />
-            </span>
-            Live Session
-          </div>
-          <h1 className="font-display text-foreground text-2xl md:text-3xl font-bold leading-tight mb-1">
-            {statusLabel}
-          </h1>
-          <p className="text-foreground/80 text-sm max-w-md mx-auto">
-            &ldquo;How can I help you with your learning today?&rdquo;
-          </p>
+          return (
+            <div
+              key={session.id}
+              className={`rounded-xl border p-3 transition-colors ${isSelected ? "border-primary bg-primary/5" : "border-border hover:bg-muted/40"}`}
+            >
+              {editingSessionId === session.id ? (
+                <div className="space-y-2">
+                  <Input
+                    value={editingSessionName}
+                    onChange={(e) => setEditingSessionName(e.target.value)}
+                    placeholder="Session name"
+                    disabled={isSessionActionLoading}
+                  />
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      type="button"
+                      onClick={() => saveSessionName(session.id)}
+                      disabled={isSessionActionLoading || !editingSessionName.trim()}
+                    >
+                      Save
+                    </Button>
+                    <Button
+                      size="sm"
+                      type="button"
+                      variant="outline"
+                      onClick={() => {
+                        setEditingSessionId(null);
+                        setEditingSessionName("");
+                      }}
+                      disabled={isSessionActionLoading}
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    className="w-full text-left"
+                    onClick={() => openSession(session.id)}
+                    disabled={isSessionActionLoading}
+                  >
+                    <p className="text-sm font-semibold truncate">{displayName}</p>
+                    <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+                      <Calendar className="w-3 h-3" />
+                      {new Date(session.updated_at).toLocaleDateString()}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1">
+                      <Clock3 className="w-3 h-3" />
+                      {new Date(session.updated_at).toLocaleTimeString()}
+                    </p>
+                  </button>
+                  <div className="mt-3 flex gap-2">
+                    <Button
+                      size="sm"
+                      type="button"
+                      variant="outline"
+                      onClick={() => {
+                        setEditingSessionId(session.id);
+                        setEditingSessionName(session.session_name?.trim() || "");
+                      }}
+                      disabled={isSessionActionLoading}
+                    >
+                      <Pencil className="w-3 h-3 mr-1" /> Rename
+                    </Button>
+                    <Button
+                      size="sm"
+                      type="button"
+                      variant="outline"
+                      onClick={() => removeSession(session.id)}
+                      disabled={isSessionActionLoading}
+                    >
+                      <Trash2 className="w-3 h-3 mr-1" /> Delete
+                    </Button>
+                  </div>
+                </>
+              )}
+            </div>
+          );
+        })}
+        {sessions.length === 0 && !isSessionLoading && (
+          <p className="text-xs text-muted-foreground p-2">No saved sessions yet.</p>
+        )}
+      </div>
+    </aside>
+  );
+
+  const progressPanel = (
+    <aside className="rounded-2xl border border-border bg-card/95 backdrop-blur p-4 h-fit">
+      <h3 className="text-lg font-semibold">Progress & Goals</h3>
+      <div className="mt-4 rounded-xl border border-border bg-muted/30 p-3 flex items-center justify-between">
+        <div>
+          <p className="text-xs uppercase tracking-wider text-muted-foreground">Current level</p>
+          <p className="text-2xl font-semibold mt-1">{Math.round(progressPercent)}%</p>
         </div>
-
-        {/* Abstract minimalist avatar */}
-        <AvatarDisplay status={avatarStatus} />
-
-        {/* Voice toggle */}
-        <div className="flex items-center gap-2">
-          <Button
-            type="button"
-            variant={voiceEnabled ? "secondary" : "ghost"}
-            size="sm"
-            onClick={handleVoiceToggle}
-            className="rounded-xl gap-1.5"
-          >
-            {voiceEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
-            <span className="text-xs font-bold text-foreground uppercase tracking-wider">{voiceEnabled ? "Voice ON" : "Voice off"}</span>
-          </Button>
-        </div>
-
-        {/* Session controls: Mute | Mic/Pause | Speaker */}
-        <VoiceControls
-          state={voiceState}
-          sessionActive={sessionActive}
-          onMicClick={onMicClick}
-          onMute={handleMuteClick}
-          onSpeaker={handleSpeakerClick}
-          onPause={() => {
-            stopAllAudioNow();
-            setSessionActive(false);
+        <div
+          className="h-14 w-14 rounded-full grid place-items-center text-sm font-semibold text-foreground"
+          style={{
+            background: `conic-gradient(hsl(var(--primary)) ${progressPercent * 3.6}deg, hsl(var(--muted)) 0deg)`,
           }}
-          onEndSession={() => {
-            stopAllAudioNow();
-            setSessionActive(false);
-          }}
-          disabled={!sessionActive}
-        />
-
-        <div className="w-full grid gap-3 md:grid-cols-2">
-          <div className="rounded-xl border border-primary/20 bg-primary/5 px-4 py-3">
-            <p className="text-xs font-semibold text-foreground uppercase tracking-wider mb-1.5">Live transcription</p>
-            {!recognitionSupported && (
-              <p className="text-sm text-muted-foreground">Use Chrome or Edge to see your speech as text and test the mic.</p>
-            )}
-            {recognitionSupported && (
-              <>
-                {recognitionError && (
-                  <p className="text-sm text-destructive mb-1">{recognitionError}</p>
-                )}
-                <p className="text-sm text-foreground min-h-[1.5rem]">
-                  {isRecognitionListening && !displayTranscript && "Listening... speak now."}
-                  {displayTranscript && <span className="text-muted-foreground">You&apos;re saying: </span>}
-                  {displayTranscript && <span className="font-medium">{displayTranscript}</span>}
-                  {!isRecognitionListening && !displayTranscript && !recognitionError && "Click the mic to speak; your words appear here and are sent when you pause."}
-                </p>
-              </>
-            )}
-          </div>
-          <div className="rounded-xl border border-border bg-card/70 px-4 py-3">
-            <p className="text-xs font-semibold text-foreground uppercase tracking-wider mb-1.5">Session focus</p>
-            <p className="text-sm text-muted-foreground">
-              Keep each message short and concrete. Describe what happened, what you thought, and how you felt.
-            </p>
-          </div>
-        </div>
-
-        {/* Transcript in glass card */}
-        <div className="w-full glass rounded-2xl p-6 border border-primary/5">
-          <div className="mb-3">
-            <h2 className="text-sm font-semibold text-foreground">Chat</h2>
-            <p className="text-xs text-muted-foreground">Latest message stays in view automatically.</p>
-          </div>
-          <ChatTranscript
-            messages={messages}
-            className="rounded-xl border border-border/60 bg-background/70 p-3"
-          />
-        </div>
-
-        {/* Text input */}
-        <div className="w-full">
-          <ChatInput
-            onSend={handleSend}
-            disabled={voiceState === "processing" || isSessionLoading || isSessionActionLoading}
-          />
+        >
+          <span className="h-10 w-10 rounded-full bg-card grid place-items-center">{Math.round(progressPercent)}%</span>
         </div>
       </div>
 
-      <div className="fixed top-20 left-4 z-20 w-72 max-h-[75vh] overflow-hidden rounded-xl border border-border bg-card/95 backdrop-blur shadow-sm flex flex-col">
-        <div className="p-3 border-b border-border flex items-center justify-between gap-2">
-          <p className="text-sm font-semibold">Sessions</p>
-          <Button size="sm" type="button" onClick={startNewSession} disabled={isSessionLoading || isSessionActionLoading}>
-            New
-          </Button>
+      <div className="mt-4 space-y-3">
+        <div className="rounded-xl border border-border p-3">
+          <p className="text-xs uppercase tracking-wider text-muted-foreground mb-1">Goal</p>
+          <p className="font-medium">{DEFAULT_SCENARIO.title}</p>
+          <p className="text-sm text-muted-foreground mt-1">{DEFAULT_SCENARIO.objective}</p>
         </div>
-        <div className="flex-1 overflow-y-auto no-scrollbar p-2 space-y-2">
-          {sessions.map((session, index) => {
-            const isSelected = session.id === sessionId;
-            const displayName = session.session_name?.trim() || `Session ${sessions.length - index}`;
-
-            return (
-              <div
-                key={session.id}
-                className={`rounded-lg border p-2 ${isSelected ? "border-primary bg-primary/5" : "border-border"}`}
-              >
-                {editingSessionId === session.id ? (
-                  <div className="space-y-2">
-                    <Input
-                      value={editingSessionName}
-                      onChange={(e) => setEditingSessionName(e.target.value)}
-                      placeholder="Session name"
-                      disabled={isSessionActionLoading}
-                    />
-                    <div className="flex gap-2">
-                      <Button
-                        size="sm"
-                        type="button"
-                        onClick={() => saveSessionName(session.id)}
-                        disabled={isSessionActionLoading || !editingSessionName.trim()}
-                      >
-                        Save
-                      </Button>
-                      <Button
-                        size="sm"
-                        type="button"
-                        variant="outline"
-                        onClick={() => {
-                          setEditingSessionId(null);
-                          setEditingSessionName("");
-                        }}
-                        disabled={isSessionActionLoading}
-                      >
-                        Cancel
-                      </Button>
-                    </div>
-                  </div>
+        <div className="rounded-xl border border-border p-3">
+          <p className="text-xs uppercase tracking-wider text-muted-foreground mb-2">Key empathy cues</p>
+          <ul className="space-y-2">
+            {empathyCuesWithStatus.map((item) => (
+              <li key={item.cue} className="flex items-center gap-2 text-sm">
+                {item.complete ? (
+                  <CheckCircle2 className="w-4 h-4 text-primary" />
                 ) : (
-                  <>
-                    <button
-                      type="button"
-                      className="w-full text-left"
-                      onClick={() => openSession(session.id)}
-                      disabled={isSessionActionLoading}
-                    >
-                      <p className="text-sm font-medium truncate">{displayName}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {new Date(session.updated_at).toLocaleString()}
-                      </p>
-                    </button>
-                    <div className="mt-2 flex gap-2">
-                      <Button
-                        size="sm"
-                        type="button"
-                        variant="outline"
-                        onClick={() => {
-                          setEditingSessionId(session.id);
-                          setEditingSessionName(session.session_name?.trim() || "");
-                        }}
-                        disabled={isSessionActionLoading}
-                      >
-                        Rename
-                      </Button>
-                      <Button
-                        size="sm"
-                        type="button"
-                        variant="outline"
-                        onClick={() => removeSession(session.id)}
-                        disabled={isSessionActionLoading}
-                      >
-                        Delete
-                      </Button>
-                    </div>
-                  </>
+                  <Circle className="w-4 h-4 text-muted-foreground" />
                 )}
+                <span>{item.cue}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+        <div className="rounded-xl border border-border p-3 text-sm text-muted-foreground">
+          <p className="flex items-center gap-2 mb-1 text-foreground font-medium">
+            <Bot className="w-4 h-4 text-primary" />
+            Active session
+          </p>
+          <p>{selectedSession?.session_name || "Current session"} - {userTurns} user messages</p>
+        </div>
+      </div>
+    </aside>
+  );
+
+  return (
+    <div className="min-h-[calc(100vh-8rem)] px-3 md:px-5 py-4">
+      <div className="max-w-[1440px] mx-auto">
+        <div className="xl:hidden mb-4">
+          <Tabs defaultValue="chat" className="w-full">
+            <TabsList className="w-full grid grid-cols-3">
+              <TabsTrigger value="sessions">Sessions</TabsTrigger>
+              <TabsTrigger value="chat">Chat</TabsTrigger>
+              <TabsTrigger value="progress">Progress</TabsTrigger>
+            </TabsList>
+            <TabsContent value="sessions" className="mt-3">{sessionsPanel}</TabsContent>
+            <TabsContent value="chat" className="mt-3">
+              <main className="rounded-2xl border border-border bg-card/95 backdrop-blur p-4 md:p-5 flex flex-col gap-4">
+                <div className="flex items-center justify-between gap-3 flex-wrap">
+                  <div>
+                    <p className="text-xs uppercase tracking-wider text-muted-foreground mb-1">AI Coach</p>
+                    <h1 className="text-xl md:text-2xl font-semibold">{DEFAULT_SCENARIO.title}</h1>
+                  </div>
+                  <div className="inline-flex items-center gap-2 rounded-full px-3 py-1.5 bg-primary/10 text-primary text-sm font-medium">
+                    <span className="relative flex h-2.5 w-2.5">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75" />
+                      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-primary" />
+                    </span>
+                    {statusLabel}
+                  </div>
+                </div>
+                <div className="rounded-xl border border-border bg-muted/25 p-3">
+                  <AvatarDisplay status={avatarStatus} className="[&>div:first-child]:w-24 [&>div:first-child]:h-24 [&>div:last-child]:hidden" />
+                  <div className="mt-2 flex justify-center">
+                    <Button type="button" variant={voiceEnabled ? "secondary" : "ghost"} size="sm" onClick={handleVoiceToggle} className="rounded-xl gap-1.5">
+                      {voiceEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
+                      {voiceEnabled ? "Voice on" : "Voice off"}
+                    </Button>
+                  </div>
+                </div>
+                <div className="rounded-xl border border-border bg-background/70 p-3">
+                  <ChatTranscript messages={messages} className="max-h-[50vh] min-h-[300px] rounded-lg bg-transparent border-0 p-0" />
+                  <div className="mt-3">
+                    <ChatInput
+                      onSend={handleSend}
+                      onTranscribeAudio={transcribeVoiceMessage}
+                      disabled={voiceState === "processing" || isSessionLoading || isSessionActionLoading}
+                    />
+                  </div>
+                </div>
+                <VoiceControls
+                  state={voiceState}
+                  sessionActive={sessionActive}
+                  onMicClick={onMicClick}
+                  onMute={handleMuteClick}
+                  onSpeaker={handleSpeakerClick}
+                  onPause={() => {
+                    stopAllAudioNow();
+                    setSessionActive(false);
+                  }}
+                  onEndSession={() => {
+                    stopAllAudioNow();
+                    setSessionActive(false);
+                  }}
+                  disabled={!sessionActive}
+                />
+              </main>
+            </TabsContent>
+            <TabsContent value="progress" className="mt-3">{progressPanel}</TabsContent>
+          </Tabs>
+        </div>
+
+        <div className="hidden xl:grid gap-4 xl:grid-cols-[280px_minmax(0,1fr)_300px]">
+          {sessionsPanel}
+
+        <main className="rounded-2xl border border-border bg-card/95 backdrop-blur p-4 md:p-5 flex flex-col gap-4">
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div>
+              <p className="text-xs uppercase tracking-wider text-muted-foreground mb-1">AI Coach</p>
+              <h1 className="text-xl md:text-2xl font-semibold">{DEFAULT_SCENARIO.title}</h1>
+            </div>
+            <div className="inline-flex items-center gap-2 rounded-full px-3 py-1.5 bg-primary/10 text-primary text-sm font-medium">
+              <span className="relative flex h-2.5 w-2.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75" />
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-primary" />
+              </span>
+              {statusLabel}
+            </div>
+          </div>
+
+          <div className="grid md:grid-cols-[200px_minmax(0,1fr)] gap-4 items-start">
+            <div className="rounded-xl border border-border bg-muted/25 p-3">
+              <AvatarDisplay status={avatarStatus} className="[&>div:first-child]:w-28 [&>div:first-child]:h-28 [&>div:first-child]:md:w-32 [&>div:first-child]:md:h-32 [&>div:last-child]:hidden" />
+              <p className="text-sm font-medium text-center -mt-3">AI Simulation Partner</p>
+              <div className="mt-3 flex justify-center">
+                <Button
+                  type="button"
+                  variant={voiceEnabled ? "secondary" : "ghost"}
+                  size="sm"
+                  onClick={handleVoiceToggle}
+                  className="rounded-xl gap-1.5"
+                >
+                  {voiceEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
+                  {voiceEnabled ? "Voice on" : "Voice off"}
+                </Button>
               </div>
-            );
-          })}
-          {sessions.length === 0 && !isSessionLoading && (
-            <p className="text-xs text-muted-foreground p-2">No saved sessions yet.</p>
-          )}
+            </div>
+
+            <div className="rounded-xl border border-border bg-background/70 p-3">
+              <ChatTranscript
+                messages={messages}
+                className="max-h-[52vh] min-h-[320px] rounded-lg bg-transparent border-0 p-0"
+              />
+              <div className="mt-3">
+                <ChatInput
+                  onSend={handleSend}
+                  onTranscribeAudio={transcribeVoiceMessage}
+                  disabled={voiceState === "processing" || isSessionLoading || isSessionActionLoading}
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="grid md:grid-cols-2 gap-3">
+            <div className="rounded-xl border border-primary/20 bg-primary/5 px-4 py-3">
+              <p className="text-xs font-semibold text-foreground uppercase tracking-wider mb-1.5">Live transcription</p>
+              {!recognitionSupported && (
+                <p className="text-sm text-muted-foreground">Use Chrome or Edge to see your speech as text and test the mic.</p>
+              )}
+              {recognitionSupported && (
+                <>
+                  {recognitionError && (
+                    <p className="text-sm text-destructive mb-1">{recognitionError}</p>
+                  )}
+                  <p className="text-sm text-foreground min-h-[1.5rem]">
+                    {isRecognitionListening && !displayTranscript && "Listening... speak now."}
+                    {displayTranscript && <span className="text-muted-foreground">You&apos;re saying: </span>}
+                    {displayTranscript && <span className="font-medium">{displayTranscript}</span>}
+                    {!isRecognitionListening && !displayTranscript && !recognitionError && "Click the mic to speak; your words appear here and are sent when you pause."}
+                  </p>
+                </>
+              )}
+            </div>
+            <div className="rounded-xl border border-border bg-muted/30 px-4 py-3">
+              <p className="text-xs font-semibold text-foreground uppercase tracking-wider mb-1.5">Session focus</p>
+              <p className="text-sm text-muted-foreground">
+                Keep each message concrete: situation, thought, emotion, and your goal for the conversation.
+              </p>
+            </div>
+          </div>
+
+          <VoiceControls
+            state={voiceState}
+            sessionActive={sessionActive}
+            onMicClick={onMicClick}
+            onMute={handleMuteClick}
+            onSpeaker={handleSpeakerClick}
+            onPause={() => {
+              stopAllAudioNow();
+              setSessionActive(false);
+            }}
+            onEndSession={() => {
+              stopAllAudioNow();
+              setSessionActive(false);
+            }}
+            disabled={!sessionActive}
+          />
+        </main>
+
+          {progressPanel}
         </div>
       </div>
     </div>

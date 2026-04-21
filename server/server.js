@@ -5,7 +5,7 @@ require("dotenv").config();
 
 const app = express();
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: "15mb" }));
 
 // LLM endpoint: default to OpenRouter (free tier with API key)
 const VLLM_API_URL =
@@ -107,6 +107,60 @@ app.post("/api/chat", async (req, res) => {
       error: "Avatar is currently unavailable.",
       details: process.env.NODE_ENV === "development" ? error.message : undefined,
     });
+  }
+});
+
+app.post("/api/transcribe", async (req, res) => {
+  const { audioBase64, mimeType } = req.body || {};
+  if (!audioBase64 || typeof audioBase64 !== "string") {
+    return res.status(400).json({ error: "audioBase64 is required." });
+  }
+
+  const preferOpenAI = (process.env.TRANSCRIBE_PROVIDER || "").toLowerCase() === "openai";
+  const groqKey = process.env.GROQ_API_KEY;
+  const openaiKey = process.env.OPENAI_API_KEY;
+  const useOpenAI = preferOpenAI ? !!openaiKey : !groqKey && !!openaiKey;
+  const url = useOpenAI
+    ? "https://api.openai.com/v1/audio/transcriptions"
+    : "https://api.groq.com/openai/v1/audio/transcriptions";
+  const apiKey = useOpenAI ? openaiKey : groqKey;
+  const model = useOpenAI
+    ? (process.env.OPENAI_TRANSCRIBE_MODEL || "whisper-1")
+    : (process.env.GROQ_TRANSCRIBE_MODEL || "whisper-large-v3-turbo");
+
+  if (!apiKey) {
+    return res.status(503).json({
+      error: "Transcription is unavailable. Configure GROQ_API_KEY or OPENAI_API_KEY.",
+    });
+  }
+
+  try {
+    const bytes = Buffer.from(audioBase64, "base64");
+    const blob = new Blob([bytes], { type: mimeType || "audio/webm" });
+    const form = new FormData();
+    form.append("file", blob, "voice-message.webm");
+    form.append("model", model);
+    form.append("language", "en");
+
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: form,
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      console.error("Transcribe provider error:", response.status, errText);
+      return res.status(502).json({ error: "Transcription provider error." });
+    }
+
+    const data = await response.json();
+    return res.json({ text: (data.text || "").trim() });
+  } catch (error) {
+    console.error("Transcription failed:", error);
+    return res.status(500).json({ error: "Transcription failed." });
   }
 });
 

@@ -9,9 +9,18 @@ import { detectCrisis, CRISIS_RESPONSE } from "@/components/safety/CrisisDetecto
 import { useAuth } from "@/hooks/useAuth";
 import { useSpeechSynthesis } from "@/hooks/useSpeechSynthesis";
 import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
-import { createChatSession, fetchChatHistory, fetchUserSessions, saveChatMessage } from "@/hooks/useChatSession";
+import {
+  createChatSession,
+  deleteChatSession,
+  fetchChatHistory,
+  fetchUserSessions,
+  renameChatSession,
+  saveChatMessage,
+  type ChatSession,
+} from "@/hooks/useChatSession";
 import { stripMarkdownForSpeech } from "@/lib/speech";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Volume2, VolumeX } from "lucide-react";
 import type { TranscriptMessage } from "@/components/avatar/ChatTranscript";
 
@@ -45,9 +54,11 @@ export default function AvatarSessionPage() {
   const [messages, setMessages] = useState<TranscriptMessage[]>([INITIAL_MESSAGE]);
   const [sessionActive, setSessionActive] = useState(true);
   const [sessionId, setSessionId] = useState<string | null>(null);
+  const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [isSessionLoading, setIsSessionLoading] = useState(true);
-  const [showSessionChoice, setShowSessionChoice] = useState(false);
-  const [lastSessionId, setLastSessionId] = useState<string | null>(null);
+  const [isSessionActionLoading, setIsSessionActionLoading] = useState(false);
+  const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
+  const [editingSessionName, setEditingSessionName] = useState("");
   const [voiceEnabled, setVoiceEnabled] = useState(true);
   const [voiceState, setVoiceState] = useState<VoiceState>("idle");
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -72,27 +83,37 @@ export default function AvatarSessionPage() {
   useEffect(() => {
     let isMounted = true;
 
-    const bootstrapSession = async () => {
+    const bootstrapSessions = async () => {
       if (!isMounted) return;
 
       if (!user) {
         setIsSessionLoading(false);
-        setShowSessionChoice(false);
         return;
       }
 
       try {
         setIsSessionLoading(true);
-        const sessions = await fetchUserSessions(user.id);
+        const existingSessions = await fetchUserSessions(user.id);
         if (!isMounted) return;
+        setSessions(existingSessions);
 
-        if (sessions.length > 0) {
-          setLastSessionId(sessions[0].id);
-          setShowSessionChoice(true);
+        if (existingSessions.length > 0) {
+          const selectedSession = existingSessions[0];
+          const history = await fetchChatHistory(selectedSession.id);
+          if (!isMounted) return;
+          const restored: TranscriptMessage[] = history.map((m) => ({
+            id: m.id,
+            role: m.role,
+            content: m.content,
+          }));
+          setSessionId(selectedSession.id);
+          setMessages(restored.length > 0 ? restored : [INITIAL_MESSAGE]);
         } else {
-          const s = await createChatSession(user.id);
+          const s = await createChatSession(user.id, "constructive_feedback", "Session 1");
           if (!isMounted) return;
           setSessionId(s.id);
+          setSessions([s]);
+          setMessages([INITIAL_MESSAGE]);
           await saveChatMessage(s.id, "assistant", INITIAL_MESSAGE.content);
         }
       } catch (err) {
@@ -102,53 +123,95 @@ export default function AvatarSessionPage() {
       }
     };
 
-    if (!sessionId) bootstrapSession();
+    bootstrapSessions();
 
     return () => {
       isMounted = false;
     };
-  }, [user, sessionId]);
+  }, [user]);
 
   const startNewSession = async () => {
     if (!user) return;
     try {
-      setIsSessionLoading(true);
-      const s = await createChatSession(user.id);
+      setIsSessionActionLoading(true);
+      const sessionCount = sessions.length + 1;
+      const s = await createChatSession(user.id, "constructive_feedback", `Session ${sessionCount}`);
       setSessionId(s.id);
       setMessages([INITIAL_MESSAGE]);
+      setSessions((prev) => [s, ...prev]);
       await saveChatMessage(s.id, "assistant", INITIAL_MESSAGE.content);
-      setShowSessionChoice(false);
     } catch (err) {
       console.error(err);
     } finally {
-      setIsSessionLoading(false);
+      setIsSessionActionLoading(false);
     }
   };
 
-  const continueLastSession = async () => {
-    if (!lastSessionId) return;
+  const openSession = async (nextSessionId: string) => {
     try {
-      setIsSessionLoading(true);
-      const history = await fetchChatHistory(lastSessionId);
+      setIsSessionActionLoading(true);
+      const history = await fetchChatHistory(nextSessionId);
       const restored: TranscriptMessage[] = history.map((m) => ({
         id: m.id,
-        role: m.role as "user" | "assistant",
+        role: m.role,
         content: m.content,
       }));
 
-      setSessionId(lastSessionId);
+      setSessionId(nextSessionId);
       setMessages(restored.length > 0 ? restored : [INITIAL_MESSAGE]);
 
       // Ensure at least one assistant starter message exists in an empty/restored session.
       if (restored.length === 0) {
-        await saveChatMessage(lastSessionId, "assistant", INITIAL_MESSAGE.content);
+        await saveChatMessage(nextSessionId, "assistant", INITIAL_MESSAGE.content);
       }
-      setShowSessionChoice(false);
     } catch (err) {
       console.error(err);
-      setShowSessionChoice(false);
     } finally {
-      setIsSessionLoading(false);
+      setIsSessionActionLoading(false);
+    }
+  };
+
+  const saveSessionName = async (targetSessionId: string) => {
+    const cleaned = editingSessionName.trim();
+    if (!cleaned) return;
+    try {
+      setIsSessionActionLoading(true);
+      const updated = await renameChatSession(targetSessionId, cleaned);
+      setSessions((prev) => prev.map((s) => (s.id === targetSessionId ? updated : s)));
+      setEditingSessionId(null);
+      setEditingSessionName("");
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsSessionActionLoading(false);
+    }
+  };
+
+  const removeSession = async (targetSessionId: string) => {
+    const confirmed = window.confirm("Delete this session permanently?");
+    if (!confirmed) return;
+
+    try {
+      setIsSessionActionLoading(true);
+      await deleteChatSession(targetSessionId);
+      const remainingSessions = sessions.filter((s) => s.id !== targetSessionId);
+      setSessions(remainingSessions);
+
+      if (targetSessionId === sessionId) {
+        if (remainingSessions.length > 0) {
+          await openSession(remainingSessions[0].id);
+        } else if (user) {
+          const s = await createChatSession(user.id, "constructive_feedback", "Session 1");
+          setSessions([s]);
+          setSessionId(s.id);
+          setMessages([INITIAL_MESSAGE]);
+          await saveChatMessage(s.id, "assistant", INITIAL_MESSAGE.content);
+        }
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsSessionActionLoading(false);
     }
   };
 
@@ -172,7 +235,7 @@ export default function AvatarSessionPage() {
   }, [isSpeaking]);
 
   const handleSend = async (text: string) => {
-    if (showSessionChoice || isSessionLoading) return;
+    if (isSessionLoading || isSessionActionLoading) return;
 
     const userMsg: TranscriptMessage = { id: Date.now().toString(), role: "user", content: text };
     setMessages((prev) => [...prev, userMsg]);
@@ -237,7 +300,7 @@ export default function AvatarSessionPage() {
   handleSendRef.current = handleSend;
 
   const onMicClick = () => {
-    if (showSessionChoice || isSessionLoading) return;
+    if (isSessionLoading || isSessionActionLoading) return;
 
     if (voiceState === "listening") {
       stopRecognition();
@@ -369,22 +432,6 @@ export default function AvatarSessionPage() {
 
         {/* Transcript in glass card */}
         <div className="w-full glass rounded-2xl p-6 border border-primary/5">
-          {showSessionChoice && (
-            <div className="mb-4 rounded-xl border border-border bg-card p-4">
-              <p className="text-sm font-semibold text-foreground mb-3">
-                Continue your last session or start a new one?
-              </p>
-              <div className="flex gap-2">
-                <Button type="button" size="sm" onClick={continueLastSession} disabled={isSessionLoading}>
-                  Continue last session
-                </Button>
-                <Button type="button" size="sm" variant="outline" onClick={startNewSession} disabled={isSessionLoading}>
-                  Start new session
-                </Button>
-              </div>
-            </div>
-          )}
-
           <ChatTranscript messages={messages} />
           <div ref={bottomRef} />
         </div>
@@ -393,8 +440,103 @@ export default function AvatarSessionPage() {
         <div className="w-full">
           <ChatInput
             onSend={handleSend}
-            disabled={voiceState === "processing" || showSessionChoice || isSessionLoading}
+            disabled={voiceState === "processing" || isSessionLoading || isSessionActionLoading}
           />
+        </div>
+      </div>
+
+      <div className="fixed top-20 left-4 z-20 w-72 max-h-[75vh] overflow-hidden rounded-xl border border-border bg-card shadow-sm flex flex-col">
+        <div className="p-3 border-b border-border flex items-center justify-between gap-2">
+          <p className="text-sm font-semibold">Sessions</p>
+          <Button size="sm" type="button" onClick={startNewSession} disabled={isSessionLoading || isSessionActionLoading}>
+            New
+          </Button>
+        </div>
+        <div className="flex-1 overflow-y-auto p-2 space-y-2">
+          {sessions.map((session, index) => {
+            const isSelected = session.id === sessionId;
+            const displayName = session.session_name?.trim() || `Session ${sessions.length - index}`;
+
+            return (
+              <div
+                key={session.id}
+                className={`rounded-lg border p-2 ${isSelected ? "border-primary bg-primary/5" : "border-border"}`}
+              >
+                {editingSessionId === session.id ? (
+                  <div className="space-y-2">
+                    <Input
+                      value={editingSessionName}
+                      onChange={(e) => setEditingSessionName(e.target.value)}
+                      placeholder="Session name"
+                      disabled={isSessionActionLoading}
+                    />
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        type="button"
+                        onClick={() => saveSessionName(session.id)}
+                        disabled={isSessionActionLoading || !editingSessionName.trim()}
+                      >
+                        Save
+                      </Button>
+                      <Button
+                        size="sm"
+                        type="button"
+                        variant="outline"
+                        onClick={() => {
+                          setEditingSessionId(null);
+                          setEditingSessionName("");
+                        }}
+                        disabled={isSessionActionLoading}
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      className="w-full text-left"
+                      onClick={() => openSession(session.id)}
+                      disabled={isSessionActionLoading}
+                    >
+                      <p className="text-sm font-medium truncate">{displayName}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {new Date(session.updated_at).toLocaleString()}
+                      </p>
+                    </button>
+                    <div className="mt-2 flex gap-2">
+                      <Button
+                        size="sm"
+                        type="button"
+                        variant="outline"
+                        onClick={() => {
+                          setEditingSessionId(session.id);
+                          setEditingSessionName(session.session_name?.trim() || "");
+                        }}
+                        disabled={isSessionActionLoading}
+                      >
+                        Rename
+                      </Button>
+                      <Button
+                        size="sm"
+                        type="button"
+                        variant="outline"
+                        onClick={() => removeSession(session.id)}
+                        disabled={isSessionActionLoading}
+                      >
+                        Delete
+                      </Button>
+                    </div>
+                  </>
+                )}
+              </div>
+            );
+          })}
+          {sessions.length === 0 && !isSessionLoading && (
+            <p className="text-xs text-muted-foreground p-2">No saved sessions yet.</p>
+          )}
         </div>
       </div>
     </div>

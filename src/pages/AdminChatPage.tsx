@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 import { jsPDF } from "jspdf";
+import JSZip from "jszip";
 
 type SessionRow = {
   id: string;
@@ -73,6 +74,8 @@ export default function AdminChatPage() {
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [exportingSingle, setExportingSingle] = useState(false);
   const [exportingAll, setExportingAll] = useState(false);
+  const [exportingUserZip, setExportingUserZip] = useState(false);
+  const [exportingAllZip, setExportingAllZip] = useState(false);
 
   const expectedPassword = useMemo(
     () => import.meta.env.VITE_ADMIN_CHAT_PASSWORD || DEFAULT_ADMIN_CHAT_PASSWORD,
@@ -266,7 +269,7 @@ export default function AdminChatPage() {
     return (data || []) as MessageRow[];
   };
 
-  const downloadTranscriptPdf = (session: SessionRow, transcriptMessages: MessageRow[]) => {
+  const buildTranscriptPdf = (session: SessionRow, transcriptMessages: MessageRow[]) => {
     const doc = new jsPDF({ unit: "pt", format: "a4" });
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
@@ -315,10 +318,36 @@ export default function AdminChatPage() {
       });
     }
 
+    return doc;
+  };
+
+  const buildTranscriptFilename = (session: SessionRow) => {
     const createdDate = new Date(session.created_at).toISOString().slice(0, 10);
     const safeUser = sanitizeFilename(getUserLabel(session.user_id));
     const safeSession = sanitizeFilename(session.id.slice(0, 8));
-    doc.save(`chat-transcript-${safeUser}-${createdDate}-${safeSession}.pdf`);
+    return `chat-transcript-${safeUser}-${createdDate}-${safeSession}.pdf`;
+  };
+
+  const downloadTranscriptPdf = (session: SessionRow, transcriptMessages: MessageRow[]) => {
+    const doc = buildTranscriptPdf(session, transcriptMessages);
+    doc.save(buildTranscriptFilename(session));
+  };
+
+  const triggerBlobDownload = (blob: Blob, filename: string) => {
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  };
+
+  const buildSessionFolderName = (session: SessionRow) => {
+    const safeDate = new Date(session.created_at).toISOString().replace(/[:]/g, "-");
+    const safeScenario = sanitizeFilename(session.scenario || "session");
+    return `${safeDate}_${safeScenario}_${session.id.slice(0, 8)}`;
   };
 
   const handleDownloadSelectedTranscript = async () => {
@@ -351,6 +380,79 @@ export default function AdminChatPage() {
       alert(message);
     } finally {
       setExportingAll(false);
+    }
+  };
+
+  const handleDownloadSelectedUserZip = async () => {
+    if (!selectedUserId) return;
+    setExportingUserZip(true);
+    try {
+      const zip = new JSZip();
+      const selectedUserSessions = sessions
+        .filter((session) => session.user_id === selectedUserId)
+        .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+
+      const userFolder = zip.folder(sanitizeFilename(getUserLabel(selectedUserId)));
+      if (!userFolder) throw new Error("Failed to create user folder in zip.");
+
+      for (const session of selectedUserSessions) {
+        const transcriptMessages = await fetchMessagesBySessionId(session.id);
+        const sessionFolder = userFolder.folder(buildSessionFolderName(session));
+        if (!sessionFolder) continue;
+        const pdfDoc = buildTranscriptPdf(session, transcriptMessages);
+        const pdfBuffer = pdfDoc.output("arraybuffer");
+        sessionFolder.file(buildTranscriptFilename(session), pdfBuffer);
+      }
+
+      const blob = await zip.generateAsync({ type: "blob" });
+      triggerBlobDownload(
+        blob,
+        `chat-transcripts-${sanitizeFilename(getUserLabel(selectedUserId))}.zip`,
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to generate user zip.";
+      alert(message);
+    } finally {
+      setExportingUserZip(false);
+    }
+  };
+
+  const handleDownloadAllUsersZip = async () => {
+    if (sessions.length === 0) return;
+    setExportingAllZip(true);
+    try {
+      const zip = new JSZip();
+      const sessionsByUser = new Map<string, SessionRow[]>();
+      for (const session of sessions) {
+        const list = sessionsByUser.get(session.user_id) || [];
+        list.push(session);
+        sessionsByUser.set(session.user_id, list);
+      }
+
+      for (const [userId, userSessions] of sessionsByUser.entries()) {
+        const userFolder = zip.folder(sanitizeFilename(getUserLabel(userId)));
+        if (!userFolder) continue;
+        const orderedSessions = [...userSessions].sort(
+          (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
+        );
+
+        for (const session of orderedSessions) {
+          const transcriptMessages = await fetchMessagesBySessionId(session.id);
+          const sessionFolder = userFolder.folder(buildSessionFolderName(session));
+          if (!sessionFolder) continue;
+          const pdfDoc = buildTranscriptPdf(session, transcriptMessages);
+          const pdfBuffer = pdfDoc.output("arraybuffer");
+          sessionFolder.file(buildTranscriptFilename(session), pdfBuffer);
+        }
+      }
+
+      const blob = await zip.generateAsync({ type: "blob" });
+      triggerBlobDownload(blob, "chat-transcripts-all-users.zip");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to generate zip.";
+      alert(message);
+    } finally {
+      setExportingAllZip(false);
     }
   };
 
@@ -479,17 +581,59 @@ export default function AdminChatPage() {
           <Button
             variant="outline"
             onClick={handleDownloadSelectedTranscript}
-            disabled={!selectedSessionId || loadingMessages || exportingSingle || exportingAll}
+            disabled={
+              !selectedSessionId ||
+              loadingMessages ||
+              exportingSingle ||
+              exportingAll ||
+              exportingUserZip ||
+              exportingAllZip
+            }
           >
             {exportingSingle ? "Generating PDF..." : "Download selected transcript PDF"}
           </Button>
           <Button
             onClick={handleDownloadAllTranscripts}
-            disabled={sessions.length === 0 || loadingSessions || exportingAll || exportingSingle}
+            disabled={
+              sessions.length === 0 ||
+              loadingSessions ||
+              exportingAll ||
+              exportingSingle ||
+              exportingUserZip ||
+              exportingAllZip
+            }
           >
             {exportingAll
               ? "Generating all PDFs..."
               : "Download all transcripts (one PDF per conversation)"}
+          </Button>
+          <Button
+            variant="outline"
+            onClick={handleDownloadSelectedUserZip}
+            disabled={
+              !selectedUserId ||
+              loadingSessions ||
+              exportingSingle ||
+              exportingAll ||
+              exportingUserZip ||
+              exportingAllZip
+            }
+          >
+            {exportingUserZip ? "Building user ZIP..." : "Download selected user ZIP"}
+          </Button>
+          <Button
+            variant="outline"
+            onClick={handleDownloadAllUsersZip}
+            disabled={
+              sessions.length === 0 ||
+              loadingSessions ||
+              exportingSingle ||
+              exportingAll ||
+              exportingUserZip ||
+              exportingAllZip
+            }
+          >
+            {exportingAllZip ? "Building all-user ZIP..." : "Download all users ZIP (folders by user/session)"}
           </Button>
         </div>
       </div>

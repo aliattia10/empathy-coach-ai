@@ -178,12 +178,23 @@ export default function AvatarSessionPage() {
     if (!cleaned) return;
     try {
       setIsSessionActionLoading(true);
-      const updated = await renameChatSession(targetSessionId, cleaned);
-      setSessions((prev) => prev.map((s) => (s.id === targetSessionId ? updated : s)));
+      await renameChatSession(targetSessionId, cleaned);
+      setSessions((prev) =>
+        prev.map((s) =>
+          s.id === targetSessionId
+            ? {
+                ...s,
+                session_name: cleaned,
+                updated_at: new Date().toISOString(),
+              }
+            : s,
+        ),
+      );
       setEditingSessionId(null);
       setEditingSessionName("");
     } catch (err) {
       console.error(err);
+      alert("We couldn't save this session name. Please try again.");
     } finally {
       setIsSessionActionLoading(false);
     }

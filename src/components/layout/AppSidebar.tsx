@@ -16,9 +16,12 @@ export default function AppSidebar() {
   return (
     <aside className="hidden md:flex flex-col w-64 gradient-hero min-h-screen p-4">
       <div className="mb-8 px-3 pt-2">
-        <h1 className="text-xl font-display font-bold text-primary-foreground tracking-tight">
-          ShiftED<span className="text-secondary"> AI</span>
-        </h1>
+        <div className="flex items-center gap-2">
+          <img src="/logo.png" alt="ShiftED AI logo" className="h-8 w-8 rounded-lg object-contain" />
+          <h1 className="text-xl font-display font-bold text-primary-foreground tracking-tight">
+            ShiftED<span className="text-secondary"> AI</span>
+          </h1>
+        </div>
         <p className="text-xs text-primary-foreground/60 mt-1">Empathy-driven leadership training</p>
       </div>
 

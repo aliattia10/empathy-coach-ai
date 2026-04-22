@@ -495,9 +495,9 @@ export default function AvatarSessionPage() {
   );
 
   return (
-    <div className="min-h-[calc(100vh-8rem)] px-3 md:px-5 py-4">
+    <div className="min-h-[calc(100vh-8rem)] px-3 md:px-5 py-4 pb-24 md:pb-4">
       <div className="max-w-5xl mx-auto relative">
-        <div className="fixed left-2 md:left-4 top-1/2 -translate-y-1/2 z-30">
+        <div className="fixed left-3 bottom-20 md:left-4 md:top-1/2 md:bottom-auto md:-translate-y-1/2 z-30">
           <Sheet>
             <SheetTrigger asChild>
               <Button size="sm" variant="secondary" className="rounded-full shadow-md">
@@ -512,7 +512,7 @@ export default function AvatarSessionPage() {
             </SheetContent>
           </Sheet>
         </div>
-        <div className="fixed right-2 md:right-4 top-1/2 -translate-y-1/2 z-30">
+        <div className="fixed right-3 bottom-20 md:right-4 md:top-1/2 md:bottom-auto md:-translate-y-1/2 z-30">
           <Sheet>
             <SheetTrigger asChild>
               <Button size="sm" variant="secondary" className="rounded-full shadow-md">

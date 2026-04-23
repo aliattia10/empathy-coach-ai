@@ -106,11 +106,14 @@ export async function fetchUserSessions(userId: string) {
 }
 
 export async function renameChatSession(sessionId: string, sessionName: string) {
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from("chat_sessions")
     .update({ session_name: sessionName })
-    .eq("id", sessionId);
+    .eq("id", sessionId)
+    .select()
+    .single();
   if (error) throw error;
+  return data as ChatSession;
 }
 
 export async function deleteChatSession(sessionId: string) {

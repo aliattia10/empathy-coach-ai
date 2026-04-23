@@ -6,13 +6,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 
-const BOOTSTRAP_ADMIN_CREDENTIALS: Record<string, string> = {
-  "kara@admin.com": "kara1*2",
-  "josh@admin.com": "joshua123*",
-  "simon@admin.com": "123*1",
-  "louise@admin.com": "louise*as",
-};
-
 export default function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -38,28 +31,6 @@ export default function LoginPage() {
       } else {
         const normalizedEmail = email.trim().toLowerCase();
         const { error } = await supabase.auth.signInWithPassword({ email: normalizedEmail, password });
-
-        // If known admin credentials don't exist yet, bootstrap the account once.
-        if (error?.message?.toLowerCase().includes("invalid login credentials")) {
-          const expected = BOOTSTRAP_ADMIN_CREDENTIALS[normalizedEmail];
-          if (expected && expected === password) {
-            const { error: signUpError } = await supabase.auth.signUp({
-              email: normalizedEmail,
-              password,
-            });
-            if (!signUpError) {
-              const { error: retryError } = await supabase.auth.signInWithPassword({
-                email: normalizedEmail,
-                password,
-              });
-              if (!retryError) {
-                toast.success("Admin account created and signed in.");
-                navigate(redirectTo);
-                return;
-              }
-            }
-          }
-        }
 
         if (error) throw error;
         toast.success("Signed in.");

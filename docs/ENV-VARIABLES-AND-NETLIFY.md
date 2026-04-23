@@ -48,7 +48,7 @@ Add these so the **live site** works:
 | **VLLM_MODEL** | No (has default) | Model id, e.g. `meta-llama/llama-3.2-3b-instruct:free`. |
 | **GROQ_API_KEY** | Only if `LLM_PROVIDER=groq` | Groq API key. Used by the serverless `/api/chat` function when using Groq. |
 | **GROQ_MODEL** | Only if `LLM_PROVIDER=groq` | Groq model id. Default: `llama-3.1-8b-instant`. |
-| **VITE_ADMIN_CHAT_PASSWORD** | Optional | Password required by `/adminchat` page. Default in code: `123josh*1` (change in Netlify for production). |
+| **VITE_ADMIN_CHAT_PASSWORD** | Required for `/adminchat` | Password required by `/adminchat` page. Must be set in Netlify/Supabase environment variables. |
 | **VITE_SUPABASE_URL** | Yes | Supabase project URL, e.g. `https://YOUR_PROJECT_REF.supabase.co`. Needed for auth, survey, chat storage. |
 | **VITE_SUPABASE_PUBLISHABLE_KEY** | Yes | Supabase anon/public key. Needed for auth and Supabase client in the browser. |
 

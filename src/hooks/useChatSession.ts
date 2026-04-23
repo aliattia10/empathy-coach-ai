@@ -152,6 +152,14 @@ export async function fetchMessageFeedback(messageId: string) {
   return (data ?? []) as ChatFeedback[];
 }
 
+export async function deleteMessageFeedback(feedbackId: string) {
+  const { error } = await supabase
+    .from("chat_feedback")
+    .delete()
+    .eq("id", feedbackId);
+  if (error) throw error;
+}
+
 export async function setSessionActiveMessage(sessionId: string, messageId: string | null) {
   const { error } = await supabase
     .from("chat_sessions")

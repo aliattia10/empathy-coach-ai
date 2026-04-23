@@ -7,6 +7,7 @@ import { useSpeechSynthesis } from "@/hooks/useSpeechSynthesis";
 import {
   createMessageFeedback,
   createChatSession,
+  deleteMessageFeedback,
   deleteChatSession,
   fetchChatHistory,
   fetchMessageFeedback,
@@ -88,7 +89,12 @@ export default function AvatarSessionPage() {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [feedbackByMessageId, setFeedbackByMessageId] = useState<Record<string, ChatFeedback[]>>({});
-  const [feedbackDrafts, setFeedbackDrafts] = useState<Record<string, { text: string; rating: number; tags: FeedbackTag[]; open: boolean }>>({});
+  const [feedbackDrafts, setFeedbackDrafts] = useState<
+    Record<
+      string,
+      { text: string; rating: number | null; tags: FeedbackTag[]; open: boolean; composing: boolean }
+    >
+  >({});
   const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false);
   const [isRegenerating, setIsRegenerating] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -507,7 +513,13 @@ export default function AvatarSessionPage() {
 
   const handleFeedbackDraftChange = (
     messageId: string,
-    next: { text: string; rating: number; tags: FeedbackTag[]; open: boolean },
+    next: {
+      text: string;
+      rating: number | null;
+      tags: FeedbackTag[];
+      open: boolean;
+      composing: boolean;
+    },
   ) => {
     setFeedbackDrafts((prev) => ({ ...prev, [messageId]: next }));
   };
@@ -523,7 +535,7 @@ export default function AvatarSessionPage() {
         messageId,
         adminUserId: user.id,
         feedbackText: draft.text.trim(),
-        rating: draft.rating,
+        rating: draft.rating ?? null,
         tags: draft.tags,
       });
       setFeedbackByMessageId((prev) => ({
@@ -532,7 +544,7 @@ export default function AvatarSessionPage() {
       }));
       setFeedbackDrafts((prev) => ({
         ...prev,
-        [messageId]: { text: "", rating: 3, tags: [], open: false },
+        [messageId]: { text: "", rating: null, tags: [], open: true, composing: false },
       }));
       setMessages((prev) =>
         prev.map((item) =>
@@ -544,6 +556,17 @@ export default function AvatarSessionPage() {
     } finally {
       setIsSubmittingFeedback(false);
     }
+  };
+
+  const handleDeleteFeedback = async (messageId: string, feedbackId: string) => {
+    if (!isAdmin) return;
+    const confirmed = window.confirm("Delete this feedback?");
+    if (!confirmed) return;
+    await deleteMessageFeedback(feedbackId);
+    setFeedbackByMessageId((prev) => ({
+      ...prev,
+      [messageId]: (prev[messageId] || []).filter((item) => item.id !== feedbackId),
+    }));
   };
 
   const handleSelectVariant = async (messageId: string) => {
@@ -867,9 +890,11 @@ export default function AvatarSessionPage() {
               messages={messages}
               className="max-h-[58vh] min-h-[360px] rounded-lg bg-transparent border-0 p-0"
               isAdmin={isAdmin}
+              feedbackItemsByMessageId={feedbackByMessageId}
               feedbackDrafts={feedbackDrafts}
               onFeedbackDraftChange={handleFeedbackDraftChange}
               onSubmitFeedback={handleSubmitFeedback}
+              onDeleteFeedback={handleDeleteFeedback}
               onRegenerate={handleRegenerate}
               onSelectVariant={handleSelectVariant}
               onCycleVariant={handleCycleVariant}

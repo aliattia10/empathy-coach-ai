@@ -3,7 +3,7 @@ import { useEffect, useRef } from "react";
 import ReactMarkdown from "react-markdown";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Input } from "@/components/ui/input";
+import type { ChatFeedback } from "@/hooks/useChatSession";
 
 export interface TranscriptMessage {
   id: string;
@@ -20,9 +20,17 @@ interface ChatTranscriptProps {
   messages: TranscriptMessage[];
   className?: string;
   isAdmin?: boolean;
-  feedbackDrafts?: Record<string, { text: string; rating: number; tags: string[]; open: boolean }>;
-  onFeedbackDraftChange?: (messageId: string, next: { text: string; rating: number; tags: string[]; open: boolean }) => void;
+  feedbackItemsByMessageId?: Record<string, ChatFeedback[]>;
+  feedbackDrafts?: Record<
+    string,
+    { text: string; rating: number | null; tags: string[]; open: boolean; composing: boolean }
+  >;
+  onFeedbackDraftChange?: (
+    messageId: string,
+    next: { text: string; rating: number | null; tags: string[]; open: boolean; composing: boolean },
+  ) => void;
   onSubmitFeedback?: (messageId: string) => void;
+  onDeleteFeedback?: (messageId: string, feedbackId: string) => void;
   onRegenerate?: (messageId: string) => void;
   onSelectVariant?: (messageId: string) => void;
   onCycleVariant?: (messageId: string, direction: "prev" | "next") => void;
@@ -36,9 +44,11 @@ export default function ChatTranscript({
   messages,
   className,
   isAdmin = false,
+  feedbackItemsByMessageId = {},
   feedbackDrafts = {},
   onFeedbackDraftChange,
   onSubmitFeedback,
+  onDeleteFeedback,
   onRegenerate,
   onSelectVariant,
   onCycleVariant,
@@ -121,7 +131,14 @@ export default function ChatTranscript({
                             variant="outline"
                             type="button"
                             onClick={() => {
-                              const existing = feedbackDrafts[msg.id] || { text: "", rating: 3, tags: [], open: false };
+                              const hasPrevious = (feedbackItemsByMessageId[msg.id] || []).length > 0;
+                              const existing = feedbackDrafts[msg.id] || {
+                                text: "",
+                                rating: null,
+                                tags: [],
+                                open: false,
+                                composing: !hasPrevious,
+                              };
                               onFeedbackDraftChange?.(msg.id, { ...existing, open: !existing.open });
                             }}
                           >
@@ -147,60 +164,158 @@ export default function ChatTranscript({
 
                     {isAdmin && feedbackDrafts[msg.id]?.open && (
                       <div className="rounded-lg border border-border/80 p-2 space-y-2 bg-card">
-                        <Textarea
-                          value={feedbackDrafts[msg.id]?.text || ""}
-                          onChange={(event) =>
-                            onFeedbackDraftChange?.(msg.id, {
-                              ...(feedbackDrafts[msg.id] || { text: "", rating: 3, tags: [], open: true }),
-                              text: event.target.value,
-                            })
-                          }
-                          placeholder="Describe what should be improved..."
-                          rows={3}
-                        />
-                        <Input
-                          type="number"
-                          min={1}
-                          max={5}
-                          value={feedbackDrafts[msg.id]?.rating || 3}
-                          onChange={(event) => {
-                            const value = Number(event.target.value);
-                            onFeedbackDraftChange?.(msg.id, {
-                              ...(feedbackDrafts[msg.id] || { text: "", rating: 3, tags: [], open: true }),
-                              rating: Number.isFinite(value) ? Math.min(5, Math.max(1, value)) : 3,
-                            });
-                          }}
-                        />
-                        <div className="flex flex-wrap gap-1">
-                          {FEEDBACK_TAGS.map((tag) => {
-                            const selected = (feedbackDrafts[msg.id]?.tags || []).includes(tag);
-                            return (
+                        {(feedbackItemsByMessageId[msg.id] || []).length > 0 && (
+                          <div className="space-y-2">
+                            <p className="text-xs font-medium text-muted-foreground">Previous feedback</p>
+                            {(feedbackItemsByMessageId[msg.id] || []).map((item) => (
+                              <div key={item.id} className="rounded-md border border-border p-2 text-xs space-y-1">
+                                <div className="flex items-center justify-between gap-2">
+                                  <span className="text-muted-foreground">
+                                    {new Date(item.created_at).toLocaleString()}
+                                  </span>
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => onDeleteFeedback?.(msg.id, item.id)}
+                                  >
+                                    Delete
+                                  </Button>
+                                </div>
+                                <p className="text-foreground whitespace-pre-wrap">{item.feedback_text}</p>
+                                <p className="text-muted-foreground">
+                                  Rating: {item.rating ?? "Not rated"} | Tags:{" "}
+                                  {(item.tags || []).length ? (item.tags || []).join(", ") : "None"}
+                                </p>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {!feedbackDrafts[msg.id]?.composing ? (
+                          <Button
+                            size="sm"
+                            type="button"
+                            variant="outline"
+                            onClick={() => {
+                              const current = feedbackDrafts[msg.id] || {
+                                text: "",
+                                rating: null,
+                                tags: [],
+                                open: true,
+                                composing: false,
+                              };
+                              onFeedbackDraftChange?.(msg.id, { ...current, composing: true });
+                            }}
+                          >
+                            Add another feedback
+                          </Button>
+                        ) : (
+                          <>
+                            <Textarea
+                              value={feedbackDrafts[msg.id]?.text || ""}
+                              onChange={(event) =>
+                                onFeedbackDraftChange?.(msg.id, {
+                                  ...(feedbackDrafts[msg.id] || {
+                                    text: "",
+                                    rating: null,
+                                    tags: [],
+                                    open: true,
+                                    composing: true,
+                                  }),
+                                  text: event.target.value,
+                                })
+                              }
+                              placeholder="Describe what should be improved..."
+                              rows={3}
+                            />
+                            <select
+                              className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
+                              value={feedbackDrafts[msg.id]?.rating ?? ""}
+                              onChange={(event) => {
+                                const raw = event.target.value;
+                                onFeedbackDraftChange?.(msg.id, {
+                                  ...(feedbackDrafts[msg.id] || {
+                                    text: "",
+                                    rating: null,
+                                    tags: [],
+                                    open: true,
+                                    composing: true,
+                                  }),
+                                  rating: raw === "" ? null : Number(raw),
+                                });
+                              }}
+                            >
+                              <option value="">Select a rating (optional)</option>
+                              <option value="1">1</option>
+                              <option value="2">2</option>
+                              <option value="3">3</option>
+                              <option value="4">4</option>
+                              <option value="5">5</option>
+                            </select>
+                            <div className="flex flex-wrap gap-1">
+                              {FEEDBACK_TAGS.map((tag) => {
+                                const selected = (feedbackDrafts[msg.id]?.tags || []).includes(tag);
+                                return (
+                                  <Button
+                                    key={tag}
+                                    type="button"
+                                    size="sm"
+                                    variant={selected ? "default" : "outline"}
+                                    onClick={() => {
+                                      const current = feedbackDrafts[msg.id] || {
+                                        text: "",
+                                        rating: null,
+                                        tags: [],
+                                        open: true,
+                                        composing: true,
+                                      };
+                                      const nextTags = selected
+                                        ? current.tags.filter((item) => item !== tag)
+                                        : [...current.tags, tag];
+                                      onFeedbackDraftChange?.(msg.id, { ...current, tags: nextTags });
+                                    }}
+                                  >
+                                    {tag}
+                                  </Button>
+                                );
+                              })}
+                            </div>
+                            <div className="flex gap-2">
                               <Button
-                                key={tag}
-                                type="button"
                                 size="sm"
-                                variant={selected ? "default" : "outline"}
+                                type="button"
+                                disabled={isSubmittingFeedback || !(feedbackDrafts[msg.id]?.text || "").trim()}
+                                onClick={() => onSubmitFeedback?.(msg.id)}
+                              >
+                                {isSubmittingFeedback ? "Saving..." : "Save feedback"}
+                              </Button>
+                              <Button
+                                size="sm"
+                                type="button"
+                                variant="outline"
                                 onClick={() => {
-                                  const current = feedbackDrafts[msg.id] || { text: "", rating: 3, tags: [], open: true };
-                                  const nextTags = selected
-                                    ? current.tags.filter((item) => item !== tag)
-                                    : [...current.tags, tag];
-                                  onFeedbackDraftChange?.(msg.id, { ...current, tags: nextTags });
+                                  const current = feedbackDrafts[msg.id] || {
+                                    text: "",
+                                    rating: null,
+                                    tags: [],
+                                    open: true,
+                                    composing: true,
+                                  };
+                                  onFeedbackDraftChange?.(msg.id, {
+                                    ...current,
+                                    text: "",
+                                    rating: null,
+                                    tags: [],
+                                    composing: false,
+                                  });
                                 }}
                               >
-                                {tag}
+                                Cancel
                               </Button>
-                            );
-                          })}
-                        </div>
-                        <Button
-                          size="sm"
-                          type="button"
-                          disabled={isSubmittingFeedback || !(feedbackDrafts[msg.id]?.text || "").trim()}
-                          onClick={() => onSubmitFeedback?.(msg.id)}
-                        >
-                          {isSubmittingFeedback ? "Saving..." : "Save feedback"}
-                        </Button>
+                            </div>
+                          </>
+                        )}
                       </div>
                     )}
                   </div>

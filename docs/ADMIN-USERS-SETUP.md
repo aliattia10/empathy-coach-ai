@@ -4,10 +4,11 @@ Use this to configure admin login accounts and admin chat monitoring.
 
 ## Admin accounts
 
-- `kara@admin.com` / `kara1*2`
-- `josh@admin.com` / `joshua123*`
-- `simon@admin.com` / `123*1`
-- `louise@admin.com` / `louise*as`
+- `kara@admin.com`
+- `josh@admin.com`
+- `simon@admin.com`
+- `louise@admin.com`
+- Create strong passwords in Supabase/Auth. Do not commit passwords to git.
 
 Only **Joshua** (`josh@admin.com`) should be able to access `/adminchat`.
 
@@ -16,7 +17,7 @@ Only **Joshua** (`josh@admin.com`) should be able to access `/adminchat`.
 In Supabase Dashboard:
 1. Go to **Authentication -> Users**
 2. Click **Invite user** or **Create user**
-3. Add each email/password pair above
+3. Add each email and set a strong password
 
 ## Step 2 - Apply admin role migration
 
@@ -32,8 +33,7 @@ This migration:
 ## Step 3 - Admin chat page password
 
 - Route: `/adminchat`
-- Default password in code: `123josh*1`
-- For production, set Netlify env var:
+- Set Netlify env var:
 
 ```env
 VITE_ADMIN_CHAT_PASSWORD=your-strong-password

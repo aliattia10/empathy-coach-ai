@@ -13,16 +13,14 @@ import { createClient } from "@supabase/supabase-js";
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
 const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY;
 
-const DEFAULT_ADMIN_USERS = [
-  { email: "kara@admin.com", password: "kara1*2" },
-  { email: "josh@admin.com", password: "joshua123*" },
-  { email: "simon@admin.com", password: "123*1" },
-  { email: "louise@admin.com", password: "louise*as" },
-];
-
 function parseAdminUsers() {
   const raw = process.env.ADMIN_USERS_JSON;
-  if (!raw) return DEFAULT_ADMIN_USERS;
+  if (!raw) {
+    throw new Error(
+      "ADMIN_USERS_JSON is required. Provide an array like " +
+      '[{"email":"admin@example.com","password":"<strong-password>"}]',
+    );
+  }
 
   try {
     const parsed = JSON.parse(raw);

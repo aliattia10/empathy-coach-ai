@@ -1,18 +1,19 @@
 # Admin Login Credentials
 
-> Internal use only. Rotate these passwords after first login.
+> Security note: do not store real passwords in git.
 
 ## Admin users
 
-- `kara@admin.com` — `kara1*2`
-- `josh@admin.com` — `joshua123*`
-- `simon@admin.com` — `123*1`
-- `louise@admin.com` — `louise*as`
+- `kara@admin.com`
+- `josh@admin.com`
+- `simon@admin.com`
+- `louise@admin.com`
+- Passwords must be generated and managed in Supabase/Auth (or your secret manager), not in source code.
 
 ## /Adminchat    page to see all the conversations
 
 - Route: `/adminchat`
-- Page password: `123josh*1`
+- Page password comes from env var `VITE_ADMIN_CHAT_PASSWORD`
 
 ## Access policy note
 

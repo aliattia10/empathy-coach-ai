@@ -59,7 +59,6 @@ function sanitizeFilename(value: string) {
   return value.replace(/[\\/:*?"<>|]/g, "_");
 }
 
-const DEFAULT_ADMIN_CHAT_PASSWORD = "123josh*1";
 const ONLY_ADMIN_EMAIL = "josh@admin.com";
 
 export default function AdminChatPage() {
@@ -91,7 +90,7 @@ export default function AdminChatPage() {
   });
 
   const expectedPassword = useMemo(
-    () => import.meta.env.VITE_ADMIN_CHAT_PASSWORD || DEFAULT_ADMIN_CHAT_PASSWORD,
+    () => import.meta.env.VITE_ADMIN_CHAT_PASSWORD || "",
     []
   );
 
@@ -568,6 +567,10 @@ export default function AdminChatPage() {
   };
 
   const onUnlock = () => {
+    if (!expectedPassword) {
+      alert("Admin chat password is not configured. Set VITE_ADMIN_CHAT_PASSWORD.");
+      return;
+    }
     if (gatePass === expectedPassword) setUnlocked(true);
   };
 
@@ -663,6 +666,7 @@ export default function AdminChatPage() {
           <h1 className="text-lg font-semibold">Admin chat access</h1>
           <p className="text-sm text-muted-foreground">
             Enter admin page password to view all AI chat conversations.
+            Set `VITE_ADMIN_CHAT_PASSWORD` in environment variables.
           </p>
           <Input
             type="password"

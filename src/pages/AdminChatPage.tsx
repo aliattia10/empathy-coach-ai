@@ -38,6 +38,13 @@ type UserRow = {
   lastActivity: string;
 };
 
+type FeedbackAnalytics = {
+  feedbackTotal: number;
+  regenerateTotal: number;
+  avgRating: number | null;
+  avgRatingByPromptVersion: Record<string, number>;
+};
+
 function shortUserId(userId: string) {
   return userId.length > 12 ? `${userId.slice(0, 8)}…` : userId;
 }
@@ -76,6 +83,12 @@ export default function AdminChatPage() {
   const [exportingAll, setExportingAll] = useState(false);
   const [exportingUserZip, setExportingUserZip] = useState(false);
   const [exportingAllZip, setExportingAllZip] = useState(false);
+  const [analytics, setAnalytics] = useState<FeedbackAnalytics>({
+    feedbackTotal: 0,
+    regenerateTotal: 0,
+    avgRating: null,
+    avgRatingByPromptVersion: {},
+  });
 
   const expectedPassword = useMemo(
     () => import.meta.env.VITE_ADMIN_CHAT_PASSWORD || DEFAULT_ADMIN_CHAT_PASSWORD,
@@ -186,6 +199,104 @@ export default function AdminChatPage() {
 
     loadMessages();
   }, [unlocked, selectedSessionId, hasAdminRole]);
+
+  useEffect(() => {
+    if (!unlocked || !hasAdminRole) {
+      setAnalytics({
+        feedbackTotal: 0,
+        regenerateTotal: 0,
+        avgRating: null,
+        avgRatingByPromptVersion: {},
+      });
+      return;
+    }
+
+    let cancelled = false;
+    (async () => {
+      const [feedbackResult, messageResult, promptMetricsResult] = await Promise.all([
+        supabase.from("chat_feedback").select("message_id,rating,created_at"),
+        supabase
+          .from("chat_messages")
+          .select("id,regenerated_from_message_id,generation_metadata,created_at")
+          .eq("role", "assistant")
+          .limit(5000),
+        supabase.from("admin_feedback_prompt_metrics").select("prompt_version,avg_rating"),
+      ]);
+
+      if (cancelled) return;
+      if (feedbackResult.error || messageResult.error) return;
+
+      const feedbackRows = feedbackResult.data || [];
+      const messageRows = messageResult.data || [];
+
+      const ratings = feedbackRows
+        .map((item) => item.rating)
+        .filter((rating): rating is number => typeof rating === "number");
+      const avgRating =
+        ratings.length > 0 ? ratings.reduce((sum, value) => sum + value, 0) / ratings.length : null;
+
+      const promptTotals = new Map<string, { sum: number; count: number }>();
+      let regenerateTotal = 0;
+      for (const row of messageRows) {
+        const metadata = row.generation_metadata as {
+          promptVersion?: string;
+          regenerated?: boolean;
+        } | null;
+        if (metadata?.regenerated) regenerateTotal += 1;
+      }
+
+      // Use SQL view as source of truth. Keep JS fallback if migration not yet applied.
+      if (!promptMetricsResult.error && Array.isArray(promptMetricsResult.data)) {
+        for (const row of promptMetricsResult.data) {
+          if (!row?.prompt_version || typeof row.avg_rating !== "number") continue;
+          promptTotals.set(row.prompt_version, { sum: row.avg_rating, count: 1 });
+        }
+      } else {
+        const latestRegenerationBySource = new Map<
+          string,
+          { promptVersion: string; createdAt: string }
+        >();
+        for (const row of messageRows) {
+          if (!row.regenerated_from_message_id) continue;
+          const metadata = row.generation_metadata as { promptVersion?: string } | null;
+          const promptVersion = metadata?.promptVersion || "unknown";
+          const existing = latestRegenerationBySource.get(row.regenerated_from_message_id);
+          if (!existing || new Date(row.created_at) > new Date(existing.createdAt)) {
+            latestRegenerationBySource.set(row.regenerated_from_message_id, {
+              promptVersion,
+              createdAt: row.created_at,
+            });
+          }
+        }
+
+        for (const feedback of feedbackRows) {
+          if (typeof feedback.rating !== "number") continue;
+          const linked = latestRegenerationBySource.get(feedback.message_id);
+          if (!linked) continue;
+          const bucket = promptTotals.get(linked.promptVersion) || { sum: 0, count: 0 };
+          bucket.sum += feedback.rating;
+          bucket.count += 1;
+          promptTotals.set(linked.promptVersion, bucket);
+        }
+      }
+
+      const avgRatingByPromptVersion: Record<string, number> = {};
+      for (const [version, values] of promptTotals.entries()) {
+        avgRatingByPromptVersion[version] = values.sum / values.count;
+      }
+
+      setAnalytics({
+        feedbackTotal: feedbackResult.data?.length || 0,
+        regenerateTotal,
+        avgRating,
+        avgRatingByPromptVersion,
+      });
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [unlocked, hasAdminRole]);
 
   const handleAdminLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -577,6 +688,30 @@ export default function AdminChatPage() {
         <p className="text-sm text-muted-foreground mt-1">
           Users with at least one saved session. Select a user, then a session, to read the chat.
         </p>
+        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-2 mt-3">
+          <div className="rounded-lg border border-border p-3">
+            <p className="text-xs text-muted-foreground">Feedback submitted</p>
+            <p className="text-xl font-semibold">{analytics.feedbackTotal}</p>
+          </div>
+          <div className="rounded-lg border border-border p-3">
+            <p className="text-xs text-muted-foreground">Regenerations</p>
+            <p className="text-xl font-semibold">{analytics.regenerateTotal}</p>
+          </div>
+          <div className="rounded-lg border border-border p-3">
+            <p className="text-xs text-muted-foreground">Average rating</p>
+            <p className="text-xl font-semibold">
+              {analytics.avgRating ? `${analytics.avgRating.toFixed(2)}/5` : "N/A"}
+            </p>
+          </div>
+          <div className="rounded-lg border border-border p-3">
+            <p className="text-xs text-muted-foreground">Prompt version rating</p>
+            <p className="text-sm font-medium">
+              {Object.entries(analytics.avgRatingByPromptVersion)
+                .map(([version, rating]) => `${version}: ${rating.toFixed(2)}/5`)
+                .join(" | ") || "N/A"}
+            </p>
+          </div>
+        </div>
         <div className="flex flex-wrap gap-2 mt-3">
           <Button
             variant="outline"

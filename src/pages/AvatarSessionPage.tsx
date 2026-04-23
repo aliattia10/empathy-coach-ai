@@ -5,15 +5,23 @@ import { detectCrisis, CRISIS_RESPONSE } from "@/components/safety/CrisisDetecto
 import { useAuth } from "@/hooks/useAuth";
 import { useSpeechSynthesis } from "@/hooks/useSpeechSynthesis";
 import {
+  createMessageFeedback,
   createChatSession,
   deleteChatSession,
   fetchChatHistory,
+  fetchMessageFeedback,
   fetchUserSessions,
   renameChatSession,
   saveChatMessage,
+  setSessionActiveMessage,
+  type ChatMessage,
+  type ChatFeedback,
+  type FeedbackTag,
   type ChatSession,
 } from "@/hooks/useChatSession";
 import { stripMarkdownForSpeech } from "@/lib/speech";
+import { composeRegenerationPrompt } from "@/lib/regenerationPrompt";
+import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -32,6 +40,12 @@ import {
   Trash2,
 } from "lucide-react";
 import type { TranscriptMessage } from "@/components/avatar/ChatTranscript";
+
+type StoredMessage = TranscriptMessage & {
+  parent_message_id?: string | null;
+  regenerated_from_message_id?: string | null;
+  branch_root_message_id?: string | null;
+};
 
 const INITIAL_MESSAGE: TranscriptMessage = {
   id: "init",
@@ -69,8 +83,15 @@ async function blobToBase64(blob: Blob): Promise<string> {
 export default function AvatarSessionPage() {
   const { user } = useAuth();
   const [messages, setMessages] = useState<TranscriptMessage[]>([INITIAL_MESSAGE]);
+  const [rawMessages, setRawMessages] = useState<StoredMessage[]>([INITIAL_MESSAGE]);
+  const [activeAssistantId, setActiveAssistantId] = useState<string | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [sessions, setSessions] = useState<ChatSession[]>([]);
+  const [feedbackByMessageId, setFeedbackByMessageId] = useState<Record<string, ChatFeedback[]>>({});
+  const [feedbackDrafts, setFeedbackDrafts] = useState<Record<string, { text: string; rating: number; tags: FeedbackTag[]; open: boolean }>>({});
+  const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false);
+  const [isRegenerating, setIsRegenerating] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [isSessionLoading, setIsSessionLoading] = useState(true);
   const [isSessionActionLoading, setIsSessionActionLoading] = useState(false);
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
@@ -81,6 +102,94 @@ export default function AvatarSessionPage() {
   const handleSendRef = useRef<(text: string) => void>(() => {});
   const pendingSpeakTimeoutRef = useRef<number | null>(null);
   const { speak, stop, isSpeaking } = useSpeechSynthesis();
+
+  const buildDisplayMessages = (allMessages: StoredMessage[], activeMessageId: string | null) => {
+    const initialAssistant = allMessages.find((item) => item.role === "assistant" && !item.parent_message_id);
+    const users = allMessages.filter((item) => item.role === "user");
+    const selectedAssistantIds = new Set<string>();
+    const display: TranscriptMessage[] = [];
+
+    if (initialAssistant) {
+      display.push({
+        ...initialAssistant,
+        variantIndex: 0,
+        variantTotal: 1,
+        isActiveVariant: true,
+        feedbackCount: feedbackByMessageId[initialAssistant.id]?.length || 0,
+      });
+      selectedAssistantIds.add(initialAssistant.id);
+    }
+
+    for (const userMessage of users) {
+      display.push(userMessage);
+      const variants = allMessages.filter(
+        (item) => item.role === "assistant" && item.parent_message_id === userMessage.id,
+      );
+      if (variants.length === 0) continue;
+      let activeVariant = variants[variants.length - 1];
+      if (activeMessageId) {
+        const explicit = variants.find((item) => item.id === activeMessageId);
+        if (explicit) activeVariant = explicit;
+      }
+      const activeIndex = variants.findIndex((item) => item.id === activeVariant.id);
+      display.push({
+        ...activeVariant,
+        variantIndex: activeIndex,
+        variantTotal: variants.length,
+        isActiveVariant: true,
+        feedbackCount: feedbackByMessageId[activeVariant.id]?.length || 0,
+      });
+      selectedAssistantIds.add(activeVariant.id);
+    }
+
+    return display.map((item) => {
+      if (item.role !== "assistant") return item;
+      return {
+        ...item,
+        isActiveVariant: selectedAssistantIds.has(item.id),
+      };
+    });
+  };
+
+  const mapHistoryToStoredMessages = (history: ChatMessage[]): StoredMessage[] =>
+    history.map((m) => ({
+      id: m.id,
+      role: m.role,
+      content: m.content,
+      parent_message_id: m.parent_message_id,
+      regenerated_from_message_id: m.regenerated_from_message_id,
+      branch_root_message_id: m.branch_root_message_id,
+    }));
+
+  const loadFeedbackForMessages = async (messageList: StoredMessage[]) => {
+    const assistantMessages = messageList.filter((item) => item.role === "assistant");
+    const entries = await Promise.all(
+      assistantMessages.map(async (item) => [item.id, await fetchMessageFeedback(item.id)] as const),
+    );
+    setFeedbackByMessageId(Object.fromEntries(entries));
+  };
+
+  useEffect(() => {
+    let active = true;
+    const checkAdmin = async () => {
+      if (!user) {
+        setIsAdmin(false);
+        return;
+      }
+      const { data, error } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user.id)
+        .eq("role", "admin")
+        .limit(1);
+      if (!active) return;
+      setIsAdmin(!error && !!data && data.length > 0);
+    };
+    checkAdmin().catch(console.error);
+    return () => {
+      active = false;
+    };
+  }, [user]);
 
   useEffect(() => {
     let isMounted = true;
@@ -103,20 +212,22 @@ export default function AvatarSessionPage() {
           const selectedSession = existingSessions[0];
           const history = await fetchChatHistory(selectedSession.id);
           if (!isMounted) return;
-          const restored: TranscriptMessage[] = history.map((m) => ({
-            id: m.id,
-            role: m.role,
-            content: m.content,
-          }));
+          const restored = mapHistoryToStoredMessages(history);
           setSessionId(selectedSession.id);
-          setMessages(restored.length > 0 ? restored : [INITIAL_MESSAGE]);
+          setRawMessages(restored.length > 0 ? restored : [INITIAL_MESSAGE]);
+          setActiveAssistantId(selectedSession.active_message_id || null);
+          setMessages(buildDisplayMessages(restored.length > 0 ? restored : [INITIAL_MESSAGE], selectedSession.active_message_id || null));
+          await loadFeedbackForMessages(restored);
         } else {
           const s = await createChatSession(user.id, "constructive_feedback", "Session 1");
           if (!isMounted) return;
           setSessionId(s.id);
           setSessions([s]);
           setMessages([INITIAL_MESSAGE]);
-          await saveChatMessage(s.id, "assistant", INITIAL_MESSAGE.content);
+          const initial = await saveChatMessage(s.id, "assistant", INITIAL_MESSAGE.content);
+          setRawMessages([{ ...INITIAL_MESSAGE, id: initial.id }]);
+          setActiveAssistantId(initial.id);
+          await setSessionActiveMessage(s.id, initial.id);
         }
       } catch (err) {
         console.error(err);
@@ -141,7 +252,10 @@ export default function AvatarSessionPage() {
       setSessionId(s.id);
       setMessages([INITIAL_MESSAGE]);
       setSessions((prev) => [s, ...prev]);
-      await saveChatMessage(s.id, "assistant", INITIAL_MESSAGE.content);
+      const initial = await saveChatMessage(s.id, "assistant", INITIAL_MESSAGE.content);
+      setRawMessages([{ ...INITIAL_MESSAGE, id: initial.id }]);
+      setActiveAssistantId(initial.id);
+      await setSessionActiveMessage(s.id, initial.id);
     } catch (err) {
       console.error(err);
     } finally {
@@ -152,19 +266,23 @@ export default function AvatarSessionPage() {
   const openSession = async (nextSessionId: string) => {
     try {
       setIsSessionActionLoading(true);
+      const selectedSession = sessions.find((item) => item.id === nextSessionId) || null;
       const history = await fetchChatHistory(nextSessionId);
-      const restored: TranscriptMessage[] = history.map((m) => ({
-        id: m.id,
-        role: m.role,
-        content: m.content,
-      }));
+      const restored = mapHistoryToStoredMessages(history);
 
       setSessionId(nextSessionId);
-      setMessages(restored.length > 0 ? restored : [INITIAL_MESSAGE]);
+      setRawMessages(restored.length > 0 ? restored : [INITIAL_MESSAGE]);
+      setActiveAssistantId(selectedSession?.active_message_id || null);
+      setMessages(buildDisplayMessages(restored.length > 0 ? restored : [INITIAL_MESSAGE], selectedSession?.active_message_id || null));
+      await loadFeedbackForMessages(restored);
 
       // Ensure at least one assistant starter message exists in an empty/restored session.
       if (restored.length === 0) {
-        await saveChatMessage(nextSessionId, "assistant", INITIAL_MESSAGE.content);
+        const initial = await saveChatMessage(nextSessionId, "assistant", INITIAL_MESSAGE.content);
+        await setSessionActiveMessage(nextSessionId, initial.id);
+        setRawMessages([{ ...INITIAL_MESSAGE, id: initial.id }]);
+        setMessages([{ ...INITIAL_MESSAGE, id: initial.id }]);
+        setActiveAssistantId(initial.id);
       }
     } catch (err) {
       console.error(err);
@@ -218,7 +336,10 @@ export default function AvatarSessionPage() {
           setSessions([s]);
           setSessionId(s.id);
           setMessages([INITIAL_MESSAGE]);
-          await saveChatMessage(s.id, "assistant", INITIAL_MESSAGE.content);
+          const initial = await saveChatMessage(s.id, "assistant", INITIAL_MESSAGE.content);
+          setRawMessages([{ ...INITIAL_MESSAGE, id: initial.id }]);
+          setActiveAssistantId(initial.id);
+          await setSessionActiveMessage(s.id, initial.id);
         }
       }
     } catch (err) {
@@ -238,22 +359,43 @@ export default function AvatarSessionPage() {
     };
   }, [stop]);
 
+  useEffect(() => {
+    setMessages(buildDisplayMessages(rawMessages, activeAssistantId));
+  }, [rawMessages, activeAssistantId, feedbackByMessageId]);
+
   const handleSend = async (text: string) => {
     if (isSessionLoading || isSessionActionLoading) return;
 
-    const userMsg: TranscriptMessage = { id: Date.now().toString(), role: "user", content: text };
-    setMessages((prev) => [...prev, userMsg]);
-    if (sessionId) saveChatMessage(sessionId, "user", text).catch(console.error);
+    const localUserId = Date.now().toString();
+    const userMsg: StoredMessage = { id: localUserId, role: "user", content: text };
+    const nextRawWithLocalUser = [...rawMessages, userMsg];
+    setRawMessages(nextRawWithLocalUser);
+    setMessages(buildDisplayMessages(nextRawWithLocalUser, activeAssistantId));
+    if (!sessionId) return;
+
+    const persistedUser = await saveChatMessage(sessionId, "user", text, {
+      parentMessageId: activeAssistantId,
+    });
+    const persistedRawMessages = nextRawWithLocalUser.map((item) =>
+      item.id === localUserId ? { ...item, id: persistedUser.id, parent_message_id: activeAssistantId } : item,
+    );
+    setRawMessages(persistedRawMessages);
+    setMessages(buildDisplayMessages(persistedRawMessages, activeAssistantId));
 
     if (detectCrisis(text)) {
-      const crisisMsg: TranscriptMessage = { id: (Date.now() + 1).toString(), role: "assistant", content: CRISIS_RESPONSE };
-      setMessages((prev) => [...prev, crisisMsg]);
-      if (sessionId) saveChatMessage(sessionId, "assistant", CRISIS_RESPONSE).catch(console.error);
+      const crisisSaved = await saveChatMessage(sessionId, "assistant", CRISIS_RESPONSE, {
+        parentMessageId: persistedUser.id,
+      });
+      const nextRaw = [...persistedRawMessages, { id: crisisSaved.id, role: "assistant", content: CRISIS_RESPONSE, parent_message_id: persistedUser.id }];
+      setRawMessages(nextRaw);
+      setActiveAssistantId(crisisSaved.id);
+      setMessages(buildDisplayMessages(nextRaw, crisisSaved.id));
+      await setSessionActiveMessage(sessionId, crisisSaved.id);
       return;
     }
 
     setIsAiResponding(true);
-    const chatHistory = messages.map((m) => ({ role: m.role, content: m.content }));
+    const chatHistory = buildDisplayMessages(persistedRawMessages, activeAssistantId).map((m) => ({ role: m.role, content: m.content }));
 
     try {
       const response = await fetch("/api/chat", {
@@ -270,8 +412,14 @@ export default function AvatarSessionPage() {
         role: "assistant",
         content: content || "I didn't get a response. Please try again.",
       };
-      setMessages((prev) => [...prev, reply]);
-      if (sessionId) saveChatMessage(sessionId, "assistant", reply.content).catch(console.error);
+      const savedReply = await saveChatMessage(sessionId, "assistant", reply.content, {
+        parentMessageId: persistedUser.id,
+      });
+      const nextRaw = [...persistedRawMessages, { ...reply, id: savedReply.id, parent_message_id: persistedUser.id }];
+      setRawMessages(nextRaw);
+      setActiveAssistantId(savedReply.id);
+      setMessages(buildDisplayMessages(nextRaw, savedReply.id));
+      await setSessionActiveMessage(sessionId, savedReply.id);
       if (voiceEnabled) {
         const plain = stripMarkdownForSpeech(reply.content);
         if (plain) {
@@ -285,9 +433,14 @@ export default function AvatarSessionPage() {
       setIsAiResponding(false);
     } catch {
       const content = generateFallbackResponse();
-      const reply: TranscriptMessage = { id: (Date.now() + 1).toString(), role: "assistant", content };
-      setMessages((prev) => [...prev, reply]);
-      if (sessionId) saveChatMessage(sessionId, "assistant", content).catch(console.error);
+      const savedReply = await saveChatMessage(sessionId, "assistant", content, {
+        parentMessageId: persistedUser.id,
+      });
+      const nextRaw = [...persistedRawMessages, { id: savedReply.id, role: "assistant", content, parent_message_id: persistedUser.id }];
+      setRawMessages(nextRaw);
+      setActiveAssistantId(savedReply.id);
+      setMessages(buildDisplayMessages(nextRaw, savedReply.id));
+      await setSessionActiveMessage(sessionId, savedReply.id);
       if (voiceEnabled) {
         const plain = stripMarkdownForSpeech(content);
         if (plain) {
@@ -331,6 +484,127 @@ export default function AvatarSessionPage() {
       throw new Error(data.error || "Voice transcription failed.");
     }
     return (data.text || "").trim();
+  };
+
+  const handleFeedbackDraftChange = (
+    messageId: string,
+    next: { text: string; rating: number; tags: FeedbackTag[]; open: boolean },
+  ) => {
+    setFeedbackDrafts((prev) => ({ ...prev, [messageId]: next }));
+  };
+
+  const handleSubmitFeedback = async (messageId: string) => {
+    if (!sessionId || !user || !isAdmin) return;
+    const draft = feedbackDrafts[messageId];
+    if (!draft?.text.trim()) return;
+    try {
+      setIsSubmittingFeedback(true);
+      const created = await createMessageFeedback({
+        conversationId: sessionId,
+        messageId,
+        adminUserId: user.id,
+        feedbackText: draft.text.trim(),
+        rating: draft.rating,
+        tags: draft.tags,
+      });
+      setFeedbackByMessageId((prev) => ({
+        ...prev,
+        [messageId]: [created, ...(prev[messageId] || [])],
+      }));
+      setFeedbackDrafts((prev) => ({
+        ...prev,
+        [messageId]: { text: "", rating: 3, tags: [], open: false },
+      }));
+      setMessages((prev) =>
+        prev.map((item) =>
+          item.id === messageId
+            ? { ...item, feedbackCount: (feedbackByMessageId[messageId]?.length || 0) + 1 }
+            : item,
+        ),
+      );
+    } finally {
+      setIsSubmittingFeedback(false);
+    }
+  };
+
+  const handleSelectVariant = async (messageId: string) => {
+    if (!sessionId) return;
+    setActiveAssistantId(messageId);
+    setMessages(buildDisplayMessages(rawMessages, messageId));
+    await setSessionActiveMessage(sessionId, messageId);
+    setSessions((prev) => prev.map((s) => (s.id === sessionId ? { ...s, active_message_id: messageId } : s)));
+  };
+
+  const handleCycleVariant = async (messageId: string, direction: "prev" | "next") => {
+    const current = rawMessages.find((item) => item.id === messageId && item.role === "assistant");
+    if (!current?.parent_message_id) return;
+    const siblings = rawMessages.filter(
+      (item) => item.role === "assistant" && item.parent_message_id === current.parent_message_id,
+    );
+    if (siblings.length <= 1) return;
+    const currentIndex = siblings.findIndex((item) => item.id === messageId);
+    if (currentIndex < 0) return;
+    const delta = direction === "prev" ? -1 : 1;
+    const nextIndex = (currentIndex + delta + siblings.length) % siblings.length;
+    const next = siblings[nextIndex];
+    await handleSelectVariant(next.id);
+  };
+
+  const handleRegenerate = async (messageId: string) => {
+    if (!sessionId) return;
+    const target = rawMessages.find((item) => item.id === messageId && item.role === "assistant");
+    if (!target) return;
+    const parentUser = rawMessages.find((item) => item.id === target.parent_message_id && item.role === "user");
+    if (!parentUser) return;
+    const feedbackList = await fetchMessageFeedback(messageId);
+    if (feedbackList.length === 0) {
+      alert("Add at least one feedback entry before regenerating.");
+      return;
+    }
+    const regenPrompt = composeRegenerationPrompt({
+      originalUserInput: parentUser.content,
+      previousAssistantOutput: target.content,
+      feedbackList,
+      systemGuardrails: "Follow coaching-safety constraints and decline unsafe requests.",
+    });
+    const history = buildDisplayMessages(rawMessages.filter((item) => item.id !== target.id), activeAssistantId).map((m) => ({
+      role: m.role,
+      content: m.content,
+    }));
+    try {
+      setIsRegenerating(true);
+      const response = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userMessage: regenPrompt, chatHistory: history }),
+      });
+      const data = await response.json();
+      const regeneratedContent = response.ok ? data.reply ?? "" : data.error ?? "";
+      const branchRoot = target.branch_root_message_id || target.id;
+      const saved = await saveChatMessage(sessionId, "assistant", regeneratedContent || "Unable to regenerate.", {
+        parentMessageId: parentUser.id,
+        regeneratedFromMessageId: target.id,
+        branchRootMessageId: branchRoot,
+        generationMetadata: { modelProvider: "groq", promptVersion: "feedback-v2", regenerated: true },
+      });
+      const nextRaw = [
+        ...rawMessages,
+        {
+          id: saved.id,
+          role: "assistant",
+          content: saved.content,
+          parent_message_id: parentUser.id,
+          regenerated_from_message_id: target.id,
+          branch_root_message_id: branchRoot,
+        },
+      ];
+      setRawMessages(nextRaw);
+      await handleSelectVariant(saved.id);
+      const latestFeedback = await fetchMessageFeedback(saved.id);
+      setFeedbackByMessageId((prev) => ({ ...prev, [saved.id]: latestFeedback }));
+    } finally {
+      setIsRegenerating(false);
+    }
   };
 
   const progressPercent = messages.length <= 1 ? 0 : Math.min(100, (messages.filter((m) => m.role === "user").length / 5) * 25);
@@ -573,6 +847,15 @@ export default function AvatarSessionPage() {
             <ChatTranscript
               messages={messages}
               className="max-h-[58vh] min-h-[360px] rounded-lg bg-transparent border-0 p-0"
+              isAdmin={isAdmin}
+              feedbackDrafts={feedbackDrafts}
+              onFeedbackDraftChange={handleFeedbackDraftChange}
+              onSubmitFeedback={handleSubmitFeedback}
+              onRegenerate={handleRegenerate}
+              onSelectVariant={handleSelectVariant}
+              onCycleVariant={handleCycleVariant}
+              isSubmittingFeedback={isSubmittingFeedback}
+              isRegenerating={isRegenerating}
             />
             <div className="mt-3">
               <ChatInput

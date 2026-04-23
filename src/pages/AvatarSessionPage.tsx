@@ -104,34 +104,52 @@ export default function AvatarSessionPage() {
   const { speak, stop, isSpeaking } = useSpeechSynthesis();
 
   const buildDisplayMessages = (allMessages: StoredMessage[], activeMessageId: string | null) => {
-    const initialAssistant = allMessages.find((item) => item.role === "assistant" && !item.parent_message_id);
-    const users = allMessages.filter((item) => item.role === "user");
     const selectedAssistantIds = new Set<string>();
     const display: TranscriptMessage[] = [];
+    const indexed = allMessages.map((item, index) => ({ item, index }));
+    const linkedUserIds = new Set(
+      allMessages
+        .filter((item) => item.role === "assistant" && !!item.parent_message_id)
+        .map((item) => item.parent_message_id as string),
+    );
 
-    if (initialAssistant) {
-      display.push({
-        ...initialAssistant,
-        variantIndex: 0,
-        variantTotal: 1,
-        isActiveVariant: true,
-        feedbackCount: feedbackByMessageId[initialAssistant.id]?.length || 0,
-      });
-      selectedAssistantIds.add(initialAssistant.id);
-    }
+    for (const { item, index } of indexed) {
+      if (item.role === "user") {
+        display.push(item);
+        continue;
+      }
 
-    for (const userMessage of users) {
-      display.push(userMessage);
+      // Keep backward compatibility for legacy sessions where assistant rows were
+      // saved without parent_message_id. Render them exactly as chronological chat.
+      if (!item.parent_message_id || !linkedUserIds.has(item.parent_message_id)) {
+        display.push({
+          ...item,
+          variantIndex: 0,
+          variantTotal: 1,
+          isActiveVariant: true,
+          feedbackCount: feedbackByMessageId[item.id]?.length || 0,
+        });
+        selectedAssistantIds.add(item.id);
+        continue;
+      }
+
+      const parentIndex = indexed.findIndex((entry) => entry.item.id === item.parent_message_id);
+      if (parentIndex !== index - 1) {
+        // Only render linked variant groups once, adjacent to their parent user turn.
+        continue;
+      }
+
       const variants = allMessages.filter(
-        (item) => item.role === "assistant" && item.parent_message_id === userMessage.id,
+        (candidate) =>
+          candidate.role === "assistant" && candidate.parent_message_id === item.parent_message_id,
       );
       if (variants.length === 0) continue;
       let activeVariant = variants[variants.length - 1];
       if (activeMessageId) {
-        const explicit = variants.find((item) => item.id === activeMessageId);
+        const explicit = variants.find((candidate) => candidate.id === activeMessageId);
         if (explicit) activeVariant = explicit;
       }
-      const activeIndex = variants.findIndex((item) => item.id === activeVariant.id);
+      const activeIndex = variants.findIndex((candidate) => candidate.id === activeVariant.id);
       display.push({
         ...activeVariant,
         variantIndex: activeIndex,
@@ -142,13 +160,14 @@ export default function AvatarSessionPage() {
       selectedAssistantIds.add(activeVariant.id);
     }
 
-    return display.map((item) => {
-      if (item.role !== "assistant") return item;
-      return {
-        ...item,
-        isActiveVariant: selectedAssistantIds.has(item.id),
-      };
-    });
+    return display.map((row) =>
+      row.role === "assistant"
+        ? {
+            ...row,
+            isActiveVariant: selectedAssistantIds.has(row.id),
+          }
+        : row,
+    );
   };
 
   const mapHistoryToStoredMessages = (history: ChatMessage[]): StoredMessage[] =>

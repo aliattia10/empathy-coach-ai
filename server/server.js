@@ -76,22 +76,74 @@ Stage 4: Behavioral experiment
 "CRISIS_TRIGGERED: Please remember this is a training simulation. If you are in distress, please contact NHS 24 or Mind for immediate professional support."`,
 };
 
+const REGEN_SYSTEM_PROMPT = {
+  role: "system",
+  content: `You are a response rewriter used for quality tuning.
+Your task is to improve a previous assistant response using reviewer feedback.
+
+Hard requirements:
+1. Follow feedback priorities exactly when they are safe and coherent.
+2. Produce a materially revised response (not a near-duplicate).
+3. Keep factual integrity and user intent.
+4. Preserve safety constraints and refuse unsafe instructions.
+5. Output only the improved response text.`,
+};
+
+function buildRegenerationUserPrompt(regenerationContext) {
+  const feedbackBullets = (regenerationContext?.feedbackList || [])
+    .map((item) => {
+      const rating = typeof item?.rating === "number" ? ` (rating: ${item.rating}/5)` : "";
+      const tags = Array.isArray(item?.tags) && item.tags.length ? ` [tags: ${item.tags.join(", ")}]` : "";
+      return `- ${item?.feedbackText || ""}${rating}${tags}`;
+    })
+    .join("\n");
+
+  return [
+    "[Original user message]",
+    regenerationContext?.originalUserMessage || "",
+    "",
+    "[Previous assistant reply]",
+    regenerationContext?.previousAssistantReply || "",
+    "",
+    "[Reviewer feedback]",
+    feedbackBullets || "- (No feedback provided)",
+    "",
+    "[Task]",
+    "Rewrite the assistant reply to address the feedback priorities.",
+    "The rewrite must be clearly different from the previous assistant reply.",
+    "Keep it concise, empathetic, and actionable.",
+    "Do not output analysis or metadata, only the improved reply text.",
+  ].join("\n");
+}
+
 app.post("/api/chat", async (req, res) => {
-  const { userMessage, chatHistory } = req.body;
+  const { userMessage, chatHistory, mode, regenerationContext } = req.body;
 
-  if (!userMessage || typeof userMessage !== "string") {
-    return res.status(400).json({ error: "userMessage is required and must be a string." });
+  let messages = [];
+  const isRegenerationMode = mode === "regenerate";
+  if (isRegenerationMode) {
+    if (!regenerationContext?.originalUserMessage || !regenerationContext?.previousAssistantReply) {
+      return res.status(400).json({
+        error: "regenerationContext.originalUserMessage and previousAssistantReply are required.",
+      });
+    }
+    messages = [
+      REGEN_SYSTEM_PROMPT,
+      { role: "user", content: buildRegenerationUserPrompt(regenerationContext) },
+    ];
+  } else {
+    if (!userMessage || typeof userMessage !== "string") {
+      return res.status(400).json({ error: "userMessage is required and must be a string." });
+    }
+    const history = Array.isArray(chatHistory)
+      ? chatHistory.map((m) => ({ role: m.role, content: m.content || "" }))
+      : [];
+    messages = [
+      SYSTEM_PROMPT,
+      ...history,
+      { role: "user", content: userMessage },
+    ];
   }
-
-  // Format payload for OpenAI-compatible vLLM API
-  const history = Array.isArray(chatHistory)
-    ? chatHistory.map((m) => ({ role: m.role, content: m.content || "" }))
-    : [];
-  const messages = [
-    SYSTEM_PROMPT,
-    ...history,
-    { role: "user", content: userMessage },
-  ];
 
   const apiKey = process.env.LLM_API_KEY;
   const headers = { "Content-Type": "application/json" };
@@ -103,7 +155,9 @@ app.post("/api/chat", async (req, res) => {
       {
         model: process.env.VLLM_MODEL || "meta-llama/llama-3.2-3b-instruct:free",
         messages,
-        temperature: Number(process.env.VLLM_TEMPERATURE) || 0.7,
+        temperature: isRegenerationMode
+          ? Math.min(Number(process.env.VLLM_TEMPERATURE) || 0.7, 0.4)
+          : Number(process.env.VLLM_TEMPERATURE) || 0.7,
         max_tokens: Number(process.env.VLLM_MAX_TOKENS) || 500,
       },
       {

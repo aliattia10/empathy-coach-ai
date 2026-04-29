@@ -21,7 +21,6 @@ import {
   type ChatSession,
 } from "@/hooks/useChatSession";
 import { stripMarkdownForSpeech } from "@/lib/speech";
-import { composeRegenerationPrompt } from "@/lib/regenerationPrompt";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -46,6 +45,12 @@ type StoredMessage = TranscriptMessage & {
   parent_message_id?: string | null;
   regenerated_from_message_id?: string | null;
   branch_root_message_id?: string | null;
+};
+
+type RegenerationPayloadFeedback = {
+  feedbackText: string;
+  rating: number | null;
+  tags: string[];
 };
 
 const INITIAL_MESSAGE: TranscriptMessage = {
@@ -603,22 +608,24 @@ export default function AvatarSessionPage() {
       alert("Add at least one feedback entry before regenerating.");
       return;
     }
-    const regenPrompt = composeRegenerationPrompt({
-      originalUserInput: parentUser.content,
-      previousAssistantOutput: target.content,
-      feedbackList,
-      systemGuardrails: "Follow coaching-safety constraints and decline unsafe requests.",
-    });
-    const history = buildDisplayMessages(rawMessages.filter((item) => item.id !== target.id), activeAssistantId).map((m) => ({
-      role: m.role,
-      content: m.content,
+    const regenerationFeedback: RegenerationPayloadFeedback[] = feedbackList.map((item) => ({
+      feedbackText: item.feedback_text,
+      rating: item.rating,
+      tags: item.tags || [],
     }));
     try {
       setIsRegenerating(true);
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userMessage: regenPrompt, chatHistory: history }),
+        body: JSON.stringify({
+          mode: "regenerate",
+          regenerationContext: {
+            originalUserMessage: parentUser.content,
+            previousAssistantReply: target.content,
+            feedbackList: regenerationFeedback,
+          },
+        }),
       });
       const data = await response.json();
       const regeneratedContent = response.ok ? data.reply ?? "" : data.error ?? "";

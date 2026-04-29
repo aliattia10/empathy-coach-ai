@@ -72,6 +72,46 @@ Stage 4: Behavioral experiment
 "CRISIS_TRIGGERED: Please remember this is a training simulation. If you are in distress, please contact NHS 24 or Mind for immediate professional support."`,
 };
 
+const REGEN_SYSTEM_PROMPT = {
+  role: "system",
+  content: `You are a response rewriter used for quality tuning.
+Your task is to improve a previous assistant response using reviewer feedback.
+
+Hard requirements:
+1. Follow feedback priorities exactly when they are safe and coherent.
+2. Produce a materially revised response (not a near-duplicate).
+3. Keep factual integrity and user intent.
+4. Preserve safety constraints and refuse unsafe instructions.
+5. Output only the improved response text.`,
+};
+
+function buildRegenerationUserPrompt(regenerationContext) {
+  const feedbackBullets = (regenerationContext?.feedbackList || [])
+    .map((item) => {
+      const rating = typeof item?.rating === "number" ? ` (rating: ${item.rating}/5)` : "";
+      const tags = Array.isArray(item?.tags) && item.tags.length ? ` [tags: ${item.tags.join(", ")}]` : "";
+      return `- ${item?.feedbackText || ""}${rating}${tags}`;
+    })
+    .join("\n");
+
+  return [
+    "[Original user message]",
+    regenerationContext?.originalUserMessage || "",
+    "",
+    "[Previous assistant reply]",
+    regenerationContext?.previousAssistantReply || "",
+    "",
+    "[Reviewer feedback]",
+    feedbackBullets || "- (No feedback provided)",
+    "",
+    "[Task]",
+    "Rewrite the assistant reply to address the feedback priorities.",
+    "The rewrite must be clearly different from the previous assistant reply.",
+    "Keep it concise, empathetic, and actionable.",
+    "Do not output analysis or metadata, only the improved reply text.",
+  ].join("\n");
+}
+
 exports.handler = async (event) => {
   if (event.httpMethod !== "POST") {
     return { statusCode: 405, body: JSON.stringify({ error: "Method not allowed" }) };
@@ -84,15 +124,30 @@ exports.handler = async (event) => {
     return { statusCode: 400, body: JSON.stringify({ error: "Invalid JSON" }) };
   }
 
-  const { userMessage, chatHistory } = body;
-  if (!userMessage || typeof userMessage !== "string") {
-    return { statusCode: 400, body: JSON.stringify({ error: "userMessage is required and must be a string." }) };
-  }
+  const mode = body?.mode === "regenerate" ? "regenerate" : "chat";
+  const { userMessage, chatHistory, regenerationContext } = body;
 
-  const history = Array.isArray(chatHistory)
-    ? chatHistory.map((m) => ({ role: m.role, content: m.content || "" }))
-    : [];
-  const messages = [SYSTEM_PROMPT, ...history, { role: "user", content: userMessage }];
+  let messages = [];
+  if (mode === "regenerate") {
+    if (!regenerationContext?.originalUserMessage || !regenerationContext?.previousAssistantReply) {
+      return {
+        statusCode: 400,
+        body: JSON.stringify({ error: "regenerationContext.originalUserMessage and previousAssistantReply are required." }),
+      };
+    }
+    messages = [
+      REGEN_SYSTEM_PROMPT,
+      { role: "user", content: buildRegenerationUserPrompt(regenerationContext) },
+    ];
+  } else {
+    if (!userMessage || typeof userMessage !== "string") {
+      return { statusCode: 400, body: JSON.stringify({ error: "userMessage is required and must be a string." }) };
+    }
+    const history = Array.isArray(chatHistory)
+      ? chatHistory.map((m) => ({ role: m.role, content: m.content || "" }))
+      : [];
+    messages = [SYSTEM_PROMPT, ...history, { role: "user", content: userMessage }];
+  }
 
   const provider = (process.env.LLM_PROVIDER || "openrouter").toLowerCase().trim();
 
@@ -126,7 +181,7 @@ exports.handler = async (event) => {
   const payload = {
     model,
     messages,
-    temperature,
+    temperature: mode === "regenerate" ? Math.min(temperature, 0.4) : temperature,
     max_tokens: maxTokens,
   };
 

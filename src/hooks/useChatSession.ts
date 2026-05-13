@@ -41,6 +41,7 @@ export type ChatFeedback = {
   rating: number | null;
   tags: FeedbackTag[] | null;
   created_at: string;
+  apply_to_global_instructions?: boolean;
 };
 
 export async function createChatSession(
@@ -125,6 +126,7 @@ export async function createMessageFeedback(input: {
   feedbackText: string;
   rating?: number | null;
   tags?: FeedbackTag[];
+  applyToGlobalInstructions?: boolean;
 }) {
   const { data, error } = await supabase
     .from("chat_feedback")
@@ -135,6 +137,7 @@ export async function createMessageFeedback(input: {
       feedback_text: input.feedbackText,
       rating: input.rating ?? null,
       tags: input.tags ?? [],
+      apply_to_global_instructions: input.applyToGlobalInstructions ?? false,
     })
     .select()
     .single();

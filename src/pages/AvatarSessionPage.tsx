@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import ChatTranscript from "@/components/avatar/ChatTranscript";
 import ChatInput from "@/components/chat/ChatInput";
-import { detectCrisis, CRISIS_RESPONSE } from "@/components/safety/CrisisDetector";
+import { detectCrisis } from "@/components/safety/CrisisDetector";
 import { useAuth } from "@/hooks/useAuth";
 import { useSpeechSynthesis } from "@/hooks/useSpeechSynthesis";
 import {
@@ -97,7 +97,14 @@ export default function AvatarSessionPage() {
   const [feedbackDrafts, setFeedbackDrafts] = useState<
     Record<
       string,
-      { text: string; rating: number | null; tags: FeedbackTag[]; open: boolean; composing: boolean }
+      {
+        text: string;
+        rating: number | null;
+        tags: FeedbackTag[];
+        open: boolean;
+        composing: boolean;
+        applyToGlobal: boolean;
+      }
     >
   >({});
   const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false);
@@ -412,18 +419,6 @@ export default function AvatarSessionPage() {
     setRawMessages(persistedRawMessages);
     setMessages(buildDisplayMessages(persistedRawMessages, activeAssistantId));
 
-    if (detectCrisis(text)) {
-      const crisisSaved = await saveChatMessage(sessionId, "assistant", CRISIS_RESPONSE, {
-        parentMessageId: persistedUser.id,
-      });
-      const nextRaw = [...persistedRawMessages, { id: crisisSaved.id, role: "assistant", content: CRISIS_RESPONSE, parent_message_id: persistedUser.id }];
-      setRawMessages(nextRaw);
-      setActiveAssistantId(crisisSaved.id);
-      setMessages(buildDisplayMessages(nextRaw, crisisSaved.id));
-      await setSessionActiveMessage(sessionId, crisisSaved.id);
-      return;
-    }
-
     setIsAiResponding(true);
     const chatHistory = buildDisplayMessages(persistedRawMessages, activeAssistantId).map((m) => ({ role: m.role, content: m.content }));
 
@@ -431,7 +426,11 @@ export default function AvatarSessionPage() {
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userMessage: text, chatHistory }),
+        body: JSON.stringify({
+          userMessage: text,
+          chatHistory,
+          possibleCrisisLanguage: detectCrisis(text),
+        }),
       });
       const data = await response.json();
       const content = response.ok
@@ -524,6 +523,7 @@ export default function AvatarSessionPage() {
       tags: FeedbackTag[];
       open: boolean;
       composing: boolean;
+      applyToGlobal: boolean;
     },
   ) => {
     setFeedbackDrafts((prev) => ({ ...prev, [messageId]: next }));
@@ -542,6 +542,7 @@ export default function AvatarSessionPage() {
         feedbackText: draft.text.trim(),
         rating: draft.rating ?? null,
         tags: draft.tags,
+        applyToGlobalInstructions: draft.applyToGlobal,
       });
       setFeedbackByMessageId((prev) => ({
         ...prev,
@@ -549,7 +550,7 @@ export default function AvatarSessionPage() {
       }));
       setFeedbackDrafts((prev) => ({
         ...prev,
-        [messageId]: { text: "", rating: null, tags: [], open: true, composing: false },
+        [messageId]: { text: "", rating: null, tags: [], open: true, composing: false, applyToGlobal: false },
       }));
       setMessages((prev) =>
         prev.map((item) =>

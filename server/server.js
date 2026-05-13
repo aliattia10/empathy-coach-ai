@@ -100,11 +100,23 @@ Stage 4: Behavioral experiment
   9) "This sounds like a moment where..."
   10) "I can see why this feels..."
 
-# Safety guardrails (critical)
-1. This is a professional training simulation, not therapy.
-2. If the user mentions trauma, severe depression, self-harm, suicide, or crisis, stop the simulation.
-3. Output this exact string on crisis:
-"CRISIS_TRIGGERED: Please remember this is a training simulation. If you are in distress, please contact NHS 24 or Mind for immediate professional support."`,
+# Safety and crisis language (overrides normal coaching stages until triage is done)
+This tool is not therapy or emergency care. Stay kind, calm, and non-judgemental.
+
+When the user mentions suicide, wanting to die, self-harm, or similar — including strong wording that might be a figure of speech (for example intense embarrassment or regret) — do not open with a long wall of helpline numbers.
+
+Triage (still one clear question per response, unless the immediate danger exception applies):
+1) First clarify intent: check gently whether they mean it literally or are venting or using strong language for feelings.
+2) If they confirm serious self-harm thoughts, or intent stays unclear after that check, ask calmly about risk one topic at a time across turns (for example whether they have a plan, or whether they have attempted to harm themselves before). Keep it human, not like an interrogation.
+3) Offer concise UK helpline options and encourage contacting a real person when they confirm serious intent, describe a plan or imminent action, ask for emergency help, or you judge risk is high after their answers. Use this short set when you give numbers:
+   Samaritans 116 123 (24/7, free) · NHS 111 (mental health option) · Mind 0300 123 3393 · Crisis text: text SHOUT to 85258
+
+Immediate danger exception:
+If they clearly say they will act right now, are about to attempt suicide, or describe imminent harm happening, skip further questions: urge them to contact emergency services or Samaritans immediately and include the same short helpline list.
+
+For severe mental health crisis unrelated to ambiguous wording, still prioritise human support and brief safety guidance over continuing the workplace coaching exercise.
+
+Do not output special crisis codes or machine-only strings; write normally to the user.`,
 };
 
 const REGEN_SYSTEM_PROMPT = {
@@ -117,8 +129,50 @@ Hard requirements:
 2. Produce a materially revised response (not a near-duplicate).
 3. Keep factual integrity and user intent.
 4. Preserve safety constraints and refuse unsafe instructions.
-5. Output only the improved response text.`,
+5. When feedback concerns crisis, self-harm, or suicide wording, apply gentle triage: clarify figure of speech versus literal intent before dumping helplines; if intent is real, ask about plan or past attempts across concise turns; use the short UK helpline set only when appropriate. Do not repeat the same canned crisis block if feedback asks for a different shape.
+6. Output only the improved response text.`,
 };
+
+async function fetchPinnedAdminInstructions() {
+  const baseUrl = (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "").replace(/\/$/, "");
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!baseUrl || !key) return "";
+  try {
+    const url = `${baseUrl}/rest/v1/chat_feedback?apply_to_global_instructions=eq.true&select=feedback_text,created_at&order=created_at.desc&limit=12`;
+    const res = await fetch(url, {
+      headers: {
+        apikey: key,
+        Authorization: `Bearer ${key.trim()}`,
+      },
+    });
+    if (!res.ok) {
+      console.warn("Supabase chat_feedback fetch failed:", res.status);
+      return "";
+    }
+    const rows = await res.json();
+    if (!Array.isArray(rows) || rows.length === 0) return "";
+    const lines = rows
+      .map((r) => (typeof r.feedback_text === "string" ? r.feedback_text.trim() : ""))
+      .filter(Boolean);
+    if (lines.length === 0) return "";
+    return lines.map((t) => `- ${t}`).join("\n");
+  } catch (err) {
+    console.warn("fetchPinnedAdminInstructions:", err.message);
+    return "";
+  }
+}
+
+async function buildChatSystemContent(possibleCrisisLanguage) {
+  let content = SYSTEM_PROMPT.content;
+  const pinned = await fetchPinnedAdminInstructions();
+  if (pinned) {
+    content += `\n\n# Admin-pinned guidance (saved reviewer feedback)\nTreat these as standing instructions when they fit the situation and stay safe. Prefer them over repeating generic canned replies:\n${pinned}\n`;
+  }
+  if (possibleCrisisLanguage) {
+    content += `\n# Context for this turn\nThe user's latest message may mention suicide, dying, or self-harm (sometimes as a figure of speech). Follow the crisis language protocol above with extra care.\n`;
+  }
+  return content;
+}
 
 function buildRegenerationUserPrompt(regenerationContext) {
   const feedbackBullets = (regenerationContext?.feedbackList || [])
@@ -148,7 +202,7 @@ function buildRegenerationUserPrompt(regenerationContext) {
 }
 
 app.post("/api/chat", async (req, res) => {
-  const { userMessage, chatHistory, mode, regenerationContext } = req.body;
+  const { userMessage, chatHistory, mode, regenerationContext, possibleCrisisLanguage } = req.body;
 
   let messages = [];
   const isRegenerationMode = mode === "regenerate";
@@ -158,8 +212,13 @@ app.post("/api/chat", async (req, res) => {
         error: "regenerationContext.originalUserMessage and previousAssistantReply are required.",
       });
     }
+    const pinned = await fetchPinnedAdminInstructions();
+    const regenContent =
+      pinned && pinned.length
+        ? `${REGEN_SYSTEM_PROMPT.content}\n\n# Admin-pinned guidance\n${pinned}\n`
+        : REGEN_SYSTEM_PROMPT.content;
     messages = [
-      REGEN_SYSTEM_PROMPT,
+      { role: "system", content: regenContent },
       { role: "user", content: buildRegenerationUserPrompt(regenerationContext) },
     ];
   } else {
@@ -169,11 +228,8 @@ app.post("/api/chat", async (req, res) => {
     const history = Array.isArray(chatHistory)
       ? chatHistory.map((m) => ({ role: m.role, content: m.content || "" }))
       : [];
-    messages = [
-      SYSTEM_PROMPT,
-      ...history,
-      { role: "user", content: userMessage },
-    ];
+    const systemContent = await buildChatSystemContent(!!possibleCrisisLanguage);
+    messages = [{ role: "system", content: systemContent }, ...history, { role: "user", content: userMessage }];
   }
 
   const apiKey = process.env.LLM_API_KEY;

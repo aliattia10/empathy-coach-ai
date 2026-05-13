@@ -82,6 +82,7 @@ export type Database = {
       chat_feedback: {
         Row: {
           admin_user_id: string
+          apply_to_global_instructions: boolean
           conversation_id: string
           created_at: string
           feedback_text: string
@@ -92,6 +93,7 @@ export type Database = {
         }
         Insert: {
           admin_user_id: string
+          apply_to_global_instructions?: boolean
           conversation_id: string
           created_at?: string
           feedback_text: string
@@ -102,6 +104,7 @@ export type Database = {
         }
         Update: {
           admin_user_id?: string
+          apply_to_global_instructions?: boolean
           conversation_id?: string
           created_at?: string
           feedback_text?: string

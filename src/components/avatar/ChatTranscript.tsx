@@ -3,6 +3,8 @@ import { useEffect, useRef } from "react";
 import ReactMarkdown from "react-markdown";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 import type { ChatFeedback } from "@/hooks/useChatSession";
 
 export interface TranscriptMessage {
@@ -23,11 +25,25 @@ interface ChatTranscriptProps {
   feedbackItemsByMessageId?: Record<string, ChatFeedback[]>;
   feedbackDrafts?: Record<
     string,
-    { text: string; rating: number | null; tags: string[]; open: boolean; composing: boolean }
+    {
+      text: string;
+      rating: number | null;
+      tags: string[];
+      open: boolean;
+      composing: boolean;
+      applyToGlobal: boolean;
+    }
   >;
   onFeedbackDraftChange?: (
     messageId: string,
-    next: { text: string; rating: number | null; tags: string[]; open: boolean; composing: boolean },
+    next: {
+      text: string;
+      rating: number | null;
+      tags: string[];
+      open: boolean;
+      composing: boolean;
+      applyToGlobal: boolean;
+    },
   ) => void;
   onSubmitFeedback?: (messageId: string) => void;
   onDeleteFeedback?: (messageId: string, feedbackId: string) => void;
@@ -138,6 +154,7 @@ export default function ChatTranscript({
                                 tags: [],
                                 open: false,
                                 composing: !hasPrevious,
+                                applyToGlobal: false,
                               };
                               onFeedbackDraftChange?.(msg.id, { ...existing, open: !existing.open });
                             }}
@@ -186,6 +203,7 @@ export default function ChatTranscript({
                                 <p className="text-muted-foreground">
                                   Rating: {item.rating ?? "Not rated"} | Tags:{" "}
                                   {(item.tags || []).length ? (item.tags || []).join(", ") : "None"}
+                                  {item.apply_to_global_instructions ? " | Pinned to global model" : ""}
                                 </p>
                               </div>
                             ))}
@@ -204,6 +222,7 @@ export default function ChatTranscript({
                                 tags: [],
                                 open: true,
                                 composing: false,
+                                applyToGlobal: false,
                               };
                               onFeedbackDraftChange?.(msg.id, { ...current, composing: true });
                             }}
@@ -222,6 +241,7 @@ export default function ChatTranscript({
                                     tags: [],
                                     open: true,
                                     composing: true,
+                                    applyToGlobal: false,
                                   }),
                                   text: event.target.value,
                                 })
@@ -241,6 +261,7 @@ export default function ChatTranscript({
                                     tags: [],
                                     open: true,
                                     composing: true,
+                                    applyToGlobal: false,
                                   }),
                                   rating: raw === "" ? null : Number(raw),
                                 });
@@ -269,17 +290,45 @@ export default function ChatTranscript({
                                         tags: [],
                                         open: true,
                                         composing: true,
+                                        applyToGlobal: false,
                                       };
                                       const nextTags = selected
                                         ? current.tags.filter((item) => item !== tag)
                                         : [...current.tags, tag];
-                                      onFeedbackDraftChange?.(msg.id, { ...current, tags: nextTags });
+                                      const applyToGlobal =
+                                        !selected && tag === "safety" ? true : current.applyToGlobal;
+                                      onFeedbackDraftChange?.(msg.id, { ...current, tags: nextTags, applyToGlobal });
                                     }}
                                   >
                                     {tag}
                                   </Button>
                                 );
                               })}
+                            </div>
+                            <div className="flex items-start gap-2 rounded-md border border-border/60 p-2">
+                              <Checkbox
+                                id={`pin-feedback-${msg.id}`}
+                                checked={feedbackDrafts[msg.id]?.applyToGlobal ?? false}
+                                onCheckedChange={(checked) =>
+                                  onFeedbackDraftChange?.(msg.id, {
+                                    ...(feedbackDrafts[msg.id] || {
+                                      text: "",
+                                      rating: null,
+                                      tags: [],
+                                      open: true,
+                                      composing: true,
+                                      applyToGlobal: false,
+                                    }),
+                                    applyToGlobal: checked === true,
+                                  })
+                                }
+                              />
+                              <Label
+                                htmlFor={`pin-feedback-${msg.id}`}
+                                className="text-xs font-normal cursor-pointer leading-snug text-muted-foreground"
+                              >
+                                Pin to global model instructions (applies to all new chats once saved).
+                              </Label>
                             </div>
                             <div className="flex gap-2">
                               <Button
@@ -301,6 +350,7 @@ export default function ChatTranscript({
                                     tags: [],
                                     open: true,
                                     composing: true,
+                                    applyToGlobal: false,
                                   };
                                   onFeedbackDraftChange?.(msg.id, {
                                     ...current,
@@ -308,6 +358,7 @@ export default function ChatTranscript({
                                     rating: null,
                                     tags: [],
                                     composing: false,
+                                    applyToGlobal: false,
                                   });
                                 }}
                               >

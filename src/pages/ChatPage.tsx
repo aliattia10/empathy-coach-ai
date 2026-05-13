@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import AvatarDisplay from "@/components/chat/AvatarDisplay";
 import ChatMessage from "@/components/chat/ChatMessage";
 import ChatInput from "@/components/chat/ChatInput";
-import { detectCrisis, CRISIS_RESPONSE } from "@/components/safety/CrisisDetector";
+import { detectCrisis } from "@/components/safety/CrisisDetector";
 import { useAuth } from "@/hooks/useAuth";
 import { useSpeechSynthesis } from "@/hooks/useSpeechSynthesis";
 import { createChatSession, saveChatMessage } from "@/hooks/useChatSession";
@@ -72,17 +72,8 @@ export default function ChatPage() {
       saveChatMessage(sessionId, "user", text).catch(console.error);
     }
 
-    // Crisis detection
-    if (detectCrisis(text)) {
-      const crisisMsg: Message = { id: (Date.now() + 1).toString(), role: "assistant", content: CRISIS_RESPONSE };
-      setMessages((prev) => [...prev, crisisMsg]);
-      if (sessionId) saveChatMessage(sessionId, "assistant", CRISIS_RESPONSE).catch(console.error);
-      return;
-    }
-
     setIsTyping(true);
 
-    // Build chat history for vLLM (role + content only)
     const chatHistory = messages.map((m) => ({ role: m.role, content: m.content }));
 
     try {
@@ -92,6 +83,7 @@ export default function ChatPage() {
         body: JSON.stringify({
           userMessage: text,
           chatHistory,
+          possibleCrisisLanguage: detectCrisis(text),
         }),
       });
 

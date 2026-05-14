@@ -16,6 +16,8 @@ export type Database = {
     Tables: {
       chat_messages: {
         Row: {
+          admin_quality_star: boolean
+          admin_starred_at: string | null
           branch_root_message_id: string | null
           content: string
           created_at: string
@@ -27,6 +29,8 @@ export type Database = {
           session_id: string
         }
         Insert: {
+          admin_quality_star?: boolean
+          admin_starred_at?: string | null
           branch_root_message_id?: string | null
           content: string
           created_at?: string
@@ -38,6 +42,8 @@ export type Database = {
           session_id: string
         }
         Update: {
+          admin_quality_star?: boolean
+          admin_starred_at?: string | null
           branch_root_message_id?: string | null
           content?: string
           created_at?: string
@@ -303,6 +309,13 @@ export type Database = {
           _user_id: string
         }
         Returns: boolean
+      }
+      set_chat_message_admin_star: {
+        Args: {
+          p_message_id: string
+          p_starred: boolean
+        }
+        Returns: null
       }
     }
     Enums: {

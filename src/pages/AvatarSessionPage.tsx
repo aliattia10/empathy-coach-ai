@@ -15,6 +15,7 @@ import {
   renameChatSession,
   saveChatMessage,
   setSessionActiveMessage,
+  setChatMessageAdminStar,
   type ChatMessage,
   type ChatFeedback,
   type FeedbackTag,
@@ -196,6 +197,7 @@ export default function AvatarSessionPage() {
       parent_message_id: m.parent_message_id,
       regenerated_from_message_id: m.regenerated_from_message_id,
       branch_root_message_id: m.branch_root_message_id,
+      admin_quality_star: m.admin_quality_star ?? false,
     }));
 
   const loadFeedbackForMessages = async (messageList: StoredMessage[]) => {
@@ -262,7 +264,7 @@ export default function AvatarSessionPage() {
           setSessions([s]);
           setMessages([INITIAL_MESSAGE]);
           const initial = await saveChatMessage(s.id, "assistant", INITIAL_MESSAGE.content);
-          setRawMessages([{ ...INITIAL_MESSAGE, id: initial.id }]);
+          setRawMessages([{ ...INITIAL_MESSAGE, id: initial.id, admin_quality_star: initial.admin_quality_star ?? false }]);
           setActiveAssistantId(initial.id);
           await setSessionActiveMessage(s.id, initial.id);
         }
@@ -290,7 +292,7 @@ export default function AvatarSessionPage() {
       setMessages([INITIAL_MESSAGE]);
       setSessions((prev) => [s, ...prev]);
       const initial = await saveChatMessage(s.id, "assistant", INITIAL_MESSAGE.content);
-      setRawMessages([{ ...INITIAL_MESSAGE, id: initial.id }]);
+      setRawMessages([{ ...INITIAL_MESSAGE, id: initial.id, admin_quality_star: initial.admin_quality_star ?? false }]);
       setActiveAssistantId(initial.id);
       await setSessionActiveMessage(s.id, initial.id);
     } catch (err) {
@@ -317,8 +319,8 @@ export default function AvatarSessionPage() {
       if (restored.length === 0) {
         const initial = await saveChatMessage(nextSessionId, "assistant", INITIAL_MESSAGE.content);
         await setSessionActiveMessage(nextSessionId, initial.id);
-        setRawMessages([{ ...INITIAL_MESSAGE, id: initial.id }]);
-        setMessages([{ ...INITIAL_MESSAGE, id: initial.id }]);
+        setRawMessages([{ ...INITIAL_MESSAGE, id: initial.id, admin_quality_star: initial.admin_quality_star ?? false }]);
+        setMessages([{ ...INITIAL_MESSAGE, id: initial.id, admin_quality_star: initial.admin_quality_star ?? false }]);
         setActiveAssistantId(initial.id);
       }
     } catch (err) {
@@ -374,7 +376,7 @@ export default function AvatarSessionPage() {
           setSessionId(s.id);
           setMessages([INITIAL_MESSAGE]);
           const initial = await saveChatMessage(s.id, "assistant", INITIAL_MESSAGE.content);
-          setRawMessages([{ ...INITIAL_MESSAGE, id: initial.id }]);
+          setRawMessages([{ ...INITIAL_MESSAGE, id: initial.id, admin_quality_star: initial.admin_quality_star ?? false }]);
           setActiveAssistantId(initial.id);
           await setSessionActiveMessage(s.id, initial.id);
         }
@@ -444,7 +446,15 @@ export default function AvatarSessionPage() {
       const savedReply = await saveChatMessage(sessionId, "assistant", reply.content, {
         parentMessageId: persistedUser.id,
       });
-      const nextRaw = [...persistedRawMessages, { ...reply, id: savedReply.id, parent_message_id: persistedUser.id }];
+      const nextRaw = [
+        ...persistedRawMessages,
+        {
+          ...reply,
+          id: savedReply.id,
+          parent_message_id: persistedUser.id,
+          admin_quality_star: savedReply.admin_quality_star ?? false,
+        },
+      ];
       setRawMessages(nextRaw);
       setActiveAssistantId(savedReply.id);
       setMessages(buildDisplayMessages(nextRaw, savedReply.id));
@@ -465,7 +475,16 @@ export default function AvatarSessionPage() {
       const savedReply = await saveChatMessage(sessionId, "assistant", content, {
         parentMessageId: persistedUser.id,
       });
-      const nextRaw = [...persistedRawMessages, { id: savedReply.id, role: "assistant", content, parent_message_id: persistedUser.id }];
+      const nextRaw = [
+        ...persistedRawMessages,
+        {
+          id: savedReply.id,
+          role: "assistant",
+          content,
+          parent_message_id: persistedUser.id,
+          admin_quality_star: savedReply.admin_quality_star ?? false,
+        },
+      ];
       setRawMessages(nextRaw);
       setActiveAssistantId(savedReply.id);
       setMessages(buildDisplayMessages(nextRaw, savedReply.id));
@@ -483,6 +502,19 @@ export default function AvatarSessionPage() {
       setIsAiResponding(false);
     }
   };
+  const handleToggleAdminQualityStar = async (messageId: string, nextStarred: boolean) => {
+    if (!isAdmin) return;
+    try {
+      await setChatMessageAdminStar(messageId, nextStarred);
+      setRawMessages((prev) =>
+        prev.map((m) => (m.id === messageId ? { ...m, admin_quality_star: nextStarred } : m)),
+      );
+    } catch (err) {
+      console.error(err);
+      window.alert("Could not update the star. Apply the latest Supabase migration and ensure you are an admin.");
+    }
+  };
+
   handleSendRef.current = handleSend;
 
   const stopAllAudioNow = () => {
@@ -646,6 +678,7 @@ export default function AvatarSessionPage() {
           parent_message_id: parentUser.id,
           regenerated_from_message_id: target.id,
           branch_root_message_id: branchRoot,
+          admin_quality_star: saved.admin_quality_star ?? false,
         },
       ];
       setRawMessages(nextRaw);
@@ -906,6 +939,7 @@ export default function AvatarSessionPage() {
               onRegenerate={handleRegenerate}
               onSelectVariant={handleSelectVariant}
               onCycleVariant={handleCycleVariant}
+              onToggleAdminQualityStar={isAdmin ? handleToggleAdminQualityStar : undefined}
               isSubmittingFeedback={isSubmittingFeedback}
               isRegenerating={isRegenerating}
             />

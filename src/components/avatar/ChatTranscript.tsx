@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
+import { Star } from "lucide-react";
 import type { ChatFeedback } from "@/hooks/useChatSession";
 
 export interface TranscriptMessage {
@@ -16,6 +17,7 @@ export interface TranscriptMessage {
   variantTotal?: number;
   isActiveVariant?: boolean;
   feedbackCount?: number;
+  admin_quality_star?: boolean;
 }
 
 interface ChatTranscriptProps {
@@ -50,11 +52,16 @@ interface ChatTranscriptProps {
   onRegenerate?: (messageId: string) => void;
   onSelectVariant?: (messageId: string) => void;
   onCycleVariant?: (messageId: string, direction: "prev" | "next") => void;
+  onToggleAdminQualityStar?: (messageId: string, nextStarred: boolean) => void;
   isSubmittingFeedback?: boolean;
   isRegenerating?: boolean;
 }
 
 const FEEDBACK_TAGS = ["tone", "clarity", "empathy", "relevance", "safety", "too_long", "too_short", "other"];
+
+function isPersistedMessageId(id: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id);
+}
 
 export default function ChatTranscript({
   messages,
@@ -68,6 +75,7 @@ export default function ChatTranscript({
   onRegenerate,
   onSelectVariant,
   onCycleVariant,
+  onToggleAdminQualityStar,
   isSubmittingFeedback,
   isRegenerating,
 }: ChatTranscriptProps) {
@@ -114,6 +122,29 @@ export default function ChatTranscript({
                 <div className="prose prose-sm max-w-none [&>p]:m-0 [&>p]:leading-relaxed">
                   <ReactMarkdown>{msg.content}</ReactMarkdown>
                 </div>
+                {msg.role === "assistant" && isAdmin && isPersistedMessageId(msg.id) && onToggleAdminQualityStar && (
+                  <div className="mt-2 flex justify-end">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      className="h-8 w-8 p-0 text-muted-foreground hover:text-amber-500"
+                      title={
+                        msg.admin_quality_star
+                          ? "Unstar (remove from exemplar training set)"
+                          : "Star — excellent reply; model should emulate this style"
+                      }
+                      onClick={() => onToggleAdminQualityStar(msg.id, !msg.admin_quality_star)}
+                    >
+                      <Star
+                        className={cn(
+                          "h-4 w-4",
+                          msg.admin_quality_star && "fill-amber-400 text-amber-500",
+                        )}
+                      />
+                    </Button>
+                  </div>
+                )}
                 {msg.role === "assistant" && (
                   <div className="mt-3 space-y-2">
                     <div className="flex flex-wrap gap-2">

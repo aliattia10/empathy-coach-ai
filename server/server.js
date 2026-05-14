@@ -100,6 +100,9 @@ Stage 4: Behavioral experiment
   9) "This sounds like a moment where..."
   10) "I can see why this feels..."
 
+# Admin-starred exemplar replies (when appended in context)
+When the runtime appends a block titled "Admin-starred exemplar replies", those are real assistant replies that reviewers starred as excellent. Emulate their tone, brevity, warmth, and how they frame a single question per turn. Do not copy sentences verbatim, quote them back, or reuse their exact opener twice in a row; generalise the pattern. Still obey all safety and crisis rules below.
+
 # Safety and crisis language (overrides normal coaching stages until triage is done)
 This tool is not therapy or emergency care. Stay kind, calm, and non-judgemental.
 
@@ -130,7 +133,8 @@ Hard requirements:
 3. Keep factual integrity and user intent.
 4. Preserve safety constraints and refuse unsafe instructions.
 5. When feedback concerns crisis, self-harm, or suicide wording, apply gentle triage: clarify figure of speech versus literal intent before dumping helplines; if intent is real, ask about plan or past attempts across concise turns; use the short UK helpline set only when appropriate. Do not repeat the same canned crisis block if feedback asks for a different shape.
-6. Output only the improved response text.`,
+6. When an "Admin-starred exemplar replies" block appears in your system context, let it inform tone and structure without copying lines verbatim.
+7. Output only the improved response text.`,
 };
 
 async function fetchPinnedAdminInstructions() {
@@ -162,11 +166,49 @@ async function fetchPinnedAdminInstructions() {
   }
 }
 
+async function fetchStarredAssistantExemplars() {
+  const baseUrl = (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "").replace(/\/$/, "");
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!baseUrl || !key) return "";
+  try {
+    const url = `${baseUrl}/rest/v1/chat_messages?admin_quality_star=eq.true&role=eq.assistant&select=content,admin_starred_at&order=admin_starred_at.desc&limit=8`;
+    const res = await fetch(url, {
+      headers: {
+        apikey: key,
+        Authorization: `Bearer ${key.trim()}`,
+      },
+    });
+    if (!res.ok) {
+      console.warn("Supabase starred messages fetch failed:", res.status);
+      return "";
+    }
+    const rows = await res.json();
+    if (!Array.isArray(rows) || rows.length === 0) return "";
+    const truncate = (s, max = 480) => {
+      const t = String(s || "")
+        .trim()
+        .replace(/\s+/g, " ");
+      if (t.length <= max) return t;
+      return `${t.slice(0, max)}…`;
+    };
+    return rows
+      .map((r, i) => (typeof r.content === "string" && r.content.trim() ? `${i + 1}. ${truncate(r.content)}` : ""))
+      .filter(Boolean)
+      .join("\n");
+  } catch (err) {
+    console.warn("fetchStarredAssistantExemplars:", err.message);
+    return "";
+  }
+}
+
 async function buildChatSystemContent(possibleCrisisLanguage) {
   let content = SYSTEM_PROMPT.content;
-  const pinned = await fetchPinnedAdminInstructions();
+  const [pinned, exemplars] = await Promise.all([fetchPinnedAdminInstructions(), fetchStarredAssistantExemplars()]);
   if (pinned) {
     content += `\n\n# Admin-pinned guidance (saved reviewer feedback)\nTreat these as standing instructions when they fit the situation and stay safe. Prefer them over repeating generic canned replies:\n${pinned}\n`;
+  }
+  if (exemplars) {
+    content += `\n\n# Admin-starred exemplar replies (pattern to emulate)\n${exemplars}\n`;
   }
   if (possibleCrisisLanguage) {
     content += `\n# Context for this turn\nThe user's latest message may mention suicide, dying, or self-harm (sometimes as a figure of speech). Follow the crisis language protocol above with extra care.\n`;
@@ -213,10 +255,14 @@ app.post("/api/chat", async (req, res) => {
       });
     }
     const pinned = await fetchPinnedAdminInstructions();
-    const regenContent =
-      pinned && pinned.length
-        ? `${REGEN_SYSTEM_PROMPT.content}\n\n# Admin-pinned guidance\n${pinned}\n`
-        : REGEN_SYSTEM_PROMPT.content;
+    const exemplars = await fetchStarredAssistantExemplars();
+    let regenContent = REGEN_SYSTEM_PROMPT.content;
+    if (pinned && pinned.length) {
+      regenContent += `\n\n# Admin-pinned guidance\n${pinned}\n`;
+    }
+    if (exemplars && exemplars.length) {
+      regenContent += `\n\n# Admin-starred exemplar replies\n${exemplars}\n`;
+    }
     messages = [
       { role: "system", content: regenContent },
       { role: "user", content: buildRegenerationUserPrompt(regenerationContext) },

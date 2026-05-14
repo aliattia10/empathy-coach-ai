@@ -20,6 +20,8 @@ export type ChatMessage = {
   branch_root_message_id: string | null;
   generation_metadata: Record<string, unknown> | null;
   created_at: string;
+  admin_quality_star?: boolean;
+  admin_starred_at?: string | null;
 };
 
 export type FeedbackTag =
@@ -160,6 +162,14 @@ export async function deleteMessageFeedback(feedbackId: string) {
     .from("chat_feedback")
     .delete()
     .eq("id", feedbackId);
+  if (error) throw error;
+}
+
+export async function setChatMessageAdminStar(messageId: string, starred: boolean) {
+  const { error } = await supabase.rpc("set_chat_message_admin_star", {
+    p_message_id: messageId,
+    p_starred: starred,
+  });
   if (error) throw error;
 }
 

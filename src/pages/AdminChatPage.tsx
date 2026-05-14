@@ -15,6 +15,8 @@ import {
 import { cn } from "@/lib/utils";
 import { jsPDF } from "jspdf";
 import JSZip from "jszip";
+import { Star } from "lucide-react";
+import { setChatMessageAdminStar } from "@/hooks/useChatSession";
 
 type SessionRow = {
   id: string;
@@ -28,6 +30,7 @@ type MessageRow = {
   role: string;
   content: string;
   created_at: string;
+  admin_quality_star?: boolean;
 };
 
 type UserRow = {
@@ -188,7 +191,7 @@ export default function AdminChatPage() {
       setLoadingMessages(true);
       const { data, error } = await supabase
         .from("chat_messages")
-        .select("id,role,content,created_at")
+        .select("id,role,content,created_at,admin_quality_star")
         .eq("session_id", selectedSessionId)
         .order("created_at", { ascending: true });
       setLoadingMessages(false);
@@ -372,7 +375,7 @@ export default function AdminChatPage() {
   const fetchMessagesBySessionId = async (sessionId: string) => {
     const { data, error } = await supabase
       .from("chat_messages")
-      .select("id,role,content,created_at")
+      .select("id,role,content,created_at,admin_quality_star")
       .eq("session_id", sessionId)
       .order("created_at", { ascending: true });
     if (error) throw error;
@@ -898,8 +901,42 @@ export default function AdminChatPage() {
               )}
             {messages.map((m) => (
               <div key={m.id} className="rounded-lg border border-border p-3">
-                <div className="text-xs text-muted-foreground mb-1">
-                  {m.role.toUpperCase()} · {new Date(m.created_at).toLocaleString()}
+                <div className="text-xs text-muted-foreground mb-1 flex items-center justify-between gap-2">
+                  <span>
+                    {m.role.toUpperCase()} · {new Date(m.created_at).toLocaleString()}
+                  </span>
+                  {m.role === "assistant" && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      className="h-8 w-8 p-0 shrink-0 text-muted-foreground hover:text-amber-500"
+                      title={
+                        m.admin_quality_star
+                          ? "Unstar exemplar"
+                          : "Star — excellent reply; model emulates this style"
+                      }
+                      onClick={async () => {
+                        const next = !m.admin_quality_star;
+                        try {
+                          await setChatMessageAdminStar(m.id, next);
+                          setMessages((prev) =>
+                            prev.map((row) => (row.id === m.id ? { ...row, admin_quality_star: next } : row)),
+                          );
+                        } catch (e) {
+                          console.error(e);
+                          window.alert("Could not update star. Run DB migration and ensure admin role.");
+                        }
+                      }}
+                    >
+                      <Star
+                        className={cn(
+                          "h-4 w-4",
+                          m.admin_quality_star && "fill-amber-400 text-amber-500",
+                        )}
+                      />
+                    </Button>
+                  )}
                 </div>
                 <p className="text-sm whitespace-pre-wrap">{m.content}</p>
               </div>

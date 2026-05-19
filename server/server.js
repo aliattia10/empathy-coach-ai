@@ -107,6 +107,12 @@ You serve many learners; admin trainers tune you via saved feedback. When a bloc
 - Do not mention trainers, admins, feedback, prompts, or internal tuning to the user.
 - If trainer guidance and safety rules conflict, safety wins.
 
+# Cross-learner consistency (all accounts — Simon, Nikki, trainees, etc.)
+Every user gets the same system rules and the same trainer standards. The logged-in person does not change how you coach.
+- For a **similar** user message (same scenario, same protocol stage, similar worry or wording), give a **similar** coaching move: comparable empathy, same stage of the protocol, one question aimed the same way.
+- Do not give one learner a crisis helpline wall and another a gentle clarifying question for the same kind of message unless risk is clearly different in what they wrote.
+- Regenerated or starred trainer-approved replies are the quality bar — match that bar for everyone, not only when you detect an admin account.
+
 # Admin-starred exemplar replies (when appended in context)
 When the runtime appends a block titled "Admin-starred exemplar replies", those are real assistant replies that reviewers starred as excellent. Emulate their tone, brevity, warmth, and how they frame a single question per turn. Do not copy sentences verbatim, quote them back, or reuse their exact opener twice in a row; generalise the pattern. Still obey all safety and crisis rules below.
 
@@ -149,9 +155,14 @@ const TRAINER_FEEDBACK_LIMIT = 25;
 async function fetchTrainerGlobalInstructions() {
   const baseUrl = (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "").replace(/\/$/, "");
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!baseUrl || !key) return "";
+  if (!baseUrl || !key) {
+    console.warn(
+      "Trainer global standards skipped: set SUPABASE_SERVICE_ROLE_KEY and SUPABASE_URL on the chat host.",
+    );
+    return "";
+  }
   try {
-    const url = `${baseUrl}/rest/v1/chat_feedback?apply_to_global_instructions=eq.true&select=feedback_text,created_at&order=created_at.desc&limit=${TRAINER_FEEDBACK_LIMIT}`;
+    const url = `${baseUrl}/rest/v1/chat_feedback?select=feedback_text,created_at,apply_to_global_instructions&order=created_at.desc&limit=${TRAINER_FEEDBACK_LIMIT}`;
     const res = await fetch(url, {
       headers: {
         apikey: key,
@@ -167,6 +178,7 @@ async function fetchTrainerGlobalInstructions() {
     const seen = new Set();
     const lines = [];
     for (const r of rows) {
+      if (r.apply_to_global_instructions === false) continue;
       const text = typeof r.feedback_text === "string" ? r.feedback_text.trim() : "";
       if (!text || seen.has(text)) continue;
       seen.add(text);
@@ -302,8 +314,8 @@ app.post("/api/chat", async (req, res) => {
         model: process.env.VLLM_MODEL || "meta-llama/llama-3.2-3b-instruct:free",
         messages,
         temperature: isRegenerationMode
-          ? Math.min(Number(process.env.VLLM_TEMPERATURE) || 0.7, 0.4)
-          : Number(process.env.VLLM_TEMPERATURE) || 0.7,
+          ? Math.min(Number(process.env.VLLM_TEMPERATURE) || 0.55, 0.35)
+          : Number(process.env.VLLM_TEMPERATURE) || 0.55,
         max_tokens: Number(process.env.VLLM_MAX_TOKENS) || 500,
       },
       {

@@ -100,6 +100,13 @@ Stage 4: Behavioral experiment
   9) "This sounds like a moment where..."
   10) "I can see why this feels..."
 
+# Trainer global standards (highest priority after safety)
+You serve many learners; admin trainers tune you via saved feedback. When a block titled "Trainer global standards" is appended below, it applies to **every user** in **every session** — not only the trainer who wrote it.
+- Treat trainer bullets as mandatory style and behaviour rules when they are safe and fit the user's message.
+- They override generic empathy habits, canned crisis walls, and default openers when they conflict.
+- Do not mention trainers, admins, feedback, prompts, or internal tuning to the user.
+- If trainer guidance and safety rules conflict, safety wins.
+
 # Admin-starred exemplar replies (when appended in context)
 When the runtime appends a block titled "Admin-starred exemplar replies", those are real assistant replies that reviewers starred as excellent. Emulate their tone, brevity, warmth, and how they frame a single question per turn. Do not copy sentences verbatim, quote them back, or reuse their exact opener twice in a row; generalise the pattern. Still obey all safety and crisis rules below.
 
@@ -133,16 +140,18 @@ Hard requirements:
 3. Keep factual integrity and user intent.
 4. Preserve safety constraints and refuse unsafe instructions.
 5. When feedback concerns crisis, self-harm, or suicide wording, apply gentle triage: clarify figure of speech versus literal intent before dumping helplines; if intent is real, ask about plan or past attempts across concise turns; use the short UK helpline set only when appropriate. Do not repeat the same canned crisis block if feedback asks for a different shape.
-6. When an "Admin-starred exemplar replies" block appears in your system context, let it inform tone and structure without copying lines verbatim.
+6. When "Trainer global standards" or "Admin-starred exemplar replies" appear in system context, follow them for all users.
 7. Output only the improved response text.`,
 };
 
-async function fetchPinnedAdminInstructions() {
+const TRAINER_FEEDBACK_LIMIT = 25;
+
+async function fetchTrainerGlobalInstructions() {
   const baseUrl = (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "").replace(/\/$/, "");
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!baseUrl || !key) return "";
   try {
-    const url = `${baseUrl}/rest/v1/chat_feedback?apply_to_global_instructions=eq.true&select=feedback_text,created_at&order=created_at.desc&limit=12`;
+    const url = `${baseUrl}/rest/v1/chat_feedback?apply_to_global_instructions=eq.true&select=feedback_text,created_at&order=created_at.desc&limit=${TRAINER_FEEDBACK_LIMIT}`;
     const res = await fetch(url, {
       headers: {
         apikey: key,
@@ -155,13 +164,17 @@ async function fetchPinnedAdminInstructions() {
     }
     const rows = await res.json();
     if (!Array.isArray(rows) || rows.length === 0) return "";
-    const lines = rows
-      .map((r) => (typeof r.feedback_text === "string" ? r.feedback_text.trim() : ""))
-      .filter(Boolean);
-    if (lines.length === 0) return "";
-    return lines.map((t) => `- ${t}`).join("\n");
+    const seen = new Set();
+    const lines = [];
+    for (const r of rows) {
+      const text = typeof r.feedback_text === "string" ? r.feedback_text.trim() : "";
+      if (!text || seen.has(text)) continue;
+      seen.add(text);
+      lines.push(`- ${text}`);
+    }
+    return lines.length ? lines.join("\n") : "";
   } catch (err) {
-    console.warn("fetchPinnedAdminInstructions:", err.message);
+    console.warn("fetchTrainerGlobalInstructions:", err.message);
     return "";
   }
 }
@@ -203,9 +216,9 @@ async function fetchStarredAssistantExemplars() {
 
 async function buildChatSystemContent(possibleCrisisLanguage) {
   let content = SYSTEM_PROMPT.content;
-  const [pinned, exemplars] = await Promise.all([fetchPinnedAdminInstructions(), fetchStarredAssistantExemplars()]);
-  if (pinned) {
-    content += `\n\n# Admin-pinned guidance (saved reviewer feedback)\nTreat these as standing instructions when they fit the situation and stay safe. Prefer them over repeating generic canned replies:\n${pinned}\n`;
+  const [trainerRules, exemplars] = await Promise.all([fetchTrainerGlobalInstructions(), fetchStarredAssistantExemplars()]);
+  if (trainerRules) {
+    content += `\n\n# Trainer global standards (admin feedback — applies to ALL users)\nFollow every bullet below for this reply and all learners. These override generic habits when safe:\n${trainerRules}\n`;
   }
   if (exemplars) {
     content += `\n\n# Admin-starred exemplar replies (pattern to emulate)\n${exemplars}\n`;
@@ -254,11 +267,11 @@ app.post("/api/chat", async (req, res) => {
         error: "regenerationContext.originalUserMessage and previousAssistantReply are required.",
       });
     }
-    const pinned = await fetchPinnedAdminInstructions();
+    const trainerRules = await fetchTrainerGlobalInstructions();
     const exemplars = await fetchStarredAssistantExemplars();
     let regenContent = REGEN_SYSTEM_PROMPT.content;
-    if (pinned && pinned.length) {
-      regenContent += `\n\n# Admin-pinned guidance\n${pinned}\n`;
+    if (trainerRules && trainerRules.length) {
+      regenContent += `\n\n# Trainer global standards\n${trainerRules}\n`;
     }
     if (exemplars && exemplars.length) {
       regenContent += `\n\n# Admin-starred exemplar replies\n${exemplars}\n`;

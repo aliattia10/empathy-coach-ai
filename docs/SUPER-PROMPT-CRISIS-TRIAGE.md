@@ -16,4 +16,4 @@ When users mention suicide, dying, or self-harm (sometimes as intense figures of
 
 ## Admin feedback that should shape all chats
 
-Reviewers can pin feedback in the avatar session UI (**Pin this feedback to the live model**). Pinned rows (`apply_to_global_instructions = true` in `chat_feedback`) are loaded server-side with the service role and appended to the system prompt so the model keeps learning from Simon’s notes without repeating the same mistake.
+Admin trainer feedback is **global by default** (see `docs/SUPER-PROMPT-TRAINER-GLOBAL-FEEDBACK.md`). Rows with `apply_to_global_instructions = true` are loaded into **Trainer global standards** on every chat for every user.

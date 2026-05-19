@@ -185,7 +185,7 @@ export default function ChatTranscript({
                                 tags: [],
                                 open: false,
                                 composing: !hasPrevious,
-                                applyToGlobal: false,
+                                applyToGlobal: true,
                               };
                               onFeedbackDraftChange?.(msg.id, { ...existing, open: !existing.open });
                             }}
@@ -234,7 +234,9 @@ export default function ChatTranscript({
                                 <p className="text-muted-foreground">
                                   Rating: {item.rating ?? "Not rated"} | Tags:{" "}
                                   {(item.tags || []).length ? (item.tags || []).join(", ") : "None"}
-                                  {item.apply_to_global_instructions ? " | Pinned to global model" : ""}
+                                  {item.apply_to_global_instructions !== false
+                                    ? " | Applies to all users"
+                                    : " | Trainer-only (not global)"}
                                 </p>
                               </div>
                             ))}
@@ -253,7 +255,7 @@ export default function ChatTranscript({
                                 tags: [],
                                 open: true,
                                 composing: false,
-                                applyToGlobal: false,
+                                applyToGlobal: true,
                               };
                               onFeedbackDraftChange?.(msg.id, { ...current, composing: true });
                             }}
@@ -272,7 +274,7 @@ export default function ChatTranscript({
                                     tags: [],
                                     open: true,
                                     composing: true,
-                                    applyToGlobal: false,
+                                    applyToGlobal: true,
                                   }),
                                   text: event.target.value,
                                 })
@@ -292,7 +294,7 @@ export default function ChatTranscript({
                                     tags: [],
                                     open: true,
                                     composing: true,
-                                    applyToGlobal: false,
+                                    applyToGlobal: true,
                                   }),
                                   rating: raw === "" ? null : Number(raw),
                                 });
@@ -321,7 +323,7 @@ export default function ChatTranscript({
                                         tags: [],
                                         open: true,
                                         composing: true,
-                                        applyToGlobal: false,
+                                        applyToGlobal: true,
                                       };
                                       const nextTags = selected
                                         ? current.tags.filter((item) => item !== tag)
@@ -348,7 +350,7 @@ export default function ChatTranscript({
                                       tags: [],
                                       open: true,
                                       composing: true,
-                                      applyToGlobal: false,
+                                      applyToGlobal: true,
                                     }),
                                     applyToGlobal: checked === true,
                                   })
@@ -358,7 +360,7 @@ export default function ChatTranscript({
                                 htmlFor={`pin-feedback-${msg.id}`}
                                 className="text-xs font-normal cursor-pointer leading-snug text-muted-foreground"
                               >
-                                Pin to global model instructions (applies to all new chats once saved).
+                                Apply to all users (trainer standard — recommended; shapes every learner&apos;s next replies).
                               </Label>
                             </div>
                             <div className="flex gap-2">
@@ -381,7 +383,7 @@ export default function ChatTranscript({
                                     tags: [],
                                     open: true,
                                     composing: true,
-                                    applyToGlobal: false,
+                                    applyToGlobal: true,
                                   };
                                   onFeedbackDraftChange?.(msg.id, {
                                     ...current,
@@ -389,7 +391,7 @@ export default function ChatTranscript({
                                     rating: null,
                                     tags: [],
                                     composing: false,
-                                    applyToGlobal: false,
+                                    applyToGlobal: true,
                                   });
                                 }}
                               >

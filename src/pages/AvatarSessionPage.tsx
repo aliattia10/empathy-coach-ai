@@ -22,6 +22,7 @@ import {
   type ChatSession,
 } from "@/hooks/useChatSession";
 import { stripMarkdownForSpeech } from "@/lib/speech";
+import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -574,7 +575,7 @@ export default function AvatarSessionPage() {
         feedbackText: draft.text.trim(),
         rating: draft.rating ?? null,
         tags: draft.tags,
-        applyToGlobalInstructions: draft.applyToGlobal,
+        applyToGlobalInstructions: draft.applyToGlobal !== false,
       });
       setFeedbackByMessageId((prev) => ({
         ...prev,
@@ -582,8 +583,13 @@ export default function AvatarSessionPage() {
       }));
       setFeedbackDrafts((prev) => ({
         ...prev,
-        [messageId]: { text: "", rating: null, tags: [], open: true, composing: false, applyToGlobal: false },
+        [messageId]: { text: "", rating: null, tags: [], open: true, composing: false, applyToGlobal: true },
       }));
+      if (draft.applyToGlobal !== false) {
+        toast.success("Trainer feedback saved — applies to all users on their next messages.");
+      } else {
+        toast.success("Feedback saved (trainer-only, not added to global standards).");
+      }
       setMessages((prev) =>
         prev.map((item) =>
           item.id === messageId

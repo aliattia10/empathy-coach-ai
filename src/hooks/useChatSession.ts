@@ -139,7 +139,7 @@ export async function createMessageFeedback(input: {
       feedback_text: input.feedbackText,
       rating: input.rating ?? null,
       tags: input.tags ?? [],
-      apply_to_global_instructions: input.applyToGlobalInstructions ?? false,
+      apply_to_global_instructions: input.applyToGlobalInstructions !== false,
     })
     .select()
     .single();

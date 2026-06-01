@@ -8,7 +8,7 @@
 const DEFAULT_OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const DEFAULT_GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
 
-const { formatSkillsForPrompt } = require("../../skills/skillsLibrary.js");
+const { formatSkillsForPrompt } = require("../../skills/skillsLibrary.cjs");
 
 const SYSTEM_PROMPT = {
   role: "system",

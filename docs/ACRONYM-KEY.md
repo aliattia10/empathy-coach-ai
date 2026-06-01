@@ -1,6 +1,6 @@
 # ShiftED acronym and terminology key
 
-From weekly meeting 27 May 2026 — keep in sync with `skills/skillsLibrary.js`.
+From weekly meeting 27 May 2026 — keep in sync with `skills/skillsLibrary.cjs`.
 
 | Term | Meaning |
 |------|---------|

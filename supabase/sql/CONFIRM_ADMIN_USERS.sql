@@ -17,7 +17,8 @@ where lower(email) in (
   'kara@admin.com',
   'josh@admin.com',
   'simon@admin.com',
-  'louise@admin.com'
+  'louise@admin.com',
+  'nikki@admin.com'
 );
 
 -- Optional: show result
@@ -27,6 +28,7 @@ where lower(email) in (
   'kara@admin.com',
   'josh@admin.com',
   'simon@admin.com',
-  'louise@admin.com'
+  'louise@admin.com',
+  'nikki@admin.com'
 )
 order by email;

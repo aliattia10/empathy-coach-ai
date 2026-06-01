@@ -6,6 +6,31 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 
+function isAdminDomainEmail(value: string) {
+  return value.trim().toLowerCase().endsWith("@admin.com");
+}
+
+function loginErrorMessage(err: unknown, email: string): string {
+  const message = err instanceof Error ? err.message : "Something went wrong.";
+  const lower = message.toLowerCase();
+
+  if (lower.includes("invalid login credentials") && isAdminDomainEmail(email)) {
+    return (
+      "Invalid email or password. For @admin.com accounts: do not use Sign up — use the password set in Supabase. " +
+      "If unsure, ask your admin to reset it (scripts/reset-admin-password.js or Dashboard → Users → edit user)."
+    );
+  }
+  if (
+    (lower.includes("email not confirmed") || lower.includes("not confirmed")) &&
+    isAdminDomainEmail(email)
+  ) {
+    return (
+      "@admin.com addresses cannot receive verification mail. Run supabase/sql/CONFIRM_FAKE_ADMIN_EMAILS.sql in Supabase, then try again."
+    );
+  }
+  return message;
+}
+
 export default function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -22,22 +47,28 @@ export default function LoginPage() {
       return;
     }
     setLoading(true);
+    const normalizedEmail = email.trim().toLowerCase();
     try {
       if (isSignUp) {
-        const { error } = await supabase.auth.signUp({ email: email.trim(), password });
+        if (isAdminDomainEmail(normalizedEmail)) {
+          toast.error(
+            "@admin.com accounts are created by an administrator in Supabase — do not sign up here. Use Sign in with the password you were given.",
+          );
+          return;
+        }
+        const { error } = await supabase.auth.signUp({ email: normalizedEmail, password });
         if (error) throw error;
         toast.success("Check your email to confirm your account.");
         navigate(redirectTo);
       } else {
-        const normalizedEmail = email.trim().toLowerCase();
         const { error } = await supabase.auth.signInWithPassword({ email: normalizedEmail, password });
 
         if (error) throw error;
         toast.success("Signed in.");
         navigate(redirectTo);
       }
-    } catch (err: any) {
-      toast.error(err?.message || "Something went wrong.");
+    } catch (err: unknown) {
+      toast.error(loginErrorMessage(err, normalizedEmail));
     } finally {
       setLoading(false);
     }

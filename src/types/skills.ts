@@ -1,4 +1,4 @@
-/** Mirrors public.skills and skills/skillsLibrary.js */
+/** Mirrors public.skills and skills/skillsLibrary.cjs */
 
 export type SkillCategory = "core" | "development_activation";
 

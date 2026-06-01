@@ -2,6 +2,8 @@
  * ShiftED skills library — Core (engine) vs Development/Activation (modules).
  * Injected into live LLM system prompt for all users.
  * Source: training playbook + May 2026 weekly meeting decisions.
+ *
+ * CommonJS (.cjs) because package.json has "type": "module".
  */
 
 /** @typedef {"core" | "development_activation"} SkillCategory */

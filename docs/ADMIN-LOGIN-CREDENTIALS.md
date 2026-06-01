@@ -8,6 +8,7 @@
 - `josh@admin.com`
 - `simon@admin.com`
 - `louise@admin.com`
+- `nikki@admin.com`
 - Passwords must be generated and managed in Supabase/Auth (or your secret manager), not in source code.
 
 ## /Adminchat    page to see all the conversations

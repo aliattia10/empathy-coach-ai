@@ -6,7 +6,7 @@ Aligned with *Training the LLM to detect skill gaps* (Simon) and **ShiftED AI we
 
 | Decision | Implementation |
 |----------|----------------|
-| **Core vs Development/Activation** | `core` vs `development_activation` in `skills/skillsLibrary.js` |
+| **Core vs Development/Activation** | `core` vs `development_activation` in `skills/skillsLibrary.cjs` |
 | **Phase 1 ↔ Phase 3 loop** | System prompt: if skill blocked, return to conceptualisation then practice |
 | **Person-centred conceptualisation each session** | Existing Stage 1 / Platform Phase 1 |
 | **Challenge avoidance; weak modalities** | Prompt: do not reinforce learning-style excuses |
@@ -16,7 +16,7 @@ Aligned with *Training the LLM to detect skill gaps* (Simon) and **ShiftED AI we
 
 ## Live wiring
 
-- **Library:** `skills/skillsLibrary.js` → `formatSkillsForPrompt()`
+- **Library:** `skills/skillsLibrary.cjs` → `formatSkillsForPrompt()`
 - **Chat API:** `buildChatSystemContent()` in `netlify/functions/chat.js` and `server/server.js` appends **Skills library and gap detection** for **every user**
 - **DB (optional):** `supabase/migrations/20260520120000_skills_library.sql` for admin CRUD later
 

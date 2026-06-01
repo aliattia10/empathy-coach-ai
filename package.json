@@ -8,6 +8,7 @@
     "server": "node server/server.js",
     "dev:server": "node server/server.js",
     "admin:seed-users": "node scripts/create-admin-users.js",
+    "admin:reset-password": "node scripts/reset-admin-password.js",
     "build": "vite build",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",

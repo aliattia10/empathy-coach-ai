@@ -11,7 +11,7 @@ app.use(express.json({ limit: "15mb" }));
 const VLLM_API_URL =
   process.env.VLLM_API_URL || "https://openrouter.ai/api/v1/chat/completions";
 
-const { formatSkillsForPrompt } = require("../skills/skillsLibrary.js");
+const { formatSkillsForPrompt } = require("../skills/skillsLibrary.cjs");
 
 // Rule-guided system prompt for the "Constructive Feedback" scenario (Alex avatar)
 const SYSTEM_PROMPT = {

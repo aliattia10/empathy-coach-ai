@@ -15,7 +15,8 @@ where u.email in (
   'kara@admin.com',
   'josh@admin.com',
   'simon@admin.com',
-  'louise@admin.com'
+  'louise@admin.com',
+  'nikki@admin.com'
 )
 on conflict (user_id, role) do nothing;
 

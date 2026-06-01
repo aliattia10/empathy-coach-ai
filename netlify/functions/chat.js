@@ -8,6 +8,8 @@
 const DEFAULT_OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const DEFAULT_GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
 
+const { formatSkillsForPrompt } = require("../../skills/skillsLibrary.js");
+
 const SYSTEM_PROMPT = {
   role: "system",
   content: `# Role: ShiftED AI - Active Empathy Coach
@@ -227,6 +229,7 @@ async function fetchStarredAssistantExemplars() {
 
 async function buildChatSystemContent(possibleCrisisLanguage) {
   let content = SYSTEM_PROMPT.content;
+  content += `\n\n${formatSkillsForPrompt()}\n`;
   const [trainerRules, exemplars] = await Promise.all([fetchTrainerGlobalInstructions(), fetchStarredAssistantExemplars()]);
   if (trainerRules) {
     content += `\n\n# Trainer global standards (admin feedback — applies to ALL users)\nFollow every bullet below for this reply and all learners. These override generic habits when safe:\n${trainerRules}\n`;

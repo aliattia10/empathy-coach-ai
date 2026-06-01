@@ -11,6 +11,8 @@ app.use(express.json({ limit: "15mb" }));
 const VLLM_API_URL =
   process.env.VLLM_API_URL || "https://openrouter.ai/api/v1/chat/completions";
 
+const { formatSkillsForPrompt } = require("../skills/skillsLibrary.js");
+
 // Rule-guided system prompt for the "Constructive Feedback" scenario (Alex avatar)
 const SYSTEM_PROMPT = {
   role: "system",
@@ -228,6 +230,7 @@ async function fetchStarredAssistantExemplars() {
 
 async function buildChatSystemContent(possibleCrisisLanguage) {
   let content = SYSTEM_PROMPT.content;
+  content += `\n\n${formatSkillsForPrompt()}\n`;
   const [trainerRules, exemplars] = await Promise.all([fetchTrainerGlobalInstructions(), fetchStarredAssistantExemplars()]);
   if (trainerRules) {
     content += `\n\n# Trainer global standards (admin feedback — applies to ALL users)\nFollow every bullet below for this reply and all learners. These override generic habits when safe:\n${trainerRules}\n`;

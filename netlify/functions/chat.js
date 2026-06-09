@@ -257,6 +257,8 @@ exports.handler = async (event) => {
     const trainerRules = await fetchTrainerGlobalInstructions();
     const exemplars = await fetchStarredAssistantExemplars();
     let regenContent = REGEN_SYSTEM_PROMPT.content;
+    const journeyBlock = formatJourneyContextForPrompt(body?.journeyContext);
+    if (journeyBlock) regenContent += `\n\n${journeyBlock}\n`;
     if (trainerRules && trainerRules.length) {
       regenContent += `\n\n# Trainer global standards\n${trainerRules}\n`;
     }

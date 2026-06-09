@@ -49,7 +49,7 @@ export type ChatFeedback = {
 
 export async function createChatSession(
   userId: string,
-  scenario = "constructive_feedback",
+  scenario = "coaching_journey",
   sessionName?: string,
 ) {
   const { data, error } = await supabase

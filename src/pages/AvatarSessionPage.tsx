@@ -43,7 +43,9 @@ import {
   Trash2,
 } from "lucide-react";
 import type { TranscriptMessage } from "@/components/avatar/ChatTranscript";
+import PhaseStepper from "@/components/avatar/PhaseStepper";
 import { inferJourneyUpdates } from "@/lib/journeyInference";
+import { buildFallbackResponse, buildWelcomeMessage } from "@/lib/journeyWelcome";
 import {
   journeyStateFromSession,
   toJourneyContextPayload,
@@ -66,23 +68,12 @@ type RegenerationPayloadFeedback = {
   tags: string[];
 };
 
-const INITIAL_MESSAGE: TranscriptMessage = {
-  id: "init",
-  role: "assistant",
-  content: `Welcome back to your coaching journey — I'm **Alex**, your AI partner.
-
-This is **one continuous conversation** you can return to anytime. When you have history here, we'll pick up from your last action step; if you're new, we'll start by understanding what's going on for you.
-
-**What's the main challenge, stressor, or situation you're facing right now?** Describe it in your own words.`,
-};
-
-function generateFallbackResponse(): string {
-  const responses = [
-    "That's a thoughtful observation. **How do you think your team member would describe this situation?**",
-    "**What specific behavior are you addressing?** Try to separate the person from the action.",
-    "Consider: **Situation — Behavior — Impact.** Can you frame your feedback using these three elements?",
-  ];
-  return responses[Math.floor(Math.random() * responses.length)];
+function starterMessage(session: Partial<JourneyState> | null | undefined): TranscriptMessage {
+  return {
+    id: "init",
+    role: "assistant",
+    content: buildWelcomeMessage(journeyStateFromSession(session)),
+  };
 }
 
 const DEFAULT_SCENARIO = {
@@ -100,8 +91,8 @@ async function blobToBase64(blob: Blob): Promise<string> {
 
 export default function AvatarSessionPage() {
   const { user } = useAuth();
-  const [messages, setMessages] = useState<TranscriptMessage[]>([INITIAL_MESSAGE]);
-  const [rawMessages, setRawMessages] = useState<StoredMessage[]>([INITIAL_MESSAGE]);
+  const [messages, setMessages] = useState<TranscriptMessage[]>([starterMessage(null)]);
+  const [rawMessages, setRawMessages] = useState<StoredMessage[]>([starterMessage(null)]);
   const [activeAssistantId, setActiveAssistantId] = useState<string | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [sessions, setSessions] = useState<ChatSession[]>([]);
@@ -264,18 +255,20 @@ export default function AvatarSessionPage() {
           if (!isMounted) return;
           const restored = mapHistoryToStoredMessages(history);
           setSessionId(selectedSession.id);
-          setRawMessages(restored.length > 0 ? restored : [INITIAL_MESSAGE]);
+          const emptyStarter = starterMessage(selectedSession);
+          setRawMessages(restored.length > 0 ? restored : [emptyStarter]);
           setActiveAssistantId(selectedSession.active_message_id || null);
-          setMessages(buildDisplayMessages(restored.length > 0 ? restored : [INITIAL_MESSAGE], selectedSession.active_message_id || null));
+          setMessages(buildDisplayMessages(restored.length > 0 ? restored : [emptyStarter], selectedSession.active_message_id || null));
           await loadFeedbackForMessages(restored);
         } else {
-          const s = await createChatSession(user.id, "constructive_feedback", "Session 1");
+          const s = await createChatSession(user.id, "coaching_journey", "Session 1");
           if (!isMounted) return;
           setSessionId(s.id);
           setSessions([s]);
-          setMessages([INITIAL_MESSAGE]);
-          const initial = await saveChatMessage(s.id, "assistant", INITIAL_MESSAGE.content);
-          setRawMessages([{ ...INITIAL_MESSAGE, id: initial.id, admin_quality_star: initial.admin_quality_star ?? false }]);
+          const welcome = starterMessage(s);
+          setMessages([welcome]);
+          const initial = await saveChatMessage(s.id, "assistant", welcome.content);
+          setRawMessages([{ ...welcome, id: initial.id, admin_quality_star: initial.admin_quality_star ?? false }]);
           setActiveAssistantId(initial.id);
           await setSessionActiveMessage(s.id, initial.id);
         }
@@ -298,12 +291,13 @@ export default function AvatarSessionPage() {
     try {
       setIsSessionActionLoading(true);
       const sessionCount = sessions.length + 1;
-      const s = await createChatSession(user.id, "constructive_feedback", `Session ${sessionCount}`);
+      const s = await createChatSession(user.id, "coaching_journey", `Session ${sessionCount}`);
       setSessionId(s.id);
-      setMessages([INITIAL_MESSAGE]);
+      const welcome = starterMessage(s);
+      setMessages([welcome]);
       setSessions((prev) => [s, ...prev]);
-      const initial = await saveChatMessage(s.id, "assistant", INITIAL_MESSAGE.content);
-      setRawMessages([{ ...INITIAL_MESSAGE, id: initial.id, admin_quality_star: initial.admin_quality_star ?? false }]);
+      const initial = await saveChatMessage(s.id, "assistant", welcome.content);
+      setRawMessages([{ ...welcome, id: initial.id, admin_quality_star: initial.admin_quality_star ?? false }]);
       setActiveAssistantId(initial.id);
       await setSessionActiveMessage(s.id, initial.id);
     } catch (err) {
@@ -321,17 +315,19 @@ export default function AvatarSessionPage() {
       const restored = mapHistoryToStoredMessages(history);
 
       setSessionId(nextSessionId);
-      setRawMessages(restored.length > 0 ? restored : [INITIAL_MESSAGE]);
+      const emptyStarter = starterMessage(selectedSession);
+      setRawMessages(restored.length > 0 ? restored : [emptyStarter]);
       setActiveAssistantId(selectedSession?.active_message_id || null);
-      setMessages(buildDisplayMessages(restored.length > 0 ? restored : [INITIAL_MESSAGE], selectedSession?.active_message_id || null));
+      setMessages(buildDisplayMessages(restored.length > 0 ? restored : [emptyStarter], selectedSession?.active_message_id || null));
       await loadFeedbackForMessages(restored);
 
       // Ensure at least one assistant starter message exists in an empty/restored session.
       if (restored.length === 0) {
-        const initial = await saveChatMessage(nextSessionId, "assistant", INITIAL_MESSAGE.content);
+        const welcome = starterMessage(selectedSession);
+        const initial = await saveChatMessage(nextSessionId, "assistant", welcome.content);
         await setSessionActiveMessage(nextSessionId, initial.id);
-        setRawMessages([{ ...INITIAL_MESSAGE, id: initial.id, admin_quality_star: initial.admin_quality_star ?? false }]);
-        setMessages([{ ...INITIAL_MESSAGE, id: initial.id, admin_quality_star: initial.admin_quality_star ?? false }]);
+        setRawMessages([{ ...welcome, id: initial.id, admin_quality_star: initial.admin_quality_star ?? false }]);
+        setMessages([{ ...welcome, id: initial.id, admin_quality_star: initial.admin_quality_star ?? false }]);
         setActiveAssistantId(initial.id);
       }
     } catch (err) {
@@ -382,12 +378,13 @@ export default function AvatarSessionPage() {
         if (remainingSessions.length > 0) {
           await openSession(remainingSessions[0].id);
         } else if (user) {
-          const s = await createChatSession(user.id, "constructive_feedback", "Session 1");
+          const s = await createChatSession(user.id, "coaching_journey", "Session 1");
           setSessions([s]);
           setSessionId(s.id);
-          setMessages([INITIAL_MESSAGE]);
-          const initial = await saveChatMessage(s.id, "assistant", INITIAL_MESSAGE.content);
-          setRawMessages([{ ...INITIAL_MESSAGE, id: initial.id, admin_quality_star: initial.admin_quality_star ?? false }]);
+          const welcome = starterMessage(s);
+          setMessages([welcome]);
+          const initial = await saveChatMessage(s.id, "assistant", welcome.content);
+          setRawMessages([{ ...welcome, id: initial.id, admin_quality_star: initial.admin_quality_star ?? false }]);
           setActiveAssistantId(initial.id);
           await setSessionActiveMessage(s.id, initial.id);
         }
@@ -499,7 +496,7 @@ export default function AvatarSessionPage() {
       }
       setIsAiResponding(false);
     } catch {
-      const content = generateFallbackResponse();
+      const content = buildFallbackResponse(journeyState.platform_phase);
       const savedReply = await saveChatMessage(sessionId, "assistant", content, {
         parentMessageId: persistedUser.id,
       });
@@ -681,11 +678,13 @@ export default function AvatarSessionPage() {
     }));
     try {
       setIsRegenerating(true);
+      const regenJourney = journeyStateFromSession(sessions.find((s) => s.id === sessionId));
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           mode: "regenerate",
+          journeyContext: toJourneyContextPayload(regenJourney, rawMessages.length),
           regenerationContext: {
             originalUserMessage: parentUser.content,
             previousAssistantReply: target.content,
@@ -805,6 +804,9 @@ export default function AvatarSessionPage() {
                     disabled={isSessionActionLoading}
                   >
                     <p className="text-sm font-semibold truncate">{displayName}</p>
+                    <p className="text-xs text-primary/80 mt-0.5">
+                      {PHASE_LABELS[journeyStateFromSession(session).platform_phase]}
+                    </p>
                     <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
                       <Calendar className="w-3 h-3" />
                       {new Date(session.updated_at).toLocaleDateString()}
@@ -987,6 +989,11 @@ export default function AvatarSessionPage() {
               <p className="text-xs uppercase tracking-wider text-muted-foreground mb-1">AI Coach</p>
               <h1 className="text-xl md:text-2xl font-semibold">{DEFAULT_SCENARIO.title}</h1>
               <p className="text-xs text-muted-foreground mt-1">{selectedSession?.session_name || "Current session"}</p>
+              <PhaseStepper
+                className="mt-3"
+                currentPhase={journey.platform_phase}
+                phaseOneConfirmed={journey.phase_one_confirmed}
+              />
             </div>
             <div className="inline-flex items-center gap-2 rounded-full px-3 py-1.5 bg-primary/10 text-primary text-sm font-medium">
               <span className="relative flex h-2.5 w-2.5">

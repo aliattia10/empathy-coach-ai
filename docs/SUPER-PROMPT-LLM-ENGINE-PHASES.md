@@ -40,7 +40,17 @@ Aligned with *Changes needed for the LLM Engine* PDF. Live wiring:
 
 ## Deploy checklist
 
-1. Push `main` and redeploy Netlify.
-2. Test new user: Phase One intake → Reflective Handshake before goals.
-3. Test returning user with history: Phase Three check-in first.
-4. Test failure path: user reports step failed → distancing skill, not pushed BA.
+1. Run Supabase migrations (in order):
+   - `20260601120000_chat_session_journey_state.sql`
+   - `20260602120000_skills_phase_alignment.sql`
+2. Push `main` and redeploy Netlify.
+3. Test new user: Phase One intake → Reflective Handshake before goals.
+4. Test returning user with micro-goal: welcome asks for progress check-in.
+5. Test failure path: user reports step failed → pivot flag in Progress panel.
+
+## UI (latest)
+
+- **Phase stepper** in session header (Understanding → Action planning → Sustainability)
+- **Session list** shows current phase per thread
+- **Welcome message** adapts to journey state when opening an empty thread
+- **Regenerate** includes `journeyContext` for phase-aware rewrites

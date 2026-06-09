@@ -10,6 +10,7 @@ const DEFAULT_GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
 
 const { formatSkillsForPrompt } = require("../../skills/skillsLibrary.cjs");
 const { formatLlmEnginePhasesForPrompt } = require("../../skills/llmEnginePhases.cjs");
+const { formatJourneyContextForPrompt } = require("../../skills/journeyContext.cjs");
 
 const SYSTEM_PROMPT = {
   role: "system",
@@ -184,9 +185,11 @@ async function fetchStarredAssistantExemplars() {
   }
 }
 
-async function buildChatSystemContent(possibleCrisisLanguage) {
+async function buildChatSystemContent(possibleCrisisLanguage, journeyContext) {
   let content = SYSTEM_PROMPT.content;
   content += `\n\n${formatLlmEnginePhasesForPrompt()}\n`;
+  const journeyBlock = formatJourneyContextForPrompt(journeyContext);
+  if (journeyBlock) content += `\n\n${journeyBlock}\n`;
   content += `\n\n${formatSkillsForPrompt()}\n`;
   const [trainerRules, exemplars] = await Promise.all([fetchTrainerGlobalInstructions(), fetchStarredAssistantExemplars()]);
   if (trainerRules) {
@@ -271,7 +274,7 @@ exports.handler = async (event) => {
     const history = Array.isArray(chatHistory)
       ? chatHistory.map((m) => ({ role: m.role, content: m.content || "" }))
       : [];
-    const systemContent = await buildChatSystemContent(!!body?.possibleCrisisLanguage);
+    const systemContent = await buildChatSystemContent(!!body?.possibleCrisisLanguage, body?.journeyContext);
     messages = [{ role: "system", content: systemContent }, ...history, { role: "user", content: userMessage }];
   }
 

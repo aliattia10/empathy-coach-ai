@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import type { JourneyState } from "@/types/journey";
 
 export type ChatSession = {
   id: string;
@@ -8,7 +9,7 @@ export type ChatSession = {
   active_message_id: string | null;
   created_at: string;
   updated_at: string;
-};
+} & JourneyState;
 
 export type ChatMessage = {
   id: string;
@@ -178,5 +179,11 @@ export async function setSessionActiveMessage(sessionId: string, messageId: stri
     .from("chat_sessions")
     .update({ active_message_id: messageId })
     .eq("id", sessionId);
+  if (error) throw error;
+}
+
+export async function updateJourneyState(sessionId: string, updates: Partial<JourneyState>) {
+  if (Object.keys(updates).length === 0) return;
+  const { error } = await supabase.from("chat_sessions").update(updates).eq("id", sessionId);
   if (error) throw error;
 }

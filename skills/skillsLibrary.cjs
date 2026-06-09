@@ -111,10 +111,27 @@ const SKILLS = [
     whenToUse: "Recurring distorted thoughts; pair with HCPR or DTR when needed.",
   },
   {
+    id: "boundary_communication",
+    name: "Boundary communication",
+    category: "development_activation",
+    platformPhase: 2,
+    acronym: null,
+    description:
+      "Plan how to communicate a boundary clearly to a colleague, family member, or manager — what to say, when, and what rule it protects.",
+    gapSignals: [
+      "can't say no",
+      "need to set a boundary",
+      "always available",
+      "they expect me to",
+      "afraid to push back",
+    ],
+    whenToUse: "Phase Two micro-stepping for emotional intelligence and workplace boundaries.",
+  },
+  {
     id: "behavioral_activation",
     name: "Behavioural Activation",
     category: "development_activation",
-    platformPhase: 3,
+    platformPhase: 2,
     acronym: "BA",
     description:
       "Plan valued activities and small approach steps to improve mood and momentum — linked to sustainability path.",
@@ -131,7 +148,7 @@ const SKILLS = [
     id: "micro_goals",
     name: "Micro goals",
     category: "development_activation",
-    platformPhase: 3,
+    platformPhase: 2,
     acronym: null,
     description:
       "Break goals into very small, observable steps the user can attempt soon — plain language, not clinical scales.",

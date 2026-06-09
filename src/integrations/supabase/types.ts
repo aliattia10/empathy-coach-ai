@@ -146,28 +146,64 @@ export type Database = {
       chat_sessions: {
         Row: {
           active_message_id: string | null
+          active_micro_goal: string | null
+          architectural_backtrack_active: boolean
+          belief_strength_pct: number | null
+          conceptualisation_summary: string | null
           created_at: string
           id: string
+          last_check_in_at: string | null
+          micro_goal_confidence: number | null
+          phase_one_confirmed: boolean
+          phase_one_step: number
+          platform_phase: number
+          presenting_challenge: string | null
           scenario: string
           session_name: string | null
+          sustainability_pivot_active: boolean
+          target_outcome: string | null
           updated_at: string
           user_id: string
         }
         Insert: {
           active_message_id?: string | null
+          active_micro_goal?: string | null
+          architectural_backtrack_active?: boolean
+          belief_strength_pct?: number | null
+          conceptualisation_summary?: string | null
           created_at?: string
           id?: string
+          last_check_in_at?: string | null
+          micro_goal_confidence?: number | null
+          phase_one_confirmed?: boolean
+          phase_one_step?: number
+          platform_phase?: number
+          presenting_challenge?: string | null
           scenario?: string
           session_name?: string | null
+          sustainability_pivot_active?: boolean
+          target_outcome?: string | null
           updated_at?: string
           user_id: string
         }
         Update: {
           active_message_id?: string | null
+          active_micro_goal?: string | null
+          architectural_backtrack_active?: boolean
+          belief_strength_pct?: number | null
+          conceptualisation_summary?: string | null
           created_at?: string
           id?: string
+          last_check_in_at?: string | null
+          micro_goal_confidence?: number | null
+          phase_one_confirmed?: boolean
+          phase_one_step?: number
+          platform_phase?: number
+          presenting_challenge?: string | null
           scenario?: string
           session_name?: string | null
+          sustainability_pivot_active?: boolean
+          target_outcome?: string | null
           updated_at?: string
           user_id?: string
         }

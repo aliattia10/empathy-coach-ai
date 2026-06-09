@@ -5,8 +5,10 @@ Aligned with *Changes needed for the LLM Engine* PDF. Live wiring:
 | Piece | Location |
 |-------|----------|
 | Phase 1–3 workflow | `skills/llmEnginePhases.cjs` → `formatLlmEnginePhasesForPrompt()` |
+| Journey state (Phase 2/3) | `skills/journeyContext.cjs` + `chat_sessions` columns via `20260601120000_chat_session_journey_state.sql` |
 | Skills deployment | `skills/skillsLibrary.cjs` → `formatSkillsForPrompt()` |
-| Chat injection | `buildChatSystemContent()` in `netlify/functions/chat.js` and `server/server.js` |
+| Chat injection | `buildChatSystemContent()` + `journeyContext` from `AvatarSessionPage` |
+| State inference | `src/lib/journeyInference.ts` updates session after each turn |
 
 ## First LLM change — Phase architecture
 
@@ -14,9 +16,9 @@ Aligned with *Changes needed for the LLM Engine* PDF. Live wiring:
 **Adaptive Escalation Loop:** progression is never one-way. Failure or high stress in Phase Three → halt → Sustainability Pivot (Core Skills) → Architectural Backtrack (Phase One) → Re-activation (Phase Two).
 
 ### Phase One — Diagnostic intake
-1. **Scenario extraction** — primary challenge in detail.
-2. **Core component breakdown** — rules/assumptions, intermediate beliefs, strength of belief (0–100%), automatic coping response.
-3. **Reflective Handshake (gate)** — jargon-free summary; user must explicitly confirm before Phase Two.
+1. **Step 1.1 Scenario extraction** — one concrete situation; stored as `presenting_challenge`.
+2. **Step 1.2 Component breakdown** — situation → trigger → rules → beliefs → strength 0–100% → coping; tracked via `phase_one_step` and `belief_strength_pct`.
+3. **Step 1.3 Reflective Handshake (gate)** — summary; `phase_one_confirmed` must be true before Phase Two.
 
 ### Phase Two — Micro-goals
 1. **Target outcome**
@@ -26,8 +28,8 @@ Aligned with *Changes needed for the LLM Engine* PDF. Live wiring:
 ### Phase Three — Every login
 1. **Check-in** — progress on Phase Two plan
 2. **Success** → next micro-goal | **Failure/stress** → Sustainability Pivot Loop
-3. **Sustainability Pivot** — Core distancing tools (not more BA)
-4. **Architectural Backtrack** — update Phase One assumptions
+3. **Sustainability Pivot** — Core distancing tools (`sustainability_pivot_active`)
+4. **Architectural Backtrack** — update assumptions (`architectural_backtrack_active`)
 5. **Re-activation** — adjusted Phase Two step after stabilisation
 
 ## Second LLM change — Single journey

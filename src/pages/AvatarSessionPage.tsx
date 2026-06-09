@@ -16,6 +16,7 @@ import {
   saveChatMessage,
   setSessionActiveMessage,
   setChatMessageAdminStar,
+  updateJourneyState,
   type ChatMessage,
   type ChatFeedback,
   type FeedbackTag,
@@ -42,6 +43,16 @@ import {
   Trash2,
 } from "lucide-react";
 import type { TranscriptMessage } from "@/components/avatar/ChatTranscript";
+import { inferJourneyUpdates } from "@/lib/journeyInference";
+import {
+  journeyStateFromSession,
+  toJourneyContextPayload,
+  PHASE_LABELS,
+  PHASE_ONE_STEP_LABELS,
+  PHASE_CHECKLIST,
+  checklistProgress,
+  type JourneyState,
+} from "@/types/journey";
 
 type StoredMessage = TranscriptMessage & {
   parent_message_id?: string | null;
@@ -76,8 +87,7 @@ function generateFallbackResponse(): string {
 
 const DEFAULT_SCENARIO = {
   title: "Your coaching journey",
-  objective: "Understand what's holding you back, set small actionable steps, and build sustainable habits across logins.",
-  cues: ["Name the situation clearly", "Notice beliefs and coping patterns", "Confirm the summary before moving to action"],
+  objective: "Phase 1: understand. Phase 2: plan small steps. Phase 3: practise and sustain across logins.",
 };
 
 async function blobToBase64(blob: Blob): Promise<string> {
@@ -403,6 +413,14 @@ export default function AvatarSessionPage() {
     setMessages(buildDisplayMessages(rawMessages, activeAssistantId));
   }, [rawMessages, activeAssistantId, feedbackByMessageId]);
 
+  const applyJourneyUpdates = async (updates: Partial<JourneyState>) => {
+    if (!sessionId || Object.keys(updates).length === 0) return;
+    await updateJourneyState(sessionId, updates);
+    setSessions((prev) =>
+      prev.map((s) => (s.id === sessionId ? { ...s, ...updates, updated_at: new Date().toISOString() } : s)),
+    );
+  };
+
   const handleSend = async (text: string) => {
     if (isSessionLoading || isSessionActionLoading) return;
 
@@ -412,6 +430,11 @@ export default function AvatarSessionPage() {
     setRawMessages(nextRawWithLocalUser);
     setMessages(buildDisplayMessages(nextRawWithLocalUser, activeAssistantId));
     if (!sessionId) return;
+
+    const selected = sessions.find((s) => s.id === sessionId) ?? null;
+    const journeyState = journeyStateFromSession(selected);
+    const previousAssistantContent =
+      [...rawMessages].reverse().find((m) => m.role === "assistant")?.content ?? "";
 
     const persistedUser = await saveChatMessage(sessionId, "user", text, {
       parentMessageId: activeAssistantId,
@@ -424,6 +447,7 @@ export default function AvatarSessionPage() {
 
     setIsAiResponding(true);
     const chatHistory = buildDisplayMessages(persistedRawMessages, activeAssistantId).map((m) => ({ role: m.role, content: m.content }));
+    const journeyContext = toJourneyContextPayload(journeyState, chatHistory.length);
 
     try {
       const response = await fetch("/api/chat", {
@@ -433,6 +457,7 @@ export default function AvatarSessionPage() {
           userMessage: text,
           chatHistory,
           possibleCrisisLanguage: detectCrisis(text),
+          journeyContext,
         }),
       });
       const data = await response.json();
@@ -460,6 +485,8 @@ export default function AvatarSessionPage() {
       setActiveAssistantId(savedReply.id);
       setMessages(buildDisplayMessages(nextRaw, savedReply.id));
       await setSessionActiveMessage(sessionId, savedReply.id);
+      const journeyUpdates = inferJourneyUpdates(text, previousAssistantContent, reply.content, journeyState);
+      await applyJourneyUpdates(journeyUpdates);
       if (voiceEnabled) {
         const plain = stripMarkdownForSpeech(reply.content);
         if (plain) {
@@ -696,13 +723,28 @@ export default function AvatarSessionPage() {
     }
   };
 
-  const progressPercent = messages.length <= 1 ? 0 : Math.min(100, (messages.filter((m) => m.role === "user").length / 5) * 25);
-  const statusLabel = isAiResponding ? "Thinking..." : isSpeaking ? "Speaking..." : "Ready";
   const selectedSession = sessions.find((session) => session.id === sessionId) || null;
+  const journey = journeyStateFromSession(selectedSession);
   const userTurns = messages.filter((message) => message.role === "user").length;
-  const empathyCuesWithStatus = DEFAULT_SCENARIO.cues.map((cue, index) => ({
+  const progressPercent = (() => {
+    const phaseBase = journey.platform_phase === 1 ? 0 : journey.platform_phase === 2 ? 34 : 67;
+    if (journey.platform_phase === 1) {
+      return journey.phase_one_confirmed ? 33 : Math.min(28, userTurns * 6);
+    }
+    if (journey.platform_phase === 2) {
+      if (journey.active_micro_goal && (journey.micro_goal_confidence ?? 0) >= 7) return 66;
+      return phaseBase + Math.min(30, userTurns * 4);
+    }
+    if (journey.sustainability_pivot_active) return 72;
+    if (journey.last_check_in_at) return Math.min(100, 80 + userTurns * 2);
+    return phaseBase + Math.min(28, userTurns * 3);
+  })();
+  const statusLabel = isAiResponding ? "Thinking..." : isSpeaking ? "Speaking..." : "Ready";
+  const phaseChecklist = PHASE_CHECKLIST[journey.platform_phase];
+  const checklistDone = checklistProgress(journey);
+  const empathyCuesWithStatus = phaseChecklist.map((cue, index) => ({
     cue,
-    complete: progressPercent >= (index + 1) * 30,
+    complete: checklistDone[index] ?? false,
   }));
 
   const sessionsPanel = (
@@ -827,12 +869,60 @@ export default function AvatarSessionPage() {
 
       <div className="mt-4 space-y-3">
         <div className="rounded-xl border border-border p-3">
+          <p className="text-xs uppercase tracking-wider text-muted-foreground mb-1">Journey phase</p>
+          <p className="font-medium">{PHASE_LABELS[journey.platform_phase]}</p>
+          <p className="text-sm text-muted-foreground mt-1">
+            {journey.platform_phase === 1 && !journey.phase_one_confirmed && PHASE_ONE_STEP_LABELS[journey.phase_one_step]}
+            {journey.platform_phase === 1 && journey.phase_one_confirmed && "Conceptualisation confirmed — action planning unlocked."}
+            {journey.platform_phase === 2 && "Micro-goals and confidence check (7/10 minimum)."}
+            {journey.platform_phase === 3 && journey.sustainability_pivot_active && "Sustainability pivot — regulating first."}
+            {journey.platform_phase === 3 && journey.architectural_backtrack_active && "Updating assumptions before the next step."}
+            {journey.platform_phase === 3 &&
+              !journey.sustainability_pivot_active &&
+              !journey.architectural_backtrack_active &&
+              "Checking in and practising your action plan."}
+          </p>
+        </div>
+        {journey.presenting_challenge && journey.platform_phase === 1 && (
+          <div className="rounded-xl border border-border p-3">
+            <p className="text-xs uppercase tracking-wider text-muted-foreground mb-1">Presenting challenge</p>
+            <p className="text-sm line-clamp-4">{journey.presenting_challenge}</p>
+          </div>
+        )}
+        {journey.belief_strength_pct != null && (
+          <div className="rounded-xl border border-border p-3">
+            <p className="text-xs uppercase tracking-wider text-muted-foreground mb-1">Belief strength</p>
+            <p className="text-sm font-medium">{journey.belief_strength_pct}%</p>
+          </div>
+        )}
+        {journey.conceptualisation_summary && (
+          <div className="rounded-xl border border-border p-3">
+            <p className="text-xs uppercase tracking-wider text-muted-foreground mb-1">Conceptualisation</p>
+            <p className="text-sm line-clamp-5">{journey.conceptualisation_summary}</p>
+          </div>
+        )}
+        {journey.target_outcome && (
+          <div className="rounded-xl border border-border p-3">
+            <p className="text-xs uppercase tracking-wider text-muted-foreground mb-1">Target outcome</p>
+            <p className="text-sm">{journey.target_outcome}</p>
+          </div>
+        )}
+        {journey.active_micro_goal && (
+          <div className="rounded-xl border border-primary/20 bg-primary/5 p-3">
+            <p className="text-xs uppercase tracking-wider text-muted-foreground mb-1">Active micro-goal</p>
+            <p className="text-sm font-medium">{journey.active_micro_goal}</p>
+            {journey.micro_goal_confidence != null && (
+              <p className="text-xs text-muted-foreground mt-1">Confidence: {journey.micro_goal_confidence}/10</p>
+            )}
+          </div>
+        )}
+        <div className="rounded-xl border border-border p-3">
           <p className="text-xs uppercase tracking-wider text-muted-foreground mb-1">Goal</p>
           <p className="font-medium">{DEFAULT_SCENARIO.title}</p>
           <p className="text-sm text-muted-foreground mt-1">{DEFAULT_SCENARIO.objective}</p>
         </div>
         <div className="rounded-xl border border-border p-3">
-          <p className="text-xs uppercase tracking-wider text-muted-foreground mb-2">Key empathy cues</p>
+          <p className="text-xs uppercase tracking-wider text-muted-foreground mb-2">Phase checklist</p>
           <ul className="space-y-2">
             {empathyCuesWithStatus.map((item) => (
               <li key={item.cue} className="flex items-center gap-2 text-sm">

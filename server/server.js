@@ -13,6 +13,7 @@ const VLLM_API_URL =
 
 const { formatSkillsForPrompt } = require("../skills/skillsLibrary.cjs");
 const { formatLlmEnginePhasesForPrompt } = require("../skills/llmEnginePhases.cjs");
+const { formatJourneyContextForPrompt } = require("../skills/journeyContext.cjs");
 
 // Rule-guided system prompt for the "Constructive Feedback" scenario (Alex avatar)
 const SYSTEM_PROMPT = {
@@ -185,9 +186,11 @@ async function fetchStarredAssistantExemplars() {
   }
 }
 
-async function buildChatSystemContent(possibleCrisisLanguage) {
+async function buildChatSystemContent(possibleCrisisLanguage, journeyContext) {
   let content = SYSTEM_PROMPT.content;
   content += `\n\n${formatLlmEnginePhasesForPrompt()}\n`;
+  const journeyBlock = formatJourneyContextForPrompt(journeyContext);
+  if (journeyBlock) content += `\n\n${journeyBlock}\n`;
   content += `\n\n${formatSkillsForPrompt()}\n`;
   const [trainerRules, exemplars] = await Promise.all([fetchTrainerGlobalInstructions(), fetchStarredAssistantExemplars()]);
   if (trainerRules) {
@@ -230,7 +233,7 @@ function buildRegenerationUserPrompt(regenerationContext) {
 }
 
 app.post("/api/chat", async (req, res) => {
-  const { userMessage, chatHistory, mode, regenerationContext, possibleCrisisLanguage } = req.body;
+  const { userMessage, chatHistory, mode, regenerationContext, possibleCrisisLanguage, journeyContext } = req.body;
 
   let messages = [];
   const isRegenerationMode = mode === "regenerate";
@@ -260,7 +263,7 @@ app.post("/api/chat", async (req, res) => {
     const history = Array.isArray(chatHistory)
       ? chatHistory.map((m) => ({ role: m.role, content: m.content || "" }))
       : [];
-    const systemContent = await buildChatSystemContent(!!possibleCrisisLanguage);
+    const systemContent = await buildChatSystemContent(!!possibleCrisisLanguage, journeyContext);
     messages = [{ role: "system", content: systemContent }, ...history, { role: "user", content: userMessage }];
   }
 

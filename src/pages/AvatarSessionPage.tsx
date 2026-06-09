@@ -58,11 +58,11 @@ type RegenerationPayloadFeedback = {
 const INITIAL_MESSAGE: TranscriptMessage = {
   id: "init",
   role: "assistant",
-  content: `Welcome! I'm **Alex**, your AI simulation partner.
+  content: `Welcome back to your coaching journey — I'm **Alex**, your AI partner.
 
-I'm here to help you practice **constructive feedback** through realistic conversations.
+This is **one continuous conversation** you can return to anytime. When you have history here, we'll pick up from your last action step; if you're new, we'll start by understanding what's going on for you.
 
-**Tell me about a situation where you need to deliver difficult feedback.** What's happening, and what makes it challenging?`,
+**What's the main challenge, stressor, or situation you're facing right now?** Describe it in your own words.`,
 };
 
 function generateFallbackResponse(): string {
@@ -75,9 +75,9 @@ function generateFallbackResponse(): string {
 }
 
 const DEFAULT_SCENARIO = {
-  title: "Constructive Feedback",
-  objective: "Deliver feedback clearly, show empathy, and encourage reflection.",
-  cues: ["Use 'I' statements", "Describe impact, not intent", "Invite their perspective"],
+  title: "Your coaching journey",
+  objective: "Understand what's holding you back, set small actionable steps, and build sustainable habits across logins.",
+  cues: ["Name the situation clearly", "Notice beliefs and coping patterns", "Confirm the summary before moving to action"],
 };
 
 async function blobToBase64(blob: Blob): Promise<string> {

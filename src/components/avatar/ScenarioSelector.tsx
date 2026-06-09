@@ -1,6 +1,6 @@
 import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
-import { MessageSquare, Swords, MessageCircle, Heart, ArrowRight } from "lucide-react";
+import { MessageSquare, Swords, Heart, ArrowRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export interface ScenarioCard {
@@ -31,15 +31,6 @@ const scenarios: ScenarioCard[] = [
     difficulty: "Intermediate",
     to: "/avatar/session?scenario=handling-conflict",
     icon: Swords,
-  },
-  {
-    id: "difficult-conversations",
-    title: "Difficult Conversations",
-    description: "Prepare for and run high-stakes conversations with sensitivity and clarity.",
-    skillFocus: "Courage, framing, follow-through",
-    difficulty: "Intermediate",
-    to: "/avatar?scenario=difficult",
-    icon: MessageCircle,
   },
   {
     id: "empathy-practice",

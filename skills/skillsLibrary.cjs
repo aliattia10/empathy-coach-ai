@@ -78,6 +78,39 @@ const SKILLS = [
     whenToUse: "User is resistant or ambivalent; needs a concrete decision frame.",
   },
   {
+    id: "circles_of_control",
+    name: "Circles of control",
+    category: "core",
+    platformPhase: 3,
+    acronym: null,
+    description:
+      "Sort what is within their control, influence, or outside control — creates distance from overwhelm and focuses effort.",
+    gapSignals: [
+      "can't control anything",
+      "everything depends on others",
+      "overwhelmed by uncertainty",
+      "stuck worrying",
+    ],
+    whenToUse: "User is flooded by uncontrollable factors; Sustainability Pivot distancing tool.",
+  },
+  {
+    id: "thinking_error_tracking",
+    name: "Thinking error tracking",
+    category: "core",
+    platformPhase: 2,
+    acronym: null,
+    description:
+      "Notice unhelpful thinking habits (mind reading, catastrophising, all-or-nothing) without lecturing — light structured awareness.",
+    gapSignals: [
+      "always happens",
+      "they never",
+      "worst case",
+      "everyone thinks",
+      "black and white",
+    ],
+    whenToUse: "Recurring distorted thoughts; pair with HCPR or DTR when needed.",
+  },
+  {
     id: "behavioral_activation",
     name: "Behavioural Activation",
     category: "development_activation",
@@ -157,32 +190,26 @@ const ACRONYM_KEY = [
   { term: "Phase 3", meaning: "Skill application and practice" },
 ];
 
-const SKILL_GAP_SUPER_PROMPT = `# Skill gap detection and skills library (all users)
-
-## Platform phases (do not confuse with internal CBT stages above)
-- **Phase 1 — Conceptualisation:** Every session starts here until the chain is clear (person-centred; what holds them back — anxiety, avoidance, rules, not laziness).
-- **Phase 2 — Goal setting:** Micro goals, realistic plans, link to values.
-- **Phase 3 — Application:** Recommend and coach one skill from the library when a gap is detected.
+const SKILL_GAP_SUPER_PROMPT = `# Skills library — deploy with Adaptive Escalation Loop (all users)
 
 ## Skill categories
-- **Core Skills:** Engine skills (e.g. distancing, HCPR, DTR, cost-benefit). Use during conceptualisation or when stuck in goal-setting.
-- **Development/Activation Skills:** Modules (e.g. BA, micro goals, sustainability path). Use in Phase 3 application.
+- **Core Skills (Sustainability / distancing):** distancing, HCPR, DTR, cost-benefit, circles of control. Deploy in Phase One conceptualisation, Phase Two when stuck, or in the **Sustainability Pivot Loop** when stress or failure blocks action.
+- **Development/Activation Skills:** BA, micro goals, sustainability path, constructive feedback practice. Deploy in Phase Two micro-stepping and Phase Three execution — **not** when the user is flooded or has just failed a step (pivot to Core first).
 
-## Detecting a skill gap (internal; one skill recommendation per turn when appropriate)
-Look for: avoidance, procrastination, fused distress, repeating negative thoughts, cannot start a goal, resistance to practice, workplace feedback scenario, loss of momentum/habit.
-Map the gap to **one** best-matching skill from the appended library. Name it in plain language once, then one question to move forward.
+## Detecting a skill gap (one skill per turn when appropriate)
+Look for: avoidance, procrastination, fused distress, repeating negative thoughts, cannot start a goal, resistance to practice, execution failure since last login, loss of momentum/habit.
+Map to **one** best-matching skill below. Name it in plain language once, then one question.
 
-## Phase 1 ↔ Phase 3 loop (required)
-If the user cannot apply a Phase 3 skill, **do not** only push harder on the skill. Link back to Phase 1 conceptualisation (rules, assumptions, what they fear), practice or rehearse the skill briefly, then one small application step.
+## Sustainability Pivot Loop — which skill to deploy
+When Phase Three detects failure or high stress: halt BA / forward action; pick the Core Skill that best creates distance from the stress response. After stabilisation, Architectural Backtrack to Phase One, then Re-activation in Phase Two.
 
 ## Avoidance and learning preferences (critical)
-- Do **not** let preferred modality (only audio, only reading, etc.) become an excuse to skip difficult practice.
-- Do **not** only reinforce strengths; where the user is weakest (starting, persisting, facing fear), coach toward that — still one question per turn.
-- Personalised learning-style matching is **not** active; do not promise neurodiversity-based adaptation.
+- Do **not** let preferred modality become an excuse to skip difficult practice.
+- Develop weak modalities; do not only reinforce strengths.
+- Personalised learning-style matching is **not** active.
 
 ## When recommending a skill
-- One skill at a time; brief why it fits their words (one sentence).
-- One clear question to apply it or take a micro step.
+- One skill; one sentence why it fits; one clear question.
 - Never dump toolkits or acronym lists unless the user asks.`;
 
 function formatSkillsForPrompt() {

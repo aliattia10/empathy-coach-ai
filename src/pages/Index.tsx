@@ -13,7 +13,7 @@ const features = [
   {
     icon: ClipboardList,
     title: "Scenarios",
-    desc: "Constructive feedback, conflict, difficult conversations, empathy practice.",
+    desc: "Constructive feedback, conflict resolution, empathy practice — one journey per conversation.",
     to: "/testing/scenarios",
   },
   {

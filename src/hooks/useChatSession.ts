@@ -47,10 +47,13 @@ export type ChatFeedback = {
   apply_to_global_instructions?: boolean;
 };
 
+export const COACHING_JOURNEY_SCENARIO = "coaching_journey";
+export const COACHING_JOURNEY_NAME = "Your coaching journey";
+
 export async function createChatSession(
   userId: string,
-  scenario = "coaching_journey",
-  sessionName?: string,
+  scenario = COACHING_JOURNEY_SCENARIO,
+  sessionName: string | null = COACHING_JOURNEY_NAME,
 ) {
   const { data, error } = await supabase
     .from("chat_sessions")
@@ -107,6 +110,33 @@ export async function fetchUserSessions(userId: string) {
     .order("updated_at", { ascending: false });
   if (error) throw error;
   return (data ?? []) as ChatSession[];
+}
+
+/** One journey = one session per user (PDF: single continuous thread, no session list). */
+export async function resolveCoachingJourneySession(userId: string): Promise<ChatSession> {
+  const sessions = await fetchUserSessions(userId);
+  const coaching = sessions.filter((s) => s.scenario === COACHING_JOURNEY_SCENARIO);
+  const candidates = coaching.length > 0 ? coaching : sessions;
+
+  if (candidates.length > 0) {
+    const canonical = candidates[0];
+    const updates: { scenario?: string; session_name?: string } = {};
+    if (canonical.scenario !== COACHING_JOURNEY_SCENARIO) {
+      updates.scenario = COACHING_JOURNEY_SCENARIO;
+    }
+    const name = canonical.session_name?.trim();
+    if (!name || /^Session\s+\d+$/i.test(name)) {
+      updates.session_name = COACHING_JOURNEY_NAME;
+    }
+    if (Object.keys(updates).length > 0) {
+      const { error } = await supabase.from("chat_sessions").update(updates).eq("id", canonical.id);
+      if (error) throw error;
+      return { ...canonical, ...updates } as ChatSession;
+    }
+    return canonical;
+  }
+
+  return createChatSession(userId, COACHING_JOURNEY_SCENARIO, COACHING_JOURNEY_NAME);
 }
 
 export async function renameChatSession(sessionId: string, sessionName: string) {

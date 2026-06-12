@@ -5,14 +5,12 @@ import { detectCrisis } from "@/components/safety/CrisisDetector";
 import { useAuth } from "@/hooks/useAuth";
 import { useSpeechSynthesis } from "@/hooks/useSpeechSynthesis";
 import {
+  COACHING_JOURNEY_NAME,
   createMessageFeedback,
-  createChatSession,
   deleteMessageFeedback,
-  deleteChatSession,
   fetchChatHistory,
   fetchMessageFeedback,
-  fetchUserSessions,
-  renameChatSession,
+  resolveCoachingJourneySession,
   saveChatMessage,
   setSessionActiveMessage,
   setChatMessageAdminStar,
@@ -26,22 +24,9 @@ import { stripMarkdownForSpeech } from "@/lib/speech";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
-import {
-  Bot,
-  Calendar,
-  ChevronDown,
-  CheckCircle2,
-  Circle,
-  Clock3,
-  PanelLeft,
-  PanelRight,
-  Pencil,
-  Plus,
-  Trash2,
-} from "lucide-react";
+import { Bot, ChevronDown, CheckCircle2, Circle, PanelRight } from "lucide-react";
 import type { TranscriptMessage } from "@/components/avatar/ChatTranscript";
 import PhaseStepper from "@/components/avatar/PhaseStepper";
 import { inferJourneyUpdates } from "@/lib/journeyInference";
@@ -95,7 +80,7 @@ export default function AvatarSessionPage() {
   const [rawMessages, setRawMessages] = useState<StoredMessage[]>([starterMessage(null)]);
   const [activeAssistantId, setActiveAssistantId] = useState<string | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
-  const [sessions, setSessions] = useState<ChatSession[]>([]);
+  const [journeySession, setJourneySession] = useState<ChatSession | null>(null);
   const [feedbackByMessageId, setFeedbackByMessageId] = useState<Record<string, ChatFeedback[]>>({});
   const [feedbackDrafts, setFeedbackDrafts] = useState<
     Record<
@@ -114,9 +99,6 @@ export default function AvatarSessionPage() {
   const [isRegenerating, setIsRegenerating] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [isSessionLoading, setIsSessionLoading] = useState(true);
-  const [isSessionActionLoading, setIsSessionActionLoading] = useState(false);
-  const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
-  const [editingSessionName, setEditingSessionName] = useState("");
   const [isToolsOpen, setIsToolsOpen] = useState(false);
   const [voiceEnabled, setVoiceEnabled] = useState(true);
   const [isAiResponding, setIsAiResponding] = useState(false);
@@ -235,7 +217,7 @@ export default function AvatarSessionPage() {
   useEffect(() => {
     let isMounted = true;
 
-    const bootstrapSessions = async () => {
+    const bootstrapJourney = async () => {
       if (!isMounted) return;
 
       if (!user) {
@@ -245,32 +227,30 @@ export default function AvatarSessionPage() {
 
       try {
         setIsSessionLoading(true);
-        const existingSessions = await fetchUserSessions(user.id);
+        const journey = await resolveCoachingJourneySession(user.id);
         if (!isMounted) return;
-        setSessions(existingSessions);
+        setJourneySession(journey);
+        setSessionId(journey.id);
 
-        if (existingSessions.length > 0) {
-          const selectedSession = existingSessions[0];
-          const history = await fetchChatHistory(selectedSession.id);
+        const history = await fetchChatHistory(journey.id);
+        if (!isMounted) return;
+        const restored = mapHistoryToStoredMessages(history);
+        const emptyStarter = starterMessage(journey);
+        setRawMessages(restored.length > 0 ? restored : [emptyStarter]);
+        setActiveAssistantId(journey.active_message_id || null);
+        setMessages(
+          buildDisplayMessages(restored.length > 0 ? restored : [emptyStarter], journey.active_message_id || null),
+        );
+        await loadFeedbackForMessages(restored);
+
+        if (restored.length === 0) {
+          const welcome = starterMessage(journey);
+          const initial = await saveChatMessage(journey.id, "assistant", welcome.content);
           if (!isMounted) return;
-          const restored = mapHistoryToStoredMessages(history);
-          setSessionId(selectedSession.id);
-          const emptyStarter = starterMessage(selectedSession);
-          setRawMessages(restored.length > 0 ? restored : [emptyStarter]);
-          setActiveAssistantId(selectedSession.active_message_id || null);
-          setMessages(buildDisplayMessages(restored.length > 0 ? restored : [emptyStarter], selectedSession.active_message_id || null));
-          await loadFeedbackForMessages(restored);
-        } else {
-          const s = await createChatSession(user.id, "coaching_journey", "Session 1");
-          if (!isMounted) return;
-          setSessionId(s.id);
-          setSessions([s]);
-          const welcome = starterMessage(s);
-          setMessages([welcome]);
-          const initial = await saveChatMessage(s.id, "assistant", welcome.content);
           setRawMessages([{ ...welcome, id: initial.id, admin_quality_star: initial.admin_quality_star ?? false }]);
+          setMessages([{ ...welcome, id: initial.id, admin_quality_star: initial.admin_quality_star ?? false }]);
           setActiveAssistantId(initial.id);
-          await setSessionActiveMessage(s.id, initial.id);
+          await setSessionActiveMessage(journey.id, initial.id);
         }
       } catch (err) {
         console.error(err);
@@ -279,122 +259,12 @@ export default function AvatarSessionPage() {
       }
     };
 
-    bootstrapSessions();
+    bootstrapJourney();
 
     return () => {
       isMounted = false;
     };
   }, [user]);
-
-  const startNewSession = async () => {
-    if (!user) return;
-    try {
-      setIsSessionActionLoading(true);
-      const sessionCount = sessions.length + 1;
-      const s = await createChatSession(user.id, "coaching_journey", `Session ${sessionCount}`);
-      setSessionId(s.id);
-      const welcome = starterMessage(s);
-      setMessages([welcome]);
-      setSessions((prev) => [s, ...prev]);
-      const initial = await saveChatMessage(s.id, "assistant", welcome.content);
-      setRawMessages([{ ...welcome, id: initial.id, admin_quality_star: initial.admin_quality_star ?? false }]);
-      setActiveAssistantId(initial.id);
-      await setSessionActiveMessage(s.id, initial.id);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setIsSessionActionLoading(false);
-    }
-  };
-
-  const openSession = async (nextSessionId: string) => {
-    try {
-      setIsSessionActionLoading(true);
-      const selectedSession = sessions.find((item) => item.id === nextSessionId) || null;
-      const history = await fetchChatHistory(nextSessionId);
-      const restored = mapHistoryToStoredMessages(history);
-
-      setSessionId(nextSessionId);
-      const emptyStarter = starterMessage(selectedSession);
-      setRawMessages(restored.length > 0 ? restored : [emptyStarter]);
-      setActiveAssistantId(selectedSession?.active_message_id || null);
-      setMessages(buildDisplayMessages(restored.length > 0 ? restored : [emptyStarter], selectedSession?.active_message_id || null));
-      await loadFeedbackForMessages(restored);
-
-      // Ensure at least one assistant starter message exists in an empty/restored session.
-      if (restored.length === 0) {
-        const welcome = starterMessage(selectedSession);
-        const initial = await saveChatMessage(nextSessionId, "assistant", welcome.content);
-        await setSessionActiveMessage(nextSessionId, initial.id);
-        setRawMessages([{ ...welcome, id: initial.id, admin_quality_star: initial.admin_quality_star ?? false }]);
-        setMessages([{ ...welcome, id: initial.id, admin_quality_star: initial.admin_quality_star ?? false }]);
-        setActiveAssistantId(initial.id);
-      }
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setIsSessionActionLoading(false);
-    }
-  };
-
-  const saveSessionName = async (targetSessionId: string) => {
-    const cleaned = editingSessionName.trim();
-    if (!cleaned) return;
-    try {
-      setIsSessionActionLoading(true);
-      await renameChatSession(targetSessionId, cleaned);
-      setSessions((prev) =>
-        prev.map((s) =>
-          s.id === targetSessionId
-            ? {
-                ...s,
-                session_name: cleaned,
-                updated_at: new Date().toISOString(),
-              }
-            : s,
-        ),
-      );
-      setEditingSessionId(null);
-      setEditingSessionName("");
-    } catch (err) {
-      console.error(err);
-      alert("We couldn't save this session name. Please try again.");
-    } finally {
-      setIsSessionActionLoading(false);
-    }
-  };
-
-  const removeSession = async (targetSessionId: string) => {
-    const confirmed = window.confirm("Delete this session permanently?");
-    if (!confirmed) return;
-
-    try {
-      setIsSessionActionLoading(true);
-      await deleteChatSession(targetSessionId);
-      const remainingSessions = sessions.filter((s) => s.id !== targetSessionId);
-      setSessions(remainingSessions);
-
-      if (targetSessionId === sessionId) {
-        if (remainingSessions.length > 0) {
-          await openSession(remainingSessions[0].id);
-        } else if (user) {
-          const s = await createChatSession(user.id, "coaching_journey", "Session 1");
-          setSessions([s]);
-          setSessionId(s.id);
-          const welcome = starterMessage(s);
-          setMessages([welcome]);
-          const initial = await saveChatMessage(s.id, "assistant", welcome.content);
-          setRawMessages([{ ...welcome, id: initial.id, admin_quality_star: initial.admin_quality_star ?? false }]);
-          setActiveAssistantId(initial.id);
-          await setSessionActiveMessage(s.id, initial.id);
-        }
-      }
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setIsSessionActionLoading(false);
-    }
-  };
 
   useEffect(() => {
     return () => {
@@ -413,13 +283,13 @@ export default function AvatarSessionPage() {
   const applyJourneyUpdates = async (updates: Partial<JourneyState>) => {
     if (!sessionId || Object.keys(updates).length === 0) return;
     await updateJourneyState(sessionId, updates);
-    setSessions((prev) =>
-      prev.map((s) => (s.id === sessionId ? { ...s, ...updates, updated_at: new Date().toISOString() } : s)),
+    setJourneySession((prev) =>
+      prev && prev.id === sessionId ? { ...prev, ...updates, updated_at: new Date().toISOString() } : prev,
     );
   };
 
   const handleSend = async (text: string) => {
-    if (isSessionLoading || isSessionActionLoading) return;
+    if (isSessionLoading) return;
 
     const localUserId = Date.now().toString();
     const userMsg: StoredMessage = { id: localUserId, role: "user", content: text };
@@ -428,8 +298,7 @@ export default function AvatarSessionPage() {
     setMessages(buildDisplayMessages(nextRawWithLocalUser, activeAssistantId));
     if (!sessionId) return;
 
-    const selected = sessions.find((s) => s.id === sessionId) ?? null;
-    const journeyState = journeyStateFromSession(selected);
+    const journeyState = journeyStateFromSession(journeySession);
     const previousAssistantContent =
       [...rawMessages].reverse().find((m) => m.role === "assistant")?.content ?? "";
 
@@ -678,7 +547,7 @@ export default function AvatarSessionPage() {
     }));
     try {
       setIsRegenerating(true);
-      const regenJourney = journeyStateFromSession(sessions.find((s) => s.id === sessionId));
+      const regenJourney = journeyStateFromSession(journeySession);
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -722,8 +591,7 @@ export default function AvatarSessionPage() {
     }
   };
 
-  const selectedSession = sessions.find((session) => session.id === sessionId) || null;
-  const journey = journeyStateFromSession(selectedSession);
+  const journey = journeyStateFromSession(journeySession);
   const userTurns = messages.filter((message) => message.role === "user").length;
   const progressPercent = (() => {
     const phaseBase = journey.platform_phase === 1 ? 0 : journey.platform_phase === 2 ? 34 : 67;
@@ -745,111 +613,6 @@ export default function AvatarSessionPage() {
     cue,
     complete: checklistDone[index] ?? false,
   }));
-
-  const sessionsPanel = (
-    <div className="rounded-2xl border border-border bg-card p-3">
-      <div className="flex items-center justify-between mb-3">
-        <h2 className="text-lg font-semibold">Sessions</h2>
-        <Button size="sm" type="button" onClick={startNewSession} disabled={isSessionLoading || isSessionActionLoading}>
-          <Plus className="w-4 h-4 mr-1" /> New
-        </Button>
-      </div>
-      <div className="space-y-2 max-h-[70vh] overflow-y-auto no-scrollbar pr-1">
-        {sessions.map((session, index) => {
-          const isSelected = session.id === sessionId;
-          const displayName = session.session_name?.trim() || `Session ${sessions.length - index}`;
-
-          return (
-            <div
-              key={session.id}
-              className={`rounded-xl border p-3 transition-colors ${isSelected ? "border-primary bg-primary/5" : "border-border hover:bg-muted/40"}`}
-            >
-              {editingSessionId === session.id ? (
-                <div className="space-y-2">
-                  <Input
-                    value={editingSessionName}
-                    onChange={(e) => setEditingSessionName(e.target.value)}
-                    placeholder="Session name"
-                    disabled={isSessionActionLoading}
-                  />
-                  <div className="flex gap-2">
-                    <Button
-                      size="sm"
-                      type="button"
-                      onClick={() => saveSessionName(session.id)}
-                      disabled={isSessionActionLoading || !editingSessionName.trim()}
-                    >
-                      Save
-                    </Button>
-                    <Button
-                      size="sm"
-                      type="button"
-                      variant="outline"
-                      onClick={() => {
-                        setEditingSessionId(null);
-                        setEditingSessionName("");
-                      }}
-                      disabled={isSessionActionLoading}
-                    >
-                      Cancel
-                    </Button>
-                  </div>
-                </div>
-              ) : (
-                <>
-                  <button
-                    type="button"
-                    className="w-full text-left"
-                    onClick={() => openSession(session.id)}
-                    disabled={isSessionActionLoading}
-                  >
-                    <p className="text-sm font-semibold truncate">{displayName}</p>
-                    <p className="text-xs text-primary/80 mt-0.5">
-                      {PHASE_LABELS[journeyStateFromSession(session).platform_phase]}
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
-                      <Calendar className="w-3 h-3" />
-                      {new Date(session.updated_at).toLocaleDateString()}
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1">
-                      <Clock3 className="w-3 h-3" />
-                      {new Date(session.updated_at).toLocaleTimeString()}
-                    </p>
-                  </button>
-                  <div className="mt-3 flex gap-2">
-                    <Button
-                      size="sm"
-                      type="button"
-                      variant="outline"
-                      onClick={() => {
-                        setEditingSessionId(session.id);
-                        setEditingSessionName(session.session_name?.trim() || "");
-                      }}
-                      disabled={isSessionActionLoading}
-                    >
-                      <Pencil className="w-3 h-3 mr-1" /> Rename
-                    </Button>
-                    <Button
-                      size="sm"
-                      type="button"
-                      variant="outline"
-                      onClick={() => removeSession(session.id)}
-                      disabled={isSessionActionLoading}
-                    >
-                      <Trash2 className="w-3 h-3 mr-1" /> Delete
-                    </Button>
-                  </div>
-                </>
-              )}
-            </div>
-          );
-        })}
-        {sessions.length === 0 && !isSessionLoading && (
-          <p className="text-xs text-muted-foreground p-2">No saved sessions yet.</p>
-        )}
-      </div>
-    </div>
-  );
 
   const progressPanel = (
     <div className="rounded-2xl border border-border bg-card p-4">
@@ -941,9 +704,14 @@ export default function AvatarSessionPage() {
         <div className="rounded-xl border border-border p-3 text-sm text-muted-foreground">
           <p className="flex items-center gap-2 mb-1 text-foreground font-medium">
             <Bot className="w-4 h-4 text-primary" />
-            Active session
+            Your journey
           </p>
-          <p>{selectedSession?.session_name || "Current session"} - {userTurns} user messages</p>
+          <p>
+            {COACHING_JOURNEY_NAME} — {userTurns} messages
+            {journeySession?.updated_at
+              ? ` · last active ${new Date(journeySession.updated_at).toLocaleDateString()}`
+              : ""}
+          </p>
         </div>
       </div>
     </div>
@@ -952,21 +720,6 @@ export default function AvatarSessionPage() {
   return (
     <div className="min-h-[calc(100vh-8rem)] px-3 md:px-5 py-4 pb-24 md:pb-4">
       <div className="max-w-5xl mx-auto relative">
-        <div className="fixed left-3 bottom-20 md:left-4 md:top-1/2 md:bottom-auto md:-translate-y-1/2 z-30">
-          <Sheet>
-            <SheetTrigger asChild>
-              <Button size="sm" variant="secondary" className="rounded-full shadow-md">
-                <PanelLeft className="w-4 h-4 mr-1" /> Sessions
-              </Button>
-            </SheetTrigger>
-            <SheetContent side="left" className="w-[92vw] sm:w-[420px] p-4">
-              <SheetHeader className="mb-3">
-                <SheetTitle>Sessions</SheetTitle>
-              </SheetHeader>
-              {sessionsPanel}
-            </SheetContent>
-          </Sheet>
-        </div>
         <div className="fixed right-3 bottom-20 md:right-4 md:top-1/2 md:bottom-auto md:-translate-y-1/2 z-30">
           <Sheet>
             <SheetTrigger asChild>
@@ -988,7 +741,9 @@ export default function AvatarSessionPage() {
             <div>
               <p className="text-xs uppercase tracking-wider text-muted-foreground mb-1">AI Coach</p>
               <h1 className="text-xl md:text-2xl font-semibold">{DEFAULT_SCENARIO.title}</h1>
-              <p className="text-xs text-muted-foreground mt-1">{selectedSession?.session_name || "Current session"}</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                {COACHING_JOURNEY_NAME} — pick up where you left off
+              </p>
               <PhaseStepper
                 className="mt-3"
                 currentPhase={journey.platform_phase}
@@ -1052,7 +807,7 @@ export default function AvatarSessionPage() {
                 onTranscribeAudio={transcribeVoiceMessage}
                 voiceEnabled={voiceEnabled}
                 onToggleVoice={handleVoiceToggle}
-                disabled={isAiResponding || isSessionLoading || isSessionActionLoading}
+                disabled={isAiResponding || isSessionLoading}
               />
             </div>
           </div>

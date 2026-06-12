@@ -35,8 +35,9 @@ Aligned with *Changes needed for the LLM Engine* PDF. Live wiring:
 ## Second LLM change — Single journey
 
 - Removed standalone **Difficult Conversations** scenario card (`ScenarioSelector.tsx`).
-- Each chat thread is one continuous journey (GPT-style return); initial message and system prompt enforce check-in on resume.
-- Session list in the UI remains for multiple **topics** — not separate “difficult conversation” simulations per login.
+- **One session per user** — no Sessions sidebar, no New/Rename/Delete, no Session 1/2/10 list (`AvatarSessionPage.tsx` + `resolveCoachingJourneySession()`).
+- Returning users always resume their **most recent** journey thread (legacy multi-session rows are hidden; canonical session renamed to “Your coaching journey”).
+- LLM system prompt: no session list, no scenario restart on login.
 
 ## Deploy checklist
 

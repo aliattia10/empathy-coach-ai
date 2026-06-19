@@ -32,12 +32,12 @@ Aligned with *Changes needed for the LLM Engine* PDF. Live wiring:
 4. **Architectural Backtrack** — update assumptions (`architectural_backtrack_active`)
 5. **Re-activation** — adjusted Phase Two step after stabilisation
 
-## Second LLM change — Single journey
+## Second LLM change — Multiple journeys
 
-- Removed standalone **Difficult Conversations** scenario card (`ScenarioSelector.tsx`).
-- **One session per user** — no Sessions sidebar, no New/Rename/Delete, no Session 1/2/10 list (`AvatarSessionPage.tsx` + `resolveCoachingJourneySession()`).
-- Returning users always resume their **most recent** journey thread (legacy multi-session rows are hidden; canonical session renamed to “Your coaching journey”).
-- LLM system prompt: no session list, no scenario restart on login.
+- Users choose from a **journeys dashboard** on login (`JourneysDashboardPage.tsx`) — continue an existing thread or start a new one.
+- Each journey is a separate coaching thread with its own phase state (stored on `chat_sessions`).
+- **Auto-naming:** default title "New journey"; AI renames from the topic after the user shares enough context (`suggestJourneyTitle` + `/api/chat` mode `name_journey`). Users can rename manually on the dashboard.
+- LLM system prompt: no in-chat session picker; resume the opened journey with check-in when history exists.
 
 ## Deploy checklist
 
@@ -51,7 +51,8 @@ Aligned with *Changes needed for the LLM Engine* PDF. Live wiring:
 
 ## UI (latest)
 
+- **Journeys dashboard** at `/testing/journeys` — list, create, rename, delete
 - **Phase stepper** in session header (Understanding → Action planning → Sustainability)
-- **Session list** shows current phase per thread
+- **Journey list** shows current phase per thread
 - **Welcome message** adapts to journey state when opening an empty thread
 - **Regenerate** includes `journeyContext` for phase-aware rewrites

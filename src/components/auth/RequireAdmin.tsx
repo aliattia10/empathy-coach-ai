@@ -60,7 +60,7 @@ export default function RequireAdmin() {
   }
 
   if (!user) return <Navigate to="/testing/login" replace />;
-  if (!isAdmin) return <Navigate to="/testing/avatar/session" replace />;
+  if (!isAdmin) return <Navigate to="/testing/journeys" replace />;
 
   return <Outlet />;
 }

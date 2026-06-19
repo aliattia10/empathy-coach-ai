@@ -38,7 +38,7 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  const redirectTo = (location.state as { from?: string } | null)?.from || "/testing/avatar/session";
+  const redirectTo = (location.state as { from?: string } | null)?.from || "/testing/journeys";
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

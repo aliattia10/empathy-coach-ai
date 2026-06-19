@@ -10,6 +10,7 @@ import RequireAuth from "@/components/auth/RequireAuth";
 import MainLandingPage from "./pages/MainLandingPage";
 import NotFound from "./pages/NotFound";
 import AvatarSessionPage from "./pages/AvatarSessionPage";
+import JourneysDashboardPage from "./pages/JourneysDashboardPage";
 import AdminChatPage from "./pages/AdminChatPage";
 import LoginPage from "./pages/LoginPage";
 
@@ -38,9 +39,11 @@ const App = () => {
             </Route>
             <Route path="/testing" element={<RequireAuth />}>
               <Route element={<AppLayout />}>
-                <Route index element={<Navigate to="/testing/avatar/session" replace />} />
-                <Route path="avatar/session" element={<AvatarSessionPage />} />
-                <Route path="*" element={<Navigate to="/testing/avatar/session" replace />} />
+                <Route index element={<Navigate to="/testing/journeys" replace />} />
+                <Route path="journeys" element={<JourneysDashboardPage />} />
+                <Route path="avatar/session/:journeyId" element={<AvatarSessionPage />} />
+                <Route path="avatar/session" element={<Navigate to="/testing/journeys" replace />} />
+                <Route path="*" element={<Navigate to="/testing/journeys" replace />} />
               </Route>
             </Route>
             <Route path="*" element={<NotFound />} />

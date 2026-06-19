@@ -31,6 +31,13 @@ Hard requirements:
 7. Output only the improved response text.`,
 };
 
+const NAME_JOURNEY_SYSTEM_PROMPT = {
+  role: "system",
+  content: `You generate short titles for coaching conversations (like ChatGPT chat titles).
+Given excerpts from a user's messages, output ONLY a concise title: 3 to 7 words, sentence case, no quotes, no trailing punctuation, no explanation.
+Capture the main topic or situation (work conflict, feedback anxiety, burnout, etc.).`,
+};
+
 const TRAINER_FEEDBACK_LIMIT = 25;
 
 async function fetchTrainerGlobalInstructions() {
@@ -161,11 +168,21 @@ exports.handler = async (event) => {
     return { statusCode: 400, body: JSON.stringify({ error: "Invalid JSON" }) };
   }
 
-  const mode = body?.mode === "regenerate" ? "regenerate" : "chat";
-  const { userMessage, chatHistory, regenerationContext } = body;
+  const mode =
+    body?.mode === "regenerate" ? "regenerate" : body?.mode === "name_journey" ? "name_journey" : "chat";
+  const { userMessage, chatHistory, regenerationContext, conversationSnippet } = body;
 
   let messages = [];
-  if (mode === "regenerate") {
+  if (mode === "name_journey") {
+    const snippet = typeof conversationSnippet === "string" ? conversationSnippet.trim() : "";
+    if (!snippet) {
+      return { statusCode: 400, body: JSON.stringify({ error: "conversationSnippet is required for name_journey mode." }) };
+    }
+    messages = [
+      NAME_JOURNEY_SYSTEM_PROMPT,
+      { role: "user", content: snippet },
+    ];
+  } else if (mode === "regenerate") {
     if (!regenerationContext?.originalUserMessage || !regenerationContext?.previousAssistantReply) {
       return {
         statusCode: 400,
@@ -202,7 +219,8 @@ exports.handler = async (event) => {
   const isRunPod = url.includes("runpod.ai");
   const timeoutMs = Number(process.env.VLLM_TIMEOUT_MS) || (isRunPod ? 120000 : 60000);
   const temperature = Number(process.env.VLLM_TEMPERATURE) || 0.55;
-  const maxTokens = Number(process.env.VLLM_MAX_TOKENS) || 500;
+  const maxTokens =
+    mode === "name_journey" ? 32 : Number(process.env.VLLM_MAX_TOKENS) || 500;
 
   const apiKey = process.env.LLM_API_KEY;
   if (!apiKey || apiKey.trim() === "") {
@@ -221,7 +239,7 @@ exports.handler = async (event) => {
   const payload = {
     model,
     messages,
-    temperature: mode === "regenerate" ? Math.min(temperature, 0.35) : temperature,
+    temperature: mode === "regenerate" ? Math.min(temperature, 0.35) : mode === "name_journey" ? 0.3 : temperature,
     max_tokens: maxTokens,
   };
 

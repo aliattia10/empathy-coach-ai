@@ -1,16 +1,17 @@
 import { useState, useRef, useEffect } from "react";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import ChatTranscript from "@/components/avatar/ChatTranscript";
 import ChatInput from "@/components/chat/ChatInput";
 import { detectCrisis } from "@/components/safety/CrisisDetector";
 import { useAuth } from "@/hooks/useAuth";
 import { useSpeechSynthesis } from "@/hooks/useSpeechSynthesis";
 import {
-  COACHING_JOURNEY_NAME,
+  fetchJourneyById,
+  renameChatSession,
   createMessageFeedback,
   deleteMessageFeedback,
   fetchChatHistory,
   fetchMessageFeedback,
-  resolveCoachingJourneySession,
   saveChatMessage,
   setSessionActiveMessage,
   setChatMessageAdminStar,
@@ -20,13 +21,14 @@ import {
   type FeedbackTag,
   type ChatSession,
 } from "@/hooks/useChatSession";
+import { isAutoNamedJourney, suggestJourneyTitle } from "@/lib/journeyNaming";
 import { stripMarkdownForSpeech } from "@/lib/speech";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
-import { Bot, ChevronDown, CheckCircle2, Circle, PanelRight } from "lucide-react";
+import { Bot, ChevronDown, CheckCircle2, Circle, PanelRight, ArrowLeft } from "lucide-react";
 import type { TranscriptMessage } from "@/components/avatar/ChatTranscript";
 import PhaseStepper from "@/components/avatar/PhaseStepper";
 import { inferJourneyUpdates } from "@/lib/journeyInference";
@@ -62,9 +64,18 @@ function starterMessage(session: Partial<JourneyState> | null | undefined): Tran
 }
 
 const DEFAULT_SCENARIO = {
-  title: "Your coaching journey",
   objective: "Phase 1: understand. Phase 2: plan small steps. Phase 3: practise and sustain across logins.",
 };
+
+function journeyTitle(session: ChatSession | null): string {
+  const name = session?.session_name?.trim();
+  if (name && !isAutoNamedJourney(name)) return name;
+  if (session?.presenting_challenge?.trim()) {
+    const snippet = session.presenting_challenge.trim();
+    return snippet.length > 56 ? `${snippet.slice(0, 56)}…` : snippet;
+  }
+  return name || "New journey";
+}
 
 async function blobToBase64(blob: Blob): Promise<string> {
   const arrayBuffer = await blob.arrayBuffer();
@@ -75,6 +86,8 @@ async function blobToBase64(blob: Blob): Promise<string> {
 }
 
 export default function AvatarSessionPage() {
+  const { journeyId } = useParams<{ journeyId: string }>();
+  const navigate = useNavigate();
   const { user } = useAuth();
   const [messages, setMessages] = useState<TranscriptMessage[]>([starterMessage(null)]);
   const [rawMessages, setRawMessages] = useState<StoredMessage[]>([starterMessage(null)]);
@@ -225,9 +238,18 @@ export default function AvatarSessionPage() {
         return;
       }
 
+      if (!journeyId) {
+        navigate("/testing/journeys", { replace: true });
+        return;
+      }
+
       try {
         setIsSessionLoading(true);
-        const journey = await resolveCoachingJourneySession(user.id);
+        let journey = await fetchJourneyById(journeyId, user.id);
+        if (!journey) {
+          navigate("/testing/journeys", { replace: true });
+          return;
+        }
         if (!isMounted) return;
         setJourneySession(journey);
         setSessionId(journey.id);
@@ -264,7 +286,7 @@ export default function AvatarSessionPage() {
     return () => {
       isMounted = false;
     };
-  }, [user]);
+  }, [user, journeyId, navigate]);
 
   useEffect(() => {
     return () => {
@@ -286,6 +308,14 @@ export default function AvatarSessionPage() {
     setJourneySession((prev) =>
       prev && prev.id === sessionId ? { ...prev, ...updates, updated_at: new Date().toISOString() } : prev,
     );
+  };
+
+  const maybeAutoRenameJourney = async (userTexts: string[]) => {
+    if (!sessionId || !journeySession || !isAutoNamedJourney(journeySession.session_name)) return;
+    const title = await suggestJourneyTitle(userTexts);
+    if (!title) return;
+    await renameChatSession(sessionId, title);
+    setJourneySession((prev) => (prev ? { ...prev, session_name: title } : prev));
   };
 
   const handleSend = async (text: string) => {
@@ -353,6 +383,10 @@ export default function AvatarSessionPage() {
       await setSessionActiveMessage(sessionId, savedReply.id);
       const journeyUpdates = inferJourneyUpdates(text, previousAssistantContent, reply.content, journeyState);
       await applyJourneyUpdates(journeyUpdates);
+      const userTexts = buildDisplayMessages(nextRaw, savedReply.id)
+        .filter((m) => m.role === "user")
+        .map((m) => m.content);
+      void maybeAutoRenameJourney(userTexts);
       if (voiceEnabled) {
         const plain = stripMarkdownForSpeech(reply.content);
         if (plain) {
@@ -511,7 +545,9 @@ export default function AvatarSessionPage() {
     setActiveAssistantId(messageId);
     setMessages(buildDisplayMessages(rawMessages, messageId));
     await setSessionActiveMessage(sessionId, messageId);
-    setSessions((prev) => prev.map((s) => (s.id === sessionId ? { ...s, active_message_id: messageId } : s)));
+    setJourneySession((prev) =>
+      prev && prev.id === sessionId ? { ...prev, active_message_id: messageId } : prev,
+    );
   };
 
   const handleCycleVariant = async (messageId: string, direction: "prev" | "next") => {
@@ -592,6 +628,7 @@ export default function AvatarSessionPage() {
   };
 
   const journey = journeyStateFromSession(journeySession);
+  const displayTitle = journeyTitle(journeySession);
   const userTurns = messages.filter((message) => message.role === "user").length;
   const progressPercent = (() => {
     const phaseBase = journey.platform_phase === 1 ? 0 : journey.platform_phase === 2 ? 34 : 67;
@@ -683,7 +720,7 @@ export default function AvatarSessionPage() {
         )}
         <div className="rounded-xl border border-border p-3">
           <p className="text-xs uppercase tracking-wider text-muted-foreground mb-1">Goal</p>
-          <p className="font-medium">{DEFAULT_SCENARIO.title}</p>
+          <p className="font-medium">{displayTitle}</p>
           <p className="text-sm text-muted-foreground mt-1">{DEFAULT_SCENARIO.objective}</p>
         </div>
         <div className="rounded-xl border border-border p-3">
@@ -707,7 +744,7 @@ export default function AvatarSessionPage() {
             Your journey
           </p>
           <p>
-            {COACHING_JOURNEY_NAME} — {userTurns} messages
+            {displayTitle} — {userTurns} messages
             {journeySession?.updated_at
               ? ` · last active ${new Date(journeySession.updated_at).toLocaleDateString()}`
               : ""}
@@ -739,10 +776,17 @@ export default function AvatarSessionPage() {
         <main className="rounded-2xl border border-border bg-card/95 backdrop-blur p-4 md:p-5 flex flex-col gap-4">
           <div className="flex items-center justify-between gap-3 flex-wrap">
             <div>
+              <Link
+                to="/testing/journeys"
+                className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground mb-2"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" />
+                All journeys
+              </Link>
               <p className="text-xs uppercase tracking-wider text-muted-foreground mb-1">AI Coach</p>
-              <h1 className="text-xl md:text-2xl font-semibold">{DEFAULT_SCENARIO.title}</h1>
+              <h1 className="text-xl md:text-2xl font-semibold">{displayTitle}</h1>
               <p className="text-xs text-muted-foreground mt-1">
-                {COACHING_JOURNEY_NAME} — pick up where you left off
+                {userTurns > 0 ? "Pick up where you left off" : "Share what's on your mind to begin"}
               </p>
               <PhaseStepper
                 className="mt-3"

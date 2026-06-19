@@ -5,7 +5,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 
 const navTabs = [
-  { to: "/testing/avatar/session", icon: Bot, label: "Journey" },
+  { to: "/testing/journeys", icon: Bot, label: "Journeys" },
 ];
 
 export default function TopNav() {
@@ -71,9 +71,9 @@ export default function TopNav() {
           )}
           {user ? (
             <Link
-              to="/testing/avatar/session"
+              to="/testing/journeys"
               className="p-2 rounded-xl text-white/80 hover:text-white hover:bg-white/10 transition-colors border border-white/10"
-              aria-label="Coaching journey"
+              aria-label="Your journeys"
             >
               <User className="w-5 h-5" />
             </Link>

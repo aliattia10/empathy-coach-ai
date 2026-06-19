@@ -35,6 +35,13 @@ Hard requirements:
 7. Output only the improved response text.`,
 };
 
+const NAME_JOURNEY_SYSTEM_PROMPT = {
+  role: "system",
+  content: `You generate short titles for coaching conversations (like ChatGPT chat titles).
+Given excerpts from a user's messages, output ONLY a concise title: 3 to 7 words, sentence case, no quotes, no trailing punctuation, no explanation.
+Capture the main topic or situation (work conflict, feedback anxiety, burnout, etc.).`,
+};
+
 const TRAINER_FEEDBACK_LIMIT = 25;
 
 async function fetchTrainerGlobalInstructions() {
@@ -151,11 +158,26 @@ function buildRegenerationUserPrompt(regenerationContext) {
 }
 
 app.post("/api/chat", async (req, res) => {
-  const { userMessage, chatHistory, mode, regenerationContext, possibleCrisisLanguage, journeyContext } = req.body;
+  const {
+    userMessage,
+    chatHistory,
+    mode,
+    regenerationContext,
+    possibleCrisisLanguage,
+    journeyContext,
+    conversationSnippet,
+  } = req.body;
 
   let messages = [];
+  const isNameJourneyMode = mode === "name_journey";
   const isRegenerationMode = mode === "regenerate";
-  if (isRegenerationMode) {
+  if (isNameJourneyMode) {
+    const snippet = typeof conversationSnippet === "string" ? conversationSnippet.trim() : "";
+    if (!snippet) {
+      return res.status(400).json({ error: "conversationSnippet is required for name_journey mode." });
+    }
+    messages = [NAME_JOURNEY_SYSTEM_PROMPT, { role: "user", content: snippet }];
+  } else if (isRegenerationMode) {
     if (!regenerationContext?.originalUserMessage || !regenerationContext?.previousAssistantReply) {
       return res.status(400).json({
         error: "regenerationContext.originalUserMessage and previousAssistantReply are required.",
@@ -199,8 +221,10 @@ app.post("/api/chat", async (req, res) => {
         messages,
         temperature: isRegenerationMode
           ? Math.min(Number(process.env.VLLM_TEMPERATURE) || 0.55, 0.35)
-          : Number(process.env.VLLM_TEMPERATURE) || 0.55,
-        max_tokens: Number(process.env.VLLM_MAX_TOKENS) || 500,
+          : isNameJourneyMode
+            ? 0.3
+            : Number(process.env.VLLM_TEMPERATURE) || 0.55,
+        max_tokens: isNameJourneyMode ? 32 : Number(process.env.VLLM_MAX_TOKENS) || 500,
       },
       {
         headers,

@@ -568,7 +568,7 @@ export default function AvatarSessionPage() {
         parentMessageId: parentUser.id,
         regeneratedFromMessageId: target.id,
         branchRootMessageId: branchRoot,
-        generationMetadata: { modelProvider: "groq", promptVersion: "feedback-v2", regenerated: true },
+        generationMetadata: { modelProvider: "runpod", promptVersion: "feedback-v2", regenerated: true },
       });
       const nextRaw = [
         ...rawMessages,

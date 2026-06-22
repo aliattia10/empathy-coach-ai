@@ -27,6 +27,13 @@ function sessionRowToJourneyContext(sessionRow, messageCount = 0) {
   };
 }
 
+const INFERENCE_DIRECTIVES = `# Live inference directives (this turn — highest priority after safety)
+1. Read the full chat history: **never repeat** your previous question, opener, or stock empathy phrase.
+2. Do **not** use generic lines like "That's helpful context" or a body/emotion question if the user already described the situation and you already asked once.
+3. When a presenting challenge is on file and Phase One step is 1.2, ask **one** breakdown element (trigger, rule, belief, strength %, or coping) — do not re-ask for the main scenario.
+4. Mirror the user's own words (promotion, salary, budget, conflict, etc.) in your first sentence before your one question.
+5. Advance the protocol: each turn must move one step forward, not loop on the same intake question.`;
+
 /**
  * @param {object} [opts]
  * @param {string} [opts.trainerRules] - global trainer bullets (from chat_feedback)
@@ -34,15 +41,21 @@ function sessionRowToJourneyContext(sessionRow, messageCount = 0) {
  * @param {string} [opts.exemplars] - admin-starred reply patterns
  * @param {object|null} [opts.journeyContext] - journey payload for formatJourneyContextForPrompt
  * @param {string} [opts.turnFeedback] - single-turn Simon feedback (training export)
+ * @param {boolean} [opts.forInference] - slimmer stack for 4k-context RunPod inference
  */
 function buildProductionSystemPrompt(opts = {}) {
+  const condensed = !!opts.forInference;
   let content = COACH_SYSTEM_PROMPT_TEXT;
-  content += `\n\n${formatLlmEnginePhasesForPrompt()}\n`;
+  content += `\n\n${formatLlmEnginePhasesForPrompt({ condensed })}\n`;
 
   const journeyBlock = formatJourneyContextForPrompt(opts.journeyContext);
   if (journeyBlock) content += `\n\n${journeyBlock}\n`;
 
-  content += `\n\n${formatSkillsForPrompt()}\n`;
+  content += `\n\n${formatSkillsForPrompt({ condensed })}\n`;
+
+  if (condensed) {
+    content += `\n\n${INFERENCE_DIRECTIVES}\n`;
+  }
 
   const trainerParts = [];
   if (opts.trainerRules?.trim()) trainerParts.push(opts.trainerRules.trim());

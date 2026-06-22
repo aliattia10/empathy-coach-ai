@@ -81,6 +81,11 @@ function formatJourneyContextForPrompt(ctx) {
       lines.push("- Phase One Step 1.1: scenario extraction — one concrete situation.");
     } else if (step === 2) {
       lines.push("- Phase One Step 1.2: map situation → trigger → rules → beliefs → strength % → coping.");
+      if (ctx.presentingChallenge) {
+        lines.push(
+          "- Presenting challenge already captured — do NOT re-ask for the main situation. Ask ONE missing 1.2 element (trigger, rule, belief, strength %, or coping).",
+        );
+      }
     } else {
       lines.push("- Phase One Step 1.3: present summary; await explicit confirmation before Phase Two.");
     }

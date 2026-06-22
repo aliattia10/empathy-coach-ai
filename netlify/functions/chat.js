@@ -10,6 +10,15 @@ const DEFAULT_LLM_URL = "https://openrouter.ai/api/v1/chat/completions";
 const { formatJourneyContextForPrompt } = require("../../skills/journeyContext.cjs");
 const { COACH_SYSTEM_PROMPT_TEXT } = require("../../skills/coachSystemPrompt.cjs");
 const { buildProductionSystemPrompt } = require("../../skills/buildProductionSystemPrompt.cjs");
+const {
+  trimTrainerRules,
+  trimExemplars,
+  trimMessagesForContext,
+  buildSamplingParams,
+  fetchLlmWithRetries,
+  userFacingLlmError,
+  estimateMessagesTokens,
+} = require("../../skills/llmChatHelpers.cjs");
 
 const SYSTEM_PROMPT = {
   role: "system",
@@ -39,8 +48,10 @@ Capture the main topic or situation (work conflict, feedback anxiety, burnout, e
 };
 
 const TRAINER_FEEDBACK_LIMIT = 25;
+const INFERENCE_TRAINER_LIMIT = 12;
+const INFERENCE_EXEMPLAR_LIMIT = 4;
 
-async function fetchTrainerGlobalInstructions() {
+async function fetchTrainerGlobalInstructions(limit = TRAINER_FEEDBACK_LIMIT) {
   const baseUrl = (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "").replace(/\/$/, "");
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!baseUrl || !key) {
@@ -50,7 +61,7 @@ async function fetchTrainerGlobalInstructions() {
     return "";
   }
   try {
-    const url = `${baseUrl}/rest/v1/chat_feedback?select=feedback_text,created_at,apply_to_global_instructions&order=created_at.desc&limit=${TRAINER_FEEDBACK_LIMIT}`;
+    const url = `${baseUrl}/rest/v1/chat_feedback?select=feedback_text,created_at,apply_to_global_instructions&order=created_at.desc&limit=${limit}`;
     const res = await fetch(url, {
       headers: {
         apikey: key,
@@ -82,12 +93,12 @@ async function fetchTrainerGlobalInstructions() {
   }
 }
 
-async function fetchStarredAssistantExemplars() {
+async function fetchStarredAssistantExemplars(limit = 8, truncateMax = 480) {
   const baseUrl = (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "").replace(/\/$/, "");
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!baseUrl || !key) return "";
   try {
-    const url = `${baseUrl}/rest/v1/chat_messages?admin_quality_star=eq.true&role=eq.assistant&select=content,admin_starred_at&order=admin_starred_at.desc&limit=8`;
+    const url = `${baseUrl}/rest/v1/chat_messages?admin_quality_star=eq.true&role=eq.assistant&select=content,admin_starred_at&order=admin_starred_at.desc&limit=${limit}`;
     const res = await fetch(url, {
       headers: {
         apikey: key,
@@ -100,7 +111,7 @@ async function fetchStarredAssistantExemplars() {
     }
     const rows = await res.json();
     if (!Array.isArray(rows) || rows.length === 0) return "";
-    const truncate = (s, max = 480) => {
+    const truncate = (s, max = truncateMax) => {
       const t = String(s || "")
         .trim()
         .replace(/\s+/g, " ");
@@ -117,12 +128,19 @@ async function fetchStarredAssistantExemplars() {
   }
 }
 
-async function buildChatSystemContent(possibleCrisisLanguage, journeyContext) {
-  const [trainerRules, exemplars] = await Promise.all([
-    fetchTrainerGlobalInstructions(),
-    fetchStarredAssistantExemplars(),
+async function buildChatSystemContent(possibleCrisisLanguage, journeyContext, forInference = true) {
+  const [rawTrainerRules, rawExemplars] = await Promise.all([
+    fetchTrainerGlobalInstructions(forInference ? INFERENCE_TRAINER_LIMIT : TRAINER_FEEDBACK_LIMIT),
+    fetchStarredAssistantExemplars(forInference ? INFERENCE_EXEMPLAR_LIMIT : 8, forInference ? 280 : 480),
   ]);
-  let content = buildProductionSystemPrompt({ trainerRules, exemplars, journeyContext });
+  const trainerRules = forInference ? trimTrainerRules(rawTrainerRules, 10, 180) : rawTrainerRules;
+  const exemplars = forInference ? trimExemplars(rawExemplars, 3, 220) : rawExemplars;
+  let content = buildProductionSystemPrompt({
+    trainerRules,
+    exemplars,
+    journeyContext,
+    forInference,
+  });
   if (possibleCrisisLanguage) {
     content += `\n# Context for this turn\nThe user's latest message may mention suicide, dying, or self-harm (sometimes as a figure of speech). Follow the crisis language protocol above with extra care.\n`;
   }
@@ -211,16 +229,14 @@ exports.handler = async (event) => {
     const history = Array.isArray(chatHistory)
       ? chatHistory.map((m) => ({ role: m.role, content: m.content || "" }))
       : [];
-    const systemContent = await buildChatSystemContent(!!body?.possibleCrisisLanguage, body?.journeyContext);
+    const systemContent = await buildChatSystemContent(!!body?.possibleCrisisLanguage, body?.journeyContext, true);
     messages = [{ role: "system", content: systemContent }, ...history, { role: "user", content: userMessage }];
+    messages = trimMessagesForContext(messages);
   }
 
   const url = process.env.VLLM_API_URL || DEFAULT_LLM_URL;
   const isRunPod = url.includes("runpod.ai");
-  const timeoutMs = Number(process.env.VLLM_TIMEOUT_MS) || (isRunPod ? 120000 : 60000);
-  const temperature = Number(process.env.VLLM_TEMPERATURE) || 0.55;
-  const maxTokens =
-    mode === "name_journey" ? 32 : Number(process.env.VLLM_MAX_TOKENS) || 500;
+  const timeoutMs = Number(process.env.VLLM_TIMEOUT_MS) || (isRunPod ? 180000 : 60000);
 
   const apiKey = process.env.LLM_API_KEY;
   if (!apiKey || apiKey.trim() === "") {
@@ -235,13 +251,23 @@ exports.handler = async (event) => {
 
   const model = process.env.VLLM_MODEL || (isRunPod ? "empathy-coach-qwen" : "meta-llama/llama-3.2-3b-instruct:free");
 
-  // OpenAI-compatible payload (Groq is OpenAI-compatible; OpenRouter also supports this).
   const payload = {
     model,
     messages,
-    temperature: mode === "regenerate" ? Math.min(temperature, 0.35) : mode === "name_journey" ? 0.3 : temperature,
-    max_tokens: maxTokens,
+    ...buildSamplingParams(mode),
   };
+
+  if (mode === "chat") {
+    console.log(
+      "LLM chat request:",
+      "model=",
+      model,
+      "estTokens=",
+      estimateMessagesTokens(messages),
+      "historyTurns=",
+      Math.max(0, messages.length - 2),
+    );
+  }
 
   const doRequest = () =>
     fetch(url, {
@@ -255,26 +281,29 @@ exports.handler = async (event) => {
     });
 
   try {
-    let res = await doRequest();
-
-    // On 429 (rate limit), retry once after a short delay
-    if (res.status === 429) {
-      const waitMs = 2000;
-      console.warn("LLM 429 rate limit, retrying in", waitMs, "ms");
-      await new Promise((r) => setTimeout(r, waitMs));
-      res = await doRequest();
-    }
+    const { res, attempts } = await fetchLlmWithRetries(doRequest, { isRunPod });
 
     if (!res.ok) {
       const errText = await res.text();
-      console.error("LLM error:", res.status, "URL:", url, "model:", model, "body:", errText);
-      const isRateLimit = res.status === 429;
+      console.error(
+        "LLM error:",
+        res.status,
+        "attempts:",
+        attempts,
+        "URL:",
+        url,
+        "model:",
+        model,
+        "estTokens:",
+        estimateMessagesTokens(messages),
+        "body:",
+        errText.slice(0, 1200),
+      );
       return {
-        statusCode: isRateLimit ? 429 : 502,
+        statusCode: res.status === 429 ? 429 : 502,
         body: JSON.stringify({
-          error: isRateLimit
-            ? "The AI is in high demand. Please try again in a moment."
-            : "Avatar is currently unavailable. (LLM provider error.)",
+          error: userFacingLlmError(res.status),
+          retryable: res.status === 503 || res.status === 504 || res.status === 524,
         }),
       };
     }

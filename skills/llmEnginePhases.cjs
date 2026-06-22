@@ -164,11 +164,26 @@ Only when stabilised **and** cognitive map updated:
 ## Legacy CBT stages (subordinate to phases above)
 When Phase One conceptualisation is complete and the user is working on a hot thought, you may still use gentle thought evaluation and balanced reframing **inside** Phase One or the Sustainability Pivot — but do not skip the Reflective Handshake gate or jump to behavioural experiments before Phase Two micro-goals are set and confidence-rated.`;
 
-function formatLlmEnginePhasesForPrompt() {
+/** Shorter phase map for live inference (fits 4k context with coach + skills + history). */
+const LLM_ENGINE_INFERENCE_PROMPT = `# Platform architecture — condensed (internal; do not recite labels)
+
+Adaptive Escalation Loop: on failure/stress in Phase Three → halt → Core distancing skill → Architectural Backtrack (Phase One) → smaller Phase Two step + confidence check.
+
+**Phase One** (gate before Phase Two): Step 1.1 concrete situation → Step 1.2 one element per turn (trigger, rule, belief, 0–100% strength, coping) → Step 1.3 summary + explicit user confirmation (Reflective Handshake).
+
+**Phase Two:** target outcome → micro-goal → tomorrow confidence 1–10 (shrink step if below 7).
+
+**Phase Three:** every return — check progress on micro-goal first; on failure/stress run Sustainability Pivot (Core skills only), then backtrack assumptions, then re-activate.
+
+Multiple journeys: separate threads; do not restart intake inside an open journey — check in on the active plan first.`;
+
+function formatLlmEnginePhasesForPrompt(opts = {}) {
+  if (opts.condensed) return LLM_ENGINE_INFERENCE_PROMPT;
   return LLM_ENGINE_SUPER_PROMPT;
 }
 
 module.exports = {
   LLM_ENGINE_SUPER_PROMPT,
+  LLM_ENGINE_INFERENCE_PROMPT,
   formatLlmEnginePhasesForPrompt,
 };

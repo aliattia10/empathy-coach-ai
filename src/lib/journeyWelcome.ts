@@ -48,10 +48,10 @@ We were confirming your summary. **Does this still fit how things feel for you r
 
 export function buildFallbackResponse(phase: number): string {
   if (phase === 1) {
-    return "That's helpful context. **What do you notice in your body or emotions when this situation peaks?**";
+    return "I'm having trouble reaching the coach right now. **When you're ready, send your message again** — I'll pick up from here.";
   }
   if (phase === 2) {
-    return "Let's keep this manageable. **What's the smallest version of that step you could try tomorrow?**";
+    return "Connection hiccup — **please try sending again**. We'll continue shaping your next small step.";
   }
-  return "Thanks for sharing that. **What felt hardest about following through on the step?**";
+  return "I couldn't reach the server just now. **Please resend your last message** when you're ready.";
 }

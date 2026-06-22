@@ -14,6 +14,13 @@ const VLLM_API_URL =
 const { formatJourneyContextForPrompt } = require("../skills/journeyContext.cjs");
 const { COACH_SYSTEM_PROMPT_TEXT } = require("../skills/coachSystemPrompt.cjs");
 const { buildProductionSystemPrompt } = require("../skills/buildProductionSystemPrompt.cjs");
+const {
+  trimTrainerRules,
+  trimExemplars,
+  trimMessagesForContext,
+  buildSamplingParams,
+  estimateMessagesTokens,
+} = require("../skills/llmChatHelpers.cjs");
 
 const SYSTEM_PROMPT = {
   role: "system",
@@ -43,8 +50,10 @@ Capture the main topic or situation (work conflict, feedback anxiety, burnout, e
 };
 
 const TRAINER_FEEDBACK_LIMIT = 25;
+const INFERENCE_TRAINER_LIMIT = 12;
+const INFERENCE_EXEMPLAR_LIMIT = 4;
 
-async function fetchTrainerGlobalInstructions() {
+async function fetchTrainerGlobalInstructions(limit = TRAINER_FEEDBACK_LIMIT) {
   const baseUrl = (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "").replace(/\/$/, "");
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!baseUrl || !key) {
@@ -54,7 +63,7 @@ async function fetchTrainerGlobalInstructions() {
     return "";
   }
   try {
-    const url = `${baseUrl}/rest/v1/chat_feedback?select=feedback_text,created_at,apply_to_global_instructions&order=created_at.desc&limit=${TRAINER_FEEDBACK_LIMIT}`;
+    const url = `${baseUrl}/rest/v1/chat_feedback?select=feedback_text,created_at,apply_to_global_instructions&order=created_at.desc&limit=${limit}`;
     const res = await fetch(url, {
       headers: {
         apikey: key,
@@ -83,12 +92,12 @@ async function fetchTrainerGlobalInstructions() {
   }
 }
 
-async function fetchStarredAssistantExemplars() {
+async function fetchStarredAssistantExemplars(limit = 8, truncateMax = 480) {
   const baseUrl = (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "").replace(/\/$/, "");
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!baseUrl || !key) return "";
   try {
-    const url = `${baseUrl}/rest/v1/chat_messages?admin_quality_star=eq.true&role=eq.assistant&select=content,admin_starred_at&order=admin_starred_at.desc&limit=8`;
+    const url = `${baseUrl}/rest/v1/chat_messages?admin_quality_star=eq.true&role=eq.assistant&select=content,admin_starred_at&order=admin_starred_at.desc&limit=${limit}`;
     const res = await fetch(url, {
       headers: {
         apikey: key,
@@ -101,7 +110,7 @@ async function fetchStarredAssistantExemplars() {
     }
     const rows = await res.json();
     if (!Array.isArray(rows) || rows.length === 0) return "";
-    const truncate = (s, max = 480) => {
+    const truncate = (s, max = truncateMax) => {
       const t = String(s || "")
         .trim()
         .replace(/\s+/g, " ");
@@ -118,12 +127,19 @@ async function fetchStarredAssistantExemplars() {
   }
 }
 
-async function buildChatSystemContent(possibleCrisisLanguage, journeyContext) {
-  const [trainerRules, exemplars] = await Promise.all([
-    fetchTrainerGlobalInstructions(),
-    fetchStarredAssistantExemplars(),
+async function buildChatSystemContent(possibleCrisisLanguage, journeyContext, forInference = true) {
+  const [rawTrainerRules, rawExemplars] = await Promise.all([
+    fetchTrainerGlobalInstructions(forInference ? INFERENCE_TRAINER_LIMIT : TRAINER_FEEDBACK_LIMIT),
+    fetchStarredAssistantExemplars(forInference ? INFERENCE_EXEMPLAR_LIMIT : 8, forInference ? 280 : 480),
   ]);
-  let content = buildProductionSystemPrompt({ trainerRules, exemplars, journeyContext });
+  const trainerRules = forInference ? trimTrainerRules(rawTrainerRules, 10, 180) : rawTrainerRules;
+  const exemplars = forInference ? trimExemplars(rawExemplars, 3, 220) : rawExemplars;
+  let content = buildProductionSystemPrompt({
+    trainerRules,
+    exemplars,
+    journeyContext,
+    forInference,
+  });
   if (possibleCrisisLanguage) {
     content += `\n# Context for this turn\nThe user's latest message may mention suicide, dying, or self-harm (sometimes as a figure of speech). Follow the crisis language protocol above with extra care.\n`;
   }
@@ -205,30 +221,31 @@ app.post("/api/chat", async (req, res) => {
     const history = Array.isArray(chatHistory)
       ? chatHistory.map((m) => ({ role: m.role, content: m.content || "" }))
       : [];
-    const systemContent = await buildChatSystemContent(!!possibleCrisisLanguage, journeyContext);
+    const systemContent = await buildChatSystemContent(!!possibleCrisisLanguage, journeyContext, true);
     messages = [{ role: "system", content: systemContent }, ...history, { role: "user", content: userMessage }];
+    messages = trimMessagesForContext(messages);
   }
 
   const apiKey = process.env.LLM_API_KEY;
+  const isRunPod = VLLM_API_URL.includes("runpod.ai");
   const headers = { "Content-Type": "application/json" };
   if (apiKey) headers["Authorization"] = `Bearer ${apiKey}`;
 
   try {
+    const mode = isRegenerationMode ? "regenerate" : isNameJourneyMode ? "name_journey" : "chat";
+    if (mode === "chat") {
+      console.log("LLM chat request estTokens=", estimateMessagesTokens(messages));
+    }
     const response = await axios.post(
       VLLM_API_URL,
       {
         model: process.env.VLLM_MODEL || "meta-llama/llama-3.2-3b-instruct:free",
         messages,
-        temperature: isRegenerationMode
-          ? Math.min(Number(process.env.VLLM_TEMPERATURE) || 0.55, 0.35)
-          : isNameJourneyMode
-            ? 0.3
-            : Number(process.env.VLLM_TEMPERATURE) || 0.55,
-        max_tokens: isNameJourneyMode ? 32 : Number(process.env.VLLM_MAX_TOKENS) || 500,
+        ...buildSamplingParams(mode),
       },
       {
         headers,
-        timeout: Number(process.env.VLLM_TIMEOUT_MS) || 60000,
+        timeout: Number(process.env.VLLM_TIMEOUT_MS) || (isRunPod ? 180000 : 60000),
       }
     );
 

@@ -229,7 +229,16 @@ When Phase Three detects failure or high stress: halt BA / forward action; pick 
 - One skill; one sentence why it fits; one clear question.
 - Never dump toolkits or acronym lists unless the user asks.`;
 
-function formatSkillsForPrompt() {
+function formatSkillsForPrompt(opts = {}) {
+  if (opts.condensed) {
+    return [
+      "# Skills (one per turn when a gap is clear)",
+      "Core (distancing when flooded): Distancing, HCPR, DTR, cost-benefit, circles of control.",
+      "Development/Activation (Phase 2–3 when stable): BA, micro goals, boundary communication, constructive feedback.",
+      ...SKILLS.map((s) => `- ${s.name}: ${s.whenToUse}`),
+    ].join("\n");
+  }
+
   const core = SKILLS.filter((s) => s.category === "core");
   const dev = SKILLS.filter((s) => s.category === "development_activation");
 

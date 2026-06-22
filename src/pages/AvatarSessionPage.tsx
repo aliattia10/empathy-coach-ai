@@ -32,7 +32,7 @@ import { Bot, ChevronDown, CheckCircle2, Circle, PanelRight, ArrowLeft } from "l
 import type { TranscriptMessage } from "@/components/avatar/ChatTranscript";
 import PhaseStepper from "@/components/avatar/PhaseStepper";
 import { inferJourneyUpdates } from "@/lib/journeyInference";
-import { buildFallbackResponse, buildWelcomeMessage } from "@/lib/journeyWelcome";
+import { buildWelcomeMessage } from "@/lib/journeyWelcome";
 import {
   journeyStateFromSession,
   toJourneyContextPayload,
@@ -115,6 +115,7 @@ export default function AvatarSessionPage() {
   const [isToolsOpen, setIsToolsOpen] = useState(false);
   const [voiceEnabled, setVoiceEnabled] = useState(true);
   const [isAiResponding, setIsAiResponding] = useState(false);
+  const [chatError, setChatError] = useState<string | null>(null);
   const handleSendRef = useRef<(text: string) => void>(() => {});
   const pendingSpeakTimeoutRef = useRef<number | null>(null);
   const { speak, stop, isSpeaking } = useSpeechSynthesis();
@@ -342,6 +343,7 @@ export default function AvatarSessionPage() {
     setMessages(buildDisplayMessages(persistedRawMessages, activeAssistantId));
 
     setIsAiResponding(true);
+    setChatError(null);
     const chatHistory = buildDisplayMessages(persistedRawMessages, activeAssistantId).map((m) => ({ role: m.role, content: m.content }));
     const journeyContext = toJourneyContextPayload(journeyState, chatHistory.length);
 
@@ -357,9 +359,18 @@ export default function AvatarSessionPage() {
         }),
       });
       const data = await response.json();
-      const content = response.ok
-        ? (data.reply ?? "")
-        : (typeof data.error === "string" ? data.error : "");
+      if (!response.ok) {
+        const errMsg =
+          typeof data.error === "string"
+            ? data.error
+            : "Avatar is currently unavailable. Please try again.";
+        setChatError(errMsg);
+        toast.error(errMsg);
+        setIsAiResponding(false);
+        return;
+      }
+
+      const content = data.reply ?? "";
       const reply: TranscriptMessage = {
         id: (Date.now() + 1).toString(),
         role: "assistant",
@@ -399,34 +410,9 @@ export default function AvatarSessionPage() {
       }
       setIsAiResponding(false);
     } catch {
-      const content = buildFallbackResponse(journeyState.platform_phase);
-      const savedReply = await saveChatMessage(sessionId, "assistant", content, {
-        parentMessageId: persistedUser.id,
-      });
-      const nextRaw = [
-        ...persistedRawMessages,
-        {
-          id: savedReply.id,
-          role: "assistant",
-          content,
-          parent_message_id: persistedUser.id,
-          admin_quality_star: savedReply.admin_quality_star ?? false,
-        },
-      ];
-      setRawMessages(nextRaw);
-      setActiveAssistantId(savedReply.id);
-      setMessages(buildDisplayMessages(nextRaw, savedReply.id));
-      await setSessionActiveMessage(sessionId, savedReply.id);
-      if (voiceEnabled) {
-        const plain = stripMarkdownForSpeech(content);
-        if (plain) {
-          if (pendingSpeakTimeoutRef.current !== null) window.clearTimeout(pendingSpeakTimeoutRef.current);
-          pendingSpeakTimeoutRef.current = window.setTimeout(() => {
-            speak(plain);
-            pendingSpeakTimeoutRef.current = null;
-          }, 300);
-        }
-      }
+      const errMsg = "Connection lost — please send your message again.";
+      setChatError(errMsg);
+      toast.error(errMsg);
       setIsAiResponding(false);
     }
   };
@@ -846,6 +832,11 @@ export default function AvatarSessionPage() {
               isRegenerating={isRegenerating}
             />
             <div className="mt-3">
+              {chatError ? (
+                <p className="mb-2 text-sm text-destructive" role="alert">
+                  {chatError}
+                </p>
+              ) : null}
               <ChatInput
                 onSend={handleSend}
                 onTranscribeAudio={transcribeVoiceMessage}

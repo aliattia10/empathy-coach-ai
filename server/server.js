@@ -21,6 +21,10 @@ const {
   buildSamplingParams,
   estimateMessagesTokens,
 } = require("../skills/llmChatHelpers.cjs");
+const {
+  normalizeChatHistory,
+  buildConversationMemoryBlock,
+} = require("../skills/conversationMemory.cjs");
 
 const SYSTEM_PROMPT = {
   role: "system",
@@ -127,17 +131,19 @@ async function fetchStarredAssistantExemplars(limit = 8, truncateMax = 480) {
   }
 }
 
-async function buildChatSystemContent(possibleCrisisLanguage, journeyContext, forInference = true) {
+async function buildChatSystemContent(possibleCrisisLanguage, journeyContext, history, forInference = true) {
   const [rawTrainerRules, rawExemplars] = await Promise.all([
     fetchTrainerGlobalInstructions(forInference ? INFERENCE_TRAINER_LIMIT : TRAINER_FEEDBACK_LIMIT),
     fetchStarredAssistantExemplars(forInference ? INFERENCE_EXEMPLAR_LIMIT : 8, forInference ? 280 : 480),
   ]);
   const trainerRules = forInference ? trimTrainerRules(rawTrainerRules, 10, 180) : rawTrainerRules;
   const exemplars = forInference ? trimExemplars(rawExemplars, 3, 220) : rawExemplars;
+  const conversationMemory = buildConversationMemoryBlock(history);
   let content = buildProductionSystemPrompt({
     trainerRules,
     exemplars,
     journeyContext,
+    conversationMemory,
     forInference,
   });
   if (possibleCrisisLanguage) {
@@ -218,12 +224,15 @@ app.post("/api/chat", async (req, res) => {
     if (!userMessage || typeof userMessage !== "string") {
       return res.status(400).json({ error: "userMessage is required and must be a string." });
     }
-    const history = Array.isArray(chatHistory)
-      ? chatHistory.map((m) => ({ role: m.role, content: m.content || "" }))
-      : [];
-    const systemContent = await buildChatSystemContent(!!possibleCrisisLanguage, journeyContext, true);
+    const history = normalizeChatHistory(chatHistory, userMessage);
+    const systemContent = await buildChatSystemContent(
+      !!possibleCrisisLanguage,
+      journeyContext,
+      history,
+      true,
+    );
     messages = [{ role: "system", content: systemContent }, ...history, { role: "user", content: userMessage }];
-    messages = trimMessagesForContext(messages);
+    messages = trimMessagesForContext(messages, { minHistoryMessages: 12 });
   }
 
   const apiKey = process.env.LLM_API_KEY;

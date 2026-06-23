@@ -35,6 +35,7 @@ import PhaseStepper from "@/components/avatar/PhaseStepper";
 import { inferJourneyUpdates } from "@/lib/journeyInference";
 import { buildWelcomeMessage } from "@/lib/journeyWelcome";
 import { fetchChatReply } from "@/lib/fetchChatReply";
+import { detectAskedPhaseOneElements, nextPhaseOneElement } from "@/lib/phaseOneRouting";
 import {
   journeyStateFromSession,
   toJourneyContextPayload,
@@ -348,8 +349,20 @@ export default function AvatarSessionPage() {
     setIsAiResponding(true);
     setChatError(null);
     setIsCoachWarming(false);
-    const chatHistory = buildDisplayMessages(persistedRawMessages, activeAssistantId).map((m) => ({ role: m.role, content: m.content }));
-    const journeyContext = toJourneyContextPayload(journeyState, chatHistory.length);
+    const chatHistory = buildDisplayMessages(persistedRawMessages, activeAssistantId).map((m) => ({
+      role: m.role,
+      content: m.content,
+    }));
+    const assistantTexts = chatHistory.filter((m) => m.role === "assistant").map((m) => m.content);
+    const askedPhaseOne = detectAskedPhaseOneElements(assistantTexts);
+    const journeyContext = toJourneyContextPayload(journeyState, chatHistory.length, {
+      phaseOneNextElement:
+        journeyState.phase_one_step === 2 && !journeyState.phase_one_confirmed
+          ? nextPhaseOneElement(assistantTexts)
+          : null,
+      askedPhaseOneElements:
+        askedPhaseOne.size > 0 ? [...askedPhaseOne].join(", ") : null,
+    });
 
     try {
       const result = await fetchChatReply(

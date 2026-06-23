@@ -28,11 +28,12 @@ function sessionRowToJourneyContext(sessionRow, messageCount = 0) {
 }
 
 const INFERENCE_DIRECTIVES = `# Live inference directives (this turn — highest priority after safety)
-1. Read the full chat history: **never repeat** your previous question, opener, or stock empathy phrase.
-2. Do **not** use generic lines like "That's helpful context" or a body/emotion question if the user already described the situation and you already asked once.
-3. When a presenting challenge is on file and Phase One step is 1.2, ask **one** breakdown element (trigger, rule, belief, strength %, or coping) — do not re-ask for the main scenario.
-4. Mirror the user's own words (promotion, salary, budget, conflict, etc.) in your first sentence before your one question.
-5. Advance the protocol: each turn must move one step forward, not loop on the same intake question.`;
+1. **Conversation memory is mandatory.** The "Conversation memory" block and chat history are authoritative. Recall specific details the user already shared (names, situations, feelings, rules). Never ask them to repeat the main scenario.
+2. Read the full chat history: **never repeat** your previous question, opener, or stock empathy phrase — even if reworded.
+3. Do **not** loop in Phase One. Each turn must advance exactly one step in the Phase routing block below.
+4. When Phase One step is 1.2, ask only the **next** breakdown element listed. Do not re-ask elements marked as already asked.
+5. Mirror the user's own words in your first sentence, then ask **one** new question that moves forward.
+6. If the user already answered the element you asked last turn, acknowledge it briefly and ask the **next** element — do not ask the same thing again.`;
 
 /**
  * @param {object} [opts]
@@ -55,6 +56,10 @@ function buildProductionSystemPrompt(opts = {}) {
 
   if (condensed) {
     content += `\n\n${INFERENCE_DIRECTIVES}\n`;
+  }
+
+  if (opts.conversationMemory?.trim()) {
+    content += `\n\n# Conversation memory (authoritative — recall these details; do not re-ask)\n${opts.conversationMemory.trim()}\n`;
   }
 
   const trainerParts = [];

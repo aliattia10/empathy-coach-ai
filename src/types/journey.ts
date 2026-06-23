@@ -31,6 +31,8 @@ export type JourneyContextPayload = {
   architecturalBacktrackActive: boolean;
   isResuming: boolean;
   messageCount: number;
+  phaseOneNextElement?: string | null;
+  askedPhaseOneElements?: string | null;
 };
 
 export const DEFAULT_JOURNEY_STATE: JourneyState = {
@@ -70,6 +72,7 @@ export function journeyStateFromSession(session: Partial<JourneyState> | null | 
 export function toJourneyContextPayload(
   state: JourneyState,
   messageCount: number,
+  opts?: { phaseOneNextElement?: string | null; askedPhaseOneElements?: string | null },
 ): JourneyContextPayload {
   return {
     platformPhase: state.platform_phase,
@@ -85,6 +88,8 @@ export function toJourneyContextPayload(
     architecturalBacktrackActive: state.architectural_backtrack_active,
     isResuming: messageCount > 2,
     messageCount,
+    phaseOneNextElement: opts?.phaseOneNextElement ?? null,
+    askedPhaseOneElements: opts?.askedPhaseOneElements ?? null,
   };
 }
 

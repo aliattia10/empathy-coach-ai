@@ -1,7 +1,8 @@
 import type { JourneyState } from "@/types/journey";
+import { detectPhaseOneFocusFromAssistant } from "@/lib/phaseOneRouting";
 
 const HANDSHAKE_CONFIRM =
-  /\b(yes|yeah|yep|that's right|that is right|accurate|correct|sounds right|you've got it|spot on|that's me|that describes|operating right now)\b/i;
+  /\b(yes|yeah|yep|that's right|that is right|accurate|correct|sounds right|you've got it|spot on|that's me|that describes|operating right now|that's it|fits|makes sense)\b/i;
 
 const HANDSHAKE_REJECT =
   /\b(not quite|not really|no|nope|missing|wrong|incorrect|doesn't fit|does not fit|not accurate)\b/i;
@@ -62,8 +63,20 @@ function extractTargetOutcome(assistantText: string): string | null {
 }
 
 function extractPresentingChallenge(userText: string): string | null {
-  if (userText.length < 40) return null;
+  if (userText.length < 25) return null;
   return userText.slice(0, 400);
+}
+
+function appendBreakdownNote(current: string | null, label: string, value: string): string {
+  const line = `${label}: ${value.trim().slice(0, 200)}`;
+  if (!current?.trim()) return line;
+  if (current.toLowerCase().includes(`${label.toLowerCase()}:`)) return current;
+  return `${current.trim()}\n${line}`.slice(0, 600);
+}
+
+function breakdownLineCount(summary: string | null): number {
+  if (!summary?.trim()) return 0;
+  return summary.split("\n").filter((line) => line.trim().includes(":")).length;
 }
 
 export function inferJourneyUpdates(
@@ -85,15 +98,53 @@ export function inferJourneyUpdates(
       updates.phase_one_step = 2;
     }
 
+    if (current.phase_one_step === 2 || updates.phase_one_step === 2) {
+      const focus = detectPhaseOneFocusFromAssistant(previousAssistant);
+      if (focus && user.length > 8) {
+        const label =
+          focus === "trigger"
+            ? "Trigger"
+            : focus === "rule"
+              ? "Rule"
+              : focus === "belief"
+                ? "Belief"
+                : focus === "coping"
+                  ? "Coping"
+                  : null;
+        if (label) {
+          updates.conceptualisation_summary = appendBreakdownNote(
+            current.conceptualisation_summary,
+            label,
+            user,
+          );
+        }
+      }
+    }
+
     if (looksLikeBeliefQuestion(previousAssistant)) {
       const pctMatch = user.match(BELIEF_PCT);
       if (pctMatch) {
         const n = parseInt(pctMatch[1], 10);
         if (n >= 0 && n <= 100) {
           updates.belief_strength_pct = n;
-          updates.phase_one_step = 3;
+          updates.conceptualisation_summary = appendBreakdownNote(
+            updates.conceptualisation_summary ?? current.conceptualisation_summary,
+            "Belief strength",
+            `${n}%`,
+          );
         }
       }
+    }
+
+    const summarySoFar = updates.conceptualisation_summary ?? current.conceptualisation_summary;
+    const breakdownLines = breakdownLineCount(summarySoFar);
+    const hasBeliefPct = typeof (updates.belief_strength_pct ?? current.belief_strength_pct) === "number";
+
+    if (
+      (current.phase_one_step === 2 || updates.phase_one_step === 2) &&
+      (breakdownLines >= 3 || hasBeliefPct)
+    ) {
+      updates.phase_one_step = 3;
     }
 
     if (looksLikeSummary(currentAssistant)) {

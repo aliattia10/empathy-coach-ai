@@ -2,6 +2,8 @@
  * Formats persisted journey state for LLM system context (Phase 1, 2 & 3).
  */
 
+const { formatPhaseOneNextElementInstruction } = require("./conversationMemory.cjs");
+
 /** @typedef {1 | 2 | 3} PlatformPhase */
 
 const PHASE_ONE_STEP_LABELS = {
@@ -24,7 +26,8 @@ const PHASE_ONE_STEP_LABELS = {
  * @param {boolean} [ctx.sustainabilityPivotActive]
  * @param {boolean} [ctx.architecturalBacktrackActive]
  * @param {boolean} [ctx.isResuming]
- * @param {number} [ctx.messageCount]
+ * @param {string|null} [ctx.phaseOneNextElement] - next 1.2 element to ask (trigger|rule|...)
+ * @param {string|null} [ctx.askedPhaseOneElements] - comma-separated elements already asked
  */
 function formatJourneyContextForPrompt(ctx) {
   if (!ctx || typeof ctx !== "object") return "";
@@ -85,6 +88,12 @@ function formatJourneyContextForPrompt(ctx) {
         lines.push(
           "- Presenting challenge already captured — do NOT re-ask for the main situation. Ask ONE missing 1.2 element (trigger, rule, belief, strength %, or coping).",
         );
+      }
+      if (ctx.askedPhaseOneElements) {
+        lines.push(`- Phase 1.2 elements already asked (do NOT rephrase these): ${ctx.askedPhaseOneElements}`);
+      }
+      if (ctx.phaseOneNextElement) {
+        lines.push(`- **This turn — ask next:** ${formatPhaseOneNextElementInstruction(ctx.phaseOneNextElement)}`);
       }
     } else {
       lines.push("- Phase One Step 1.3: present summary; await explicit confirmation before Phase Two.");

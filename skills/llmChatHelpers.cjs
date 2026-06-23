@@ -44,35 +44,38 @@ function trimExemplars(exemplars, maxItems = 3, maxItemChars = 220) {
 
 /**
  * Drop oldest history until messages fit token budget (always keeps system + latest user).
+ * Guarantees a minimum number of recent turns so the model retains conversation context.
  */
 function trimMessagesForContext(messages, opts = {}) {
   if (!Array.isArray(messages) || messages.length < 2) return messages;
 
   const maxContextTokens =
-    Number(opts.maxContextTokens) || Number(process.env.VLLM_MAX_CONTEXT_TOKENS) || 3584;
+    Number(opts.maxContextTokens) || Number(process.env.VLLM_MAX_CONTEXT_TOKENS) || 6144;
   const reserveOutputTokens =
     Number(opts.reserveOutputTokens) || Number(process.env.VLLM_MAX_TOKENS) || 500;
+  const minHistoryMessages = Number(opts.minHistoryMessages) || 12;
 
-  const budget = Math.max(512, maxContextTokens - reserveOutputTokens);
+  const budget = Math.max(1024, maxContextTokens - reserveOutputTokens);
   const system = messages[0];
   const last = messages[messages.length - 1];
   const history = messages.slice(1, -1);
 
-  const kept = [];
-  let used = estimateTokens(system.content) + estimateTokens(last.content);
+  let kept =
+    history.length > minHistoryMessages ? history.slice(-minHistoryMessages) : [...history];
 
-  for (let i = history.length - 1; i >= 0; i -= 1) {
-    const msg = history[i];
-    const cost = estimateTokens(msg.content) + 4;
-    if (used + cost > budget && kept.length > 0) break;
-    if (used + cost > budget && kept.length === 0) {
-      const trimmed = { ...msg, content: String(msg.content || "").slice(-Math.floor(budget * 3)) };
-      kept.unshift(trimmed);
-      used += estimateTokens(trimmed.content) + 4;
-      break;
-    }
-    kept.unshift(msg);
-    used += cost;
+  const totalTokens = () =>
+    estimateTokens(system.content) + estimateTokens(last.content) + estimateMessagesTokens(kept);
+
+  while (kept.length > 2 && totalTokens() > budget) {
+    kept.shift();
+  }
+
+  while (totalTokens() > budget && kept.length > 0) {
+    const head = kept[0];
+    const shorter = String(head.content || "").slice(Math.floor(String(head.content || "").length * 0.25));
+    if (shorter.length < 40) break;
+    kept[0] = { ...head, content: `…${shorter}` };
+    if (estimateTokens(kept[0].content) >= estimateTokens(head.content)) break;
   }
 
   return [system, ...kept, last];

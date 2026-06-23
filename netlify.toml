@@ -29,3 +29,10 @@
 # Optional: set Node version (Netlify default is 18)
 [build.environment]
   NODE_VERSION = "20"
+
+# RunPod cold start can exceed 10s — raise chat function limit (Pro: up to 60s; Enterprise: longer).
+[functions]
+  node_bundler = "esbuild"
+
+[functions."chat"]
+  timeout = 60

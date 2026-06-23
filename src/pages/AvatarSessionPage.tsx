@@ -33,6 +33,7 @@ import type { TranscriptMessage } from "@/components/avatar/ChatTranscript";
 import PhaseStepper from "@/components/avatar/PhaseStepper";
 import { inferJourneyUpdates } from "@/lib/journeyInference";
 import { buildWelcomeMessage } from "@/lib/journeyWelcome";
+import { fetchChatReply } from "@/lib/fetchChatReply";
 import {
   journeyStateFromSession,
   toJourneyContextPayload,
@@ -348,29 +349,26 @@ export default function AvatarSessionPage() {
     const journeyContext = toJourneyContextPayload(journeyState, chatHistory.length);
 
     try {
-      const response = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      const result = await fetchChatReply(
+        {
           userMessage: text,
           chatHistory,
           possibleCrisisLanguage: detectCrisis(text),
           journeyContext,
-        }),
-      });
-      const data = await response.json();
-      if (!response.ok) {
-        const errMsg =
-          typeof data.error === "string"
-            ? data.error
-            : "Avatar is currently unavailable. Please try again.";
-        setChatError(errMsg);
-        toast.error(errMsg);
+        },
+        {
+          onStatus: (message) => setChatError(message),
+        },
+      );
+
+      if (!result.ok) {
+        setChatError(result.error);
+        toast.error(result.error);
         setIsAiResponding(false);
         return;
       }
 
-      const content = data.reply ?? "";
+      const content = result.reply;
       const reply: TranscriptMessage = {
         id: (Date.now() + 1).toString(),
         role: "assistant",
@@ -410,7 +408,8 @@ export default function AvatarSessionPage() {
       }
       setIsAiResponding(false);
     } catch {
-      const errMsg = "Connection lost — please send your message again.";
+      const errMsg =
+        "Connection lost — the coach may still be starting. Please send your message again.";
       setChatError(errMsg);
       toast.error(errMsg);
       setIsAiResponding(false);

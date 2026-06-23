@@ -117,6 +117,7 @@ export default function AvatarSessionPage() {
   const [voiceEnabled, setVoiceEnabled] = useState(true);
   const [isAiResponding, setIsAiResponding] = useState(false);
   const [chatError, setChatError] = useState<string | null>(null);
+  const [warmingStatus, setWarmingStatus] = useState<string | null>(null);
   const handleSendRef = useRef<(text: string) => void>(() => {});
   const pendingSpeakTimeoutRef = useRef<number | null>(null);
   const { speak, stop, isSpeaking } = useSpeechSynthesis();
@@ -345,6 +346,7 @@ export default function AvatarSessionPage() {
 
     setIsAiResponding(true);
     setChatError(null);
+    setWarmingStatus(null);
     const chatHistory = buildDisplayMessages(persistedRawMessages, activeAssistantId).map((m) => ({ role: m.role, content: m.content }));
     const journeyContext = toJourneyContextPayload(journeyState, chatHistory.length);
 
@@ -357,11 +359,12 @@ export default function AvatarSessionPage() {
           journeyContext,
         },
         {
-          onStatus: (message) => setChatError(message),
+          onStatus: (message) => setWarmingStatus(message),
         },
       );
 
       if (!result.ok) {
+        setWarmingStatus(null);
         setChatError(result.error);
         toast.error(result.error);
         setIsAiResponding(false);
@@ -369,6 +372,7 @@ export default function AvatarSessionPage() {
       }
 
       const content = result.reply;
+      setWarmingStatus(null);
       const reply: TranscriptMessage = {
         id: (Date.now() + 1).toString(),
         role: "assistant",
@@ -409,7 +413,8 @@ export default function AvatarSessionPage() {
       setIsAiResponding(false);
     } catch {
       const errMsg =
-        "Connection lost — the coach may still be starting. Please send your message again.";
+        "Connection lost — the coach may still be starting. Please send your message again in a minute.";
+      setWarmingStatus(null);
       setChatError(errMsg);
       toast.error(errMsg);
       setIsAiResponding(false);
@@ -628,7 +633,13 @@ export default function AvatarSessionPage() {
     if (journey.last_check_in_at) return Math.min(100, 80 + userTurns * 2);
     return phaseBase + Math.min(28, userTurns * 3);
   })();
-  const statusLabel = isAiResponding ? "Thinking..." : isSpeaking ? "Speaking..." : "Ready";
+  const statusLabel = warmingStatus
+    ? "Warming up…"
+    : isAiResponding
+      ? "Thinking..."
+      : isSpeaking
+        ? "Speaking..."
+        : "Ready";
   const phaseChecklist = PHASE_CHECKLIST[journey.platform_phase];
   const checklistDone = checklistProgress(journey);
   const empathyCuesWithStatus = phaseChecklist.map((cue, index) => ({
@@ -831,6 +842,11 @@ export default function AvatarSessionPage() {
               isRegenerating={isRegenerating}
             />
             <div className="mt-3">
+              {warmingStatus ? (
+                <p className="mb-2 text-sm text-primary" role="status">
+                  {warmingStatus}
+                </p>
+              ) : null}
               {chatError ? (
                 <p className="mb-2 text-sm text-destructive" role="alert">
                   {chatError}

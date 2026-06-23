@@ -19,6 +19,13 @@ const {
   userFacingLlmError,
   estimateMessagesTokens,
 } = require("../../skills/llmChatHelpers.cjs");
+const {
+  parseRunPodEndpointId,
+  extractReplyFromRunPodOutput,
+  submitRunPodJob,
+  pollRunPodJob,
+  useRunPodAsync,
+} = require("../../skills/runpodAsync.cjs");
 
 const SYSTEM_PROMPT = {
   role: "system",
@@ -175,6 +182,60 @@ function buildRegenerationUserPrompt(regenerationContext) {
 }
 
 exports.handler = async (event) => {
+  const apiKey = process.env.LLM_API_KEY;
+  const url = process.env.VLLM_API_URL || DEFAULT_LLM_URL;
+  const endpointId = parseRunPodEndpointId(url);
+
+  if (event.httpMethod === "GET") {
+    const jobId = event.queryStringParameters?.jobId;
+    if (!jobId) {
+      return { statusCode: 400, body: JSON.stringify({ error: "jobId query parameter is required." }) };
+    }
+    if (!apiKey?.trim() || !endpointId) {
+      return {
+        statusCode: 503,
+        body: JSON.stringify({ error: "RunPod polling is not configured." }),
+      };
+    }
+    try {
+      const data = await pollRunPodJob(endpointId, apiKey, jobId);
+      const status = data.status || "UNKNOWN";
+      if (status === "COMPLETED") {
+        const reply = extractReplyFromRunPodOutput(data.output);
+        return {
+          statusCode: 200,
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status, reply }),
+        };
+      }
+      if (status === "FAILED" || status === "CANCELLED") {
+        const err =
+          typeof data.error === "string"
+            ? data.error
+            : "The coach could not start. Check RunPod endpoint logs.";
+        return {
+          statusCode: 502,
+          body: JSON.stringify({ status, error: err }),
+        };
+      }
+      return {
+        statusCode: 200,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status, warming: true }),
+      };
+    } catch (err) {
+      console.error("RunPod poll error:", err.message);
+      return {
+        statusCode: 502,
+        body: JSON.stringify({
+          status: "FAILED",
+          error: "Still connecting to the coach — keep waiting or try again shortly.",
+          retryable: true,
+        }),
+      };
+    }
+  }
+
   if (event.httpMethod !== "POST") {
     return { statusCode: 405, body: JSON.stringify({ error: "Method not allowed" }) };
   }
@@ -234,11 +295,9 @@ exports.handler = async (event) => {
     messages = trimMessagesForContext(messages);
   }
 
-  const url = process.env.VLLM_API_URL || DEFAULT_LLM_URL;
   const isRunPod = url.includes("runpod.ai");
   const timeoutMs = Number(process.env.VLLM_TIMEOUT_MS) || (isRunPod ? 180000 : 60000);
 
-  const apiKey = process.env.LLM_API_KEY;
   if (!apiKey || apiKey.trim() === "") {
     console.error(
       "LLM not connected: LLM_API_KEY is not set in Netlify environment variables (use your RunPod API key). Redeploy after saving.",
@@ -250,11 +309,31 @@ exports.handler = async (event) => {
   }
 
   const model = process.env.VLLM_MODEL || (isRunPod ? "empathy-coach-qwen" : "meta-llama/llama-3.2-3b-instruct:free");
+  const sampling = buildSamplingParams(mode);
+
+  if (mode === "chat" && useRunPodAsync(url) && endpointId) {
+    try {
+      const jobId = await submitRunPodJob(endpointId, apiKey, messages, sampling);
+      console.log("RunPod async job submitted:", jobId, "estTokens=", estimateMessagesTokens(messages));
+      return {
+        statusCode: 202,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          warming: true,
+          jobId,
+          message:
+            "Alex is starting up — you only pay while the coach runs, not 24/7. This first reply may take 1–3 minutes.",
+        }),
+      };
+    } catch (err) {
+      console.error("RunPod async submit failed, falling back to sync:", err.message);
+    }
+  }
 
   const payload = {
     model,
     messages,
-    ...buildSamplingParams(mode),
+    ...sampling,
   };
 
   if (mode === "chat") {

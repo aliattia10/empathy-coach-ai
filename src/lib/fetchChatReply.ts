@@ -8,31 +8,18 @@ export type ChatApiPayload = {
   conversationSnippet?: string;
 };
 
-const WARMING_START =
-  "Alex is starting up — you only pay while the coach runs, not 24/7. First reply may take 1–3 minutes.";
-
-function warmingMessage(elapsedMs: number): string {
-  if (elapsedMs < 30_000) return WARMING_START;
-  if (elapsedMs < 90_000) return "Still loading the model after idle — please keep this tab open…";
-  if (elapsedMs < 180_000) return "Almost there — RunPod is waking the coach…";
-  return "Taking longer than usual — GPU may be scarce. Still trying…";
-}
-
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 async function pollRunPodJob(
   jobId: string,
-  opts?: { onStatus?: (message: string) => void },
 ): Promise<{ ok: true; reply: string } | { ok: false; error: string }> {
   const started = Date.now();
   const maxWaitMs = 300_000;
   const pollIntervalMs = 4_000;
 
   while (Date.now() - started < maxWaitMs) {
-    const elapsed = Date.now() - started;
-    opts?.onStatus?.(warmingMessage(elapsed));
     await sleep(pollIntervalMs);
 
     try {
@@ -42,7 +29,6 @@ async function pollRunPodJob(
         reply?: string;
         error?: string;
         retryable?: boolean;
-        warming?: boolean;
       } = await pollRes.json();
 
       if (pollRes.ok && pollData.status === "COMPLETED") {
@@ -75,8 +61,7 @@ async function pollRunPodJob(
 
   return {
     ok: false,
-    error:
-      "The coach is still starting. Wait one more minute, then send your message again (you won't be charged while idle).",
+    error: "The coach is still starting. Wait a moment, then send your message again.",
   };
 }
 
@@ -85,7 +70,7 @@ async function pollRunPodJob(
  */
 export async function fetchChatReply(
   payload: ChatApiPayload,
-  opts?: { onStatus?: (message: string) => void },
+  opts?: { onWarmingChange?: (warming: boolean) => void },
 ): Promise<{ ok: true; reply: string } | { ok: false; error: string }> {
   try {
     const response = await fetch("/api/chat", {
@@ -98,9 +83,7 @@ export async function fetchChatReply(
       reply?: string;
       error?: string;
       retryable?: boolean;
-      warming?: boolean;
       jobId?: string;
-      message?: string;
     };
     try {
       data = await response.json();
@@ -113,8 +96,12 @@ export async function fetchChatReply(
     }
 
     if (response.status === 202 && data.jobId) {
-      opts?.onStatus?.(data.message || WARMING_START);
-      return pollRunPodJob(data.jobId, opts);
+      opts?.onWarmingChange?.(true);
+      try {
+        return await pollRunPodJob(data.jobId);
+      } finally {
+        opts?.onWarmingChange?.(false);
+      }
     }
 
     if (!response.ok) {

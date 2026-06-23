@@ -321,8 +321,6 @@ exports.handler = async (event) => {
         body: JSON.stringify({
           warming: true,
           jobId,
-          message:
-            "Alex is starting up — you only pay while the coach runs, not 24/7. This first reply may take 1–3 minutes.",
         }),
       };
     } catch (err) {

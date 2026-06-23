@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import ChatTranscript from "@/components/avatar/ChatTranscript";
 import ChatInput from "@/components/chat/ChatInput";
+import CoachWarmingIndicator from "@/components/avatar/CoachWarmingIndicator";
 import { detectCrisis } from "@/components/safety/CrisisDetector";
 import { useAuth } from "@/hooks/useAuth";
 import { useSpeechSynthesis } from "@/hooks/useSpeechSynthesis";
@@ -28,7 +29,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
-import { Bot, ChevronDown, CheckCircle2, Circle, PanelRight, ArrowLeft } from "lucide-react";
+import { Bot, ChevronDown, CheckCircle2, Circle, Loader2, PanelRight, ArrowLeft } from "lucide-react";
 import type { TranscriptMessage } from "@/components/avatar/ChatTranscript";
 import PhaseStepper from "@/components/avatar/PhaseStepper";
 import { inferJourneyUpdates } from "@/lib/journeyInference";
@@ -117,7 +118,7 @@ export default function AvatarSessionPage() {
   const [voiceEnabled, setVoiceEnabled] = useState(true);
   const [isAiResponding, setIsAiResponding] = useState(false);
   const [chatError, setChatError] = useState<string | null>(null);
-  const [warmingStatus, setWarmingStatus] = useState<string | null>(null);
+  const [isCoachWarming, setIsCoachWarming] = useState(false);
   const handleSendRef = useRef<(text: string) => void>(() => {});
   const pendingSpeakTimeoutRef = useRef<number | null>(null);
   const { speak, stop, isSpeaking } = useSpeechSynthesis();
@@ -346,7 +347,7 @@ export default function AvatarSessionPage() {
 
     setIsAiResponding(true);
     setChatError(null);
-    setWarmingStatus(null);
+    setIsCoachWarming(false);
     const chatHistory = buildDisplayMessages(persistedRawMessages, activeAssistantId).map((m) => ({ role: m.role, content: m.content }));
     const journeyContext = toJourneyContextPayload(journeyState, chatHistory.length);
 
@@ -358,13 +359,11 @@ export default function AvatarSessionPage() {
           possibleCrisisLanguage: detectCrisis(text),
           journeyContext,
         },
-        {
-          onStatus: (message) => setWarmingStatus(message),
-        },
+        { onWarmingChange: setIsCoachWarming },
       );
 
       if (!result.ok) {
-        setWarmingStatus(null);
+        setIsCoachWarming(false);
         setChatError(result.error);
         toast.error(result.error);
         setIsAiResponding(false);
@@ -372,7 +371,7 @@ export default function AvatarSessionPage() {
       }
 
       const content = result.reply;
-      setWarmingStatus(null);
+      setIsCoachWarming(false);
       const reply: TranscriptMessage = {
         id: (Date.now() + 1).toString(),
         role: "assistant",
@@ -414,7 +413,7 @@ export default function AvatarSessionPage() {
     } catch {
       const errMsg =
         "Connection lost — the coach may still be starting. Please send your message again in a minute.";
-      setWarmingStatus(null);
+      setIsCoachWarming(false);
       setChatError(errMsg);
       toast.error(errMsg);
       setIsAiResponding(false);
@@ -633,8 +632,8 @@ export default function AvatarSessionPage() {
     if (journey.last_check_in_at) return Math.min(100, 80 + userTurns * 2);
     return phaseBase + Math.min(28, userTurns * 3);
   })();
-  const statusLabel = warmingStatus
-    ? "Warming up…"
+  const statusLabel = isCoachWarming
+    ? "Getting ready…"
     : isAiResponding
       ? "Thinking..."
       : isSpeaking
@@ -791,10 +790,14 @@ export default function AvatarSessionPage() {
               />
             </div>
             <div className="inline-flex items-center gap-2 rounded-full px-3 py-1.5 bg-primary/10 text-primary text-sm font-medium">
-              <span className="relative flex h-2.5 w-2.5">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75" />
-                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-primary" />
-              </span>
+              {isCoachWarming ? (
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+              ) : (
+                <span className="relative flex h-2.5 w-2.5">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75" />
+                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-primary" />
+                </span>
+              )}
               {statusLabel}
             </div>
           </div>
@@ -842,11 +845,7 @@ export default function AvatarSessionPage() {
               isRegenerating={isRegenerating}
             />
             <div className="mt-3">
-              {warmingStatus ? (
-                <p className="mb-2 text-sm text-primary" role="status">
-                  {warmingStatus}
-                </p>
-              ) : null}
+              {isCoachWarming ? <CoachWarmingIndicator /> : null}
               {chatError ? (
                 <p className="mb-2 text-sm text-destructive" role="alert">
                   {chatError}

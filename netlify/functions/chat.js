@@ -7,7 +7,6 @@
  */
 const DEFAULT_LLM_URL = "https://openrouter.ai/api/v1/chat/completions";
 
-const { formatJourneyContextForPrompt } = require("../../skills/journeyContext.cjs");
 const { COACH_SYSTEM_PROMPT_TEXT } = require("../../skills/coachSystemPrompt.cjs");
 const { buildProductionSystemPrompt } = require("../../skills/buildProductionSystemPrompt.cjs");
 const {
@@ -36,20 +35,10 @@ const SYSTEM_PROMPT = {
   content: COACH_SYSTEM_PROMPT_TEXT,
 };
 
-const REGEN_SYSTEM_PROMPT = {
-  role: "system",
-  content: `You are a response rewriter used for quality tuning.
-Your task is to improve a previous assistant response using reviewer feedback.
-
-Hard requirements:
-1. Follow feedback priorities exactly when they are safe and coherent.
-2. Produce a materially revised response (not a near-duplicate).
-3. Keep factual integrity and user intent.
-4. Preserve safety constraints and refuse unsafe instructions.
-5. When feedback concerns crisis, self-harm, or suicide wording, apply gentle triage: clarify figure of speech versus literal intent before dumping helplines; if intent is real, ask about plan or past attempts across concise turns; use the short UK helpline set only when appropriate. Do not repeat the same canned crisis block if feedback asks for a different shape.
-6. When "Trainer global standards" or "Admin-starred exemplar replies" appear in system context, follow them for all users.
-7. Output only the improved response text.`,
-};
+const {
+  buildRegenerationUserPrompt,
+  buildRegenerationSystemContent,
+} = require("../../skills/regenerationHelpers.cjs");
 
 const NAME_JOURNEY_SYSTEM_PROMPT = {
   role: "system",
@@ -160,33 +149,6 @@ async function buildChatSystemContent(possibleCrisisLanguage, journeyContext, hi
   return content;
 }
 
-function buildRegenerationUserPrompt(regenerationContext) {
-  const feedbackBullets = (regenerationContext?.feedbackList || [])
-    .map((item) => {
-      const rating = typeof item?.rating === "number" ? ` (rating: ${item.rating}/5)` : "";
-      const tags = Array.isArray(item?.tags) && item.tags.length ? ` [tags: ${item.tags.join(", ")}]` : "";
-      return `- ${item?.feedbackText || ""}${rating}${tags}`;
-    })
-    .join("\n");
-
-  return [
-    "[Original user message]",
-    regenerationContext?.originalUserMessage || "",
-    "",
-    "[Previous assistant reply]",
-    regenerationContext?.previousAssistantReply || "",
-    "",
-    "[Reviewer feedback]",
-    feedbackBullets || "- (No feedback provided)",
-    "",
-    "[Task]",
-    "Rewrite the assistant reply to address the feedback priorities.",
-    "The rewrite must be clearly different from the previous assistant reply.",
-    "Keep it concise, empathetic, and actionable.",
-    "Do not output analysis or metadata, only the improved reply text.",
-  ].join("\n");
-}
-
 exports.handler = async (event) => {
   const apiKey = process.env.LLM_API_KEY;
   const url = process.env.VLLM_API_URL || DEFAULT_LLM_URL;
@@ -274,17 +236,18 @@ exports.handler = async (event) => {
         body: JSON.stringify({ error: "regenerationContext.originalUserMessage and previousAssistantReply are required." }),
       };
     }
-    const trainerRules = await fetchTrainerGlobalInstructions();
-    const exemplars = await fetchStarredAssistantExemplars();
-    let regenContent = REGEN_SYSTEM_PROMPT.content;
-    const journeyBlock = formatJourneyContextForPrompt(body?.journeyContext);
-    if (journeyBlock) regenContent += `\n\n${journeyBlock}\n`;
-    if (trainerRules && trainerRules.length) {
-      regenContent += `\n\n# Trainer global standards\n${trainerRules}\n`;
-    }
-    if (exemplars && exemplars.length) {
-      regenContent += `\n\n# Admin-starred exemplar replies\n${exemplars}\n`;
-    }
+    const [rawTrainerRules, rawExemplars] = await Promise.all([
+      fetchTrainerGlobalInstructions(INFERENCE_TRAINER_LIMIT),
+      fetchStarredAssistantExemplars(INFERENCE_EXEMPLAR_LIMIT, 280),
+    ]);
+    const regenContent = buildRegenerationSystemContent({
+      trainerRules: rawTrainerRules,
+      exemplars: rawExemplars,
+      journeyContext: body?.journeyContext,
+      regenerationContext,
+      chatHistory: regenerationContext?.chatHistory,
+      forInference: true,
+    });
     messages = [
       { role: "system", content: regenContent },
       { role: "user", content: buildRegenerationUserPrompt(regenerationContext) },
@@ -320,7 +283,7 @@ exports.handler = async (event) => {
   const model = process.env.VLLM_MODEL || (isRunPod ? "empathy-coach-qwen" : "meta-llama/llama-3.2-3b-instruct:free");
   const sampling = buildSamplingParams(mode);
 
-  if (mode === "chat" && useRunPodAsync(url) && endpointId) {
+  if ((mode === "chat" || mode === "regenerate") && useRunPodAsync(url) && endpointId) {
     try {
       const jobId = await submitRunPodJob(endpointId, apiKey, messages, sampling);
       console.log("RunPod async job submitted:", jobId, "estTokens=", estimateMessagesTokens(messages));
@@ -343,15 +306,15 @@ exports.handler = async (event) => {
     ...sampling,
   };
 
-  if (mode === "chat") {
+  if (mode === "chat" || mode === "regenerate") {
     console.log(
-      "LLM chat request:",
+      "LLM request:",
+      "mode=",
+      mode,
       "model=",
       model,
       "estTokens=",
       estimateMessagesTokens(messages),
-      "historyTurns=",
-      Math.max(0, messages.length - 2),
     );
   }
 

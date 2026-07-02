@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import ChatTranscript from "@/components/avatar/ChatTranscript";
 import ChatInput from "@/components/chat/ChatInput";
@@ -125,71 +125,84 @@ export default function AvatarSessionPage() {
   const { speak, stop, isSpeaking } = useSpeechSynthesis();
 
   const buildDisplayMessages = (allMessages: StoredMessage[], activeMessageId: string | null) => {
-    const selectedAssistantIds = new Set<string>();
     const display: TranscriptMessage[] = [];
-    const indexed = allMessages.map((item, index) => ({ item, index }));
-    const linkedUserIds = new Set(
-      allMessages
-        .filter((item) => item.role === "assistant" && !!item.parent_message_id)
-        .map((item) => item.parent_message_id as string),
-    );
+    const variantParentsRendered = new Set<string>();
 
-    for (const { item, index } of indexed) {
-      if (item.role === "user") {
-        display.push(item);
-        continue;
-      }
+    const feedbackCountFor = (variant: StoredMessage) => {
+      const sourceId = variant.regenerated_from_message_id || variant.id;
+      const own = feedbackByMessageId[variant.id]?.length || 0;
+      const fromSource = feedbackByMessageId[sourceId]?.length || 0;
+      return Math.max(own, fromSource);
+    };
 
-      // Keep backward compatibility for legacy sessions where assistant rows were
-      // saved without parent_message_id. Render them exactly as chronological chat.
-      if (!item.parent_message_id || !linkedUserIds.has(item.parent_message_id)) {
-        display.push({
-          ...item,
-          variantIndex: 0,
-          variantTotal: 1,
-          isActiveVariant: true,
-          feedbackCount: feedbackByMessageId[item.id]?.length || 0,
-        });
-        selectedAssistantIds.add(item.id);
-        continue;
-      }
-
-      const parentIndex = indexed.findIndex((entry) => entry.item.id === item.parent_message_id);
-      if (parentIndex !== index - 1) {
-        // Only render linked variant groups once, adjacent to their parent user turn.
-        continue;
-      }
-
+    const pickVariant = (parentUserId: string) => {
       const variants = allMessages.filter(
-        (candidate) =>
-          candidate.role === "assistant" && candidate.parent_message_id === item.parent_message_id,
+        (candidate) => candidate.role === "assistant" && candidate.parent_message_id === parentUserId,
       );
-      if (variants.length === 0) continue;
+      if (variants.length === 0) return null;
+
       let activeVariant = variants[variants.length - 1];
       if (activeMessageId) {
         const explicit = variants.find((candidate) => candidate.id === activeMessageId);
         if (explicit) activeVariant = explicit;
       }
       const activeIndex = variants.findIndex((candidate) => candidate.id === activeVariant.id);
+      return { activeVariant, activeIndex, variants };
+    };
+
+    const pushAssistantVariant = (parentUserId: string) => {
+      if (variantParentsRendered.has(parentUserId)) return;
+      const picked = pickVariant(parentUserId);
+      if (!picked) return;
+      variantParentsRendered.add(parentUserId);
       display.push({
-        ...activeVariant,
-        variantIndex: activeIndex,
-        variantTotal: variants.length,
+        ...picked.activeVariant,
+        variantIndex: picked.activeIndex,
+        variantTotal: picked.variants.length,
         isActiveVariant: true,
-        feedbackCount: feedbackByMessageId[activeVariant.id]?.length || 0,
+        feedbackCount: feedbackCountFor(picked.activeVariant),
       });
-      selectedAssistantIds.add(activeVariant.id);
+    };
+
+    for (const item of allMessages) {
+      if (item.role === "user") {
+        display.push(item);
+        pushAssistantVariant(item.id);
+        continue;
+      }
+
+      if (item.role === "assistant") {
+        if (!item.parent_message_id) {
+          display.push({
+            ...item,
+            variantIndex: 0,
+            variantTotal: 1,
+            isActiveVariant: true,
+            feedbackCount: feedbackCountFor(item),
+          });
+          continue;
+        }
+        pushAssistantVariant(item.parent_message_id);
+      }
     }
 
-    return display.map((row) =>
-      row.role === "assistant"
-        ? {
-            ...row,
-            isActiveVariant: selectedAssistantIds.has(row.id),
-          }
-        : row,
-    );
+    return display;
   };
+
+  const feedbackItemsForDisplay = useMemo(() => {
+    const merged: Record<string, ChatFeedback[]> = { ...feedbackByMessageId };
+    for (const msg of rawMessages) {
+      if (msg.role !== "assistant") continue;
+      const sourceId = msg.regenerated_from_message_id;
+      if (!sourceId) continue;
+      const sourceItems = merged[sourceId];
+      if (!sourceItems?.length) continue;
+      if (!merged[msg.id]?.length) {
+        merged[msg.id] = sourceItems;
+      }
+    }
+    return merged;
+  }, [feedbackByMessageId, rawMessages]);
 
   const mapHistoryToStoredMessages = (history: ChatMessage[]): StoredMessage[] =>
     history.map((m) => ({
@@ -567,13 +580,31 @@ export default function AvatarSessionPage() {
     await handleSelectVariant(next.id);
   };
 
+  const collectFeedbackForVariant = async (target: StoredMessage) => {
+    const ids = new Set<string>();
+    let current: StoredMessage | undefined = target;
+    while (current) {
+      ids.add(current.id);
+      if (!current.regenerated_from_message_id) break;
+      const parent = rawMessages.find((item) => item.id === current!.regenerated_from_message_id);
+      if (!parent) {
+        ids.add(current.regenerated_from_message_id);
+        break;
+      }
+      current = parent;
+    }
+    const lists = await Promise.all([...ids].map((id) => fetchMessageFeedback(id)));
+    const merged = lists.flat();
+    return [...new Map(merged.map((item) => [item.id, item])).values()];
+  };
+
   const handleRegenerate = async (messageId: string) => {
     if (!sessionId) return;
     const target = rawMessages.find((item) => item.id === messageId && item.role === "assistant");
     if (!target) return;
     const parentUser = rawMessages.find((item) => item.id === target.parent_message_id && item.role === "user");
     if (!parentUser) return;
-    const feedbackList = await fetchMessageFeedback(messageId);
+    const feedbackList = await collectFeedbackForVariant(target);
     if (feedbackList.length === 0) {
       alert("Add at least one feedback entry before regenerating.");
       return;
@@ -585,34 +616,54 @@ export default function AvatarSessionPage() {
     }));
     try {
       setIsRegenerating(true);
+      setIsCoachWarming(false);
       const regenJourney = journeyStateFromSession(journeySession);
-      const response = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      const chatHistory = buildDisplayMessages(rawMessages, activeAssistantId).map((m) => ({
+        role: m.role,
+        content: m.content,
+      }));
+      const result = await fetchChatReply(
+        {
           mode: "regenerate",
           journeyContext: toJourneyContextPayload(regenJourney, rawMessages.length),
           regenerationContext: {
             originalUserMessage: parentUser.content,
             previousAssistantReply: target.content,
             feedbackList: regenerationFeedback,
+            chatHistory,
           },
-        }),
-      });
-      const data = await response.json();
-      const regeneratedContent = response.ok ? data.reply ?? "" : data.error ?? "";
+        },
+        { onWarmingChange: setIsCoachWarming },
+      );
+
+      if (!result.ok) {
+        toast.error(result.error);
+        return;
+      }
+
+      const regeneratedContent = result.reply.trim();
+      if (!regeneratedContent) {
+        toast.error("The coach returned an empty reply. Try again in a moment.");
+        return;
+      }
+
       const branchRoot = target.branch_root_message_id || target.id;
-      const saved = await saveChatMessage(sessionId, "assistant", regeneratedContent || "Unable to regenerate.", {
+      const saved = await saveChatMessage(sessionId, "assistant", regeneratedContent, {
         parentMessageId: parentUser.id,
         regeneratedFromMessageId: target.id,
         branchRootMessageId: branchRoot,
-        generationMetadata: { modelProvider: "runpod", promptVersion: "feedback-v2", regenerated: true },
+        generationMetadata: {
+          modelProvider: "runpod",
+          promptVersion: "feedback-v3",
+          regenerated: true,
+          feedbackIds: feedbackList.map((item) => item.id),
+        },
       });
       const nextRaw = [
         ...rawMessages,
         {
           id: saved.id,
-          role: "assistant",
+          role: "assistant" as const,
           content: saved.content,
           parent_message_id: parentUser.id,
           regenerated_from_message_id: target.id,
@@ -622,10 +673,14 @@ export default function AvatarSessionPage() {
       ];
       setRawMessages(nextRaw);
       await handleSelectVariant(saved.id);
-      const latestFeedback = await fetchMessageFeedback(saved.id);
-      setFeedbackByMessageId((prev) => ({ ...prev, [saved.id]: latestFeedback }));
+      setFeedbackByMessageId((prev) => ({
+        ...prev,
+        [saved.id]: feedbackList,
+      }));
+      toast.success("Regenerated with RunPod — new variant selected.");
     } finally {
       setIsRegenerating(false);
+      setIsCoachWarming(false);
     }
   };
 
@@ -845,7 +900,7 @@ export default function AvatarSessionPage() {
               messages={messages}
               className="max-h-[58vh] min-h-[360px] rounded-lg bg-transparent border-0 p-0"
               isAdmin={isAdmin}
-              feedbackItemsByMessageId={feedbackByMessageId}
+              feedbackItemsByMessageId={feedbackItemsForDisplay}
               feedbackDrafts={feedbackDrafts}
               onFeedbackDraftChange={handleFeedbackDraftChange}
               onSubmitFeedback={handleSubmitFeedback}

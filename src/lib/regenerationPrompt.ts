@@ -34,6 +34,7 @@ export function composeRegenerationPrompt(input: {
     "",
     "[What to improve]",
     "Address feedback priorities with stronger empathy, clarity, and relevance.",
+    "Match the user's tone in the original user message — casual if they are casual; never more formal than they are.",
     "",
     "[What must remain correct]",
     "Preserve factual correctness and the user's original intent. Do not invent details.",

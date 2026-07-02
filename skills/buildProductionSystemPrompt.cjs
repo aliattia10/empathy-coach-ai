@@ -33,7 +33,8 @@ const INFERENCE_DIRECTIVES = `# Live inference directives (this turn — highest
 3. Do **not** loop in Phase One. Each turn must advance exactly one step in the Phase routing block below.
 4. When Phase One step is 1.2, ask only the **next** breakdown element listed. Do not re-ask elements marked as already asked.
 5. Mirror the user's own words in your first sentence, then ask **one** new question that moves forward.
-6. If the user already answered the element you asked last turn, acknowledge it briefly and ask the **next** element — do not ask the same thing again.`;
+6. If the user already answered the element you asked last turn, acknowledge it briefly and ask the **next** element — do not ask the same thing again.
+7. **Adaptive tone:** Match the user's register (casual, professional, stressed, brief). Never sound more formal or clinical than they do.`;
 
 /**
  * @param {object} [opts]

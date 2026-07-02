@@ -24,6 +24,10 @@ import { createClient } from "@supabase/supabase-js";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const require = createRequire(import.meta.url);
 const { buildProductionSystemPrompt, sessionRowToJourneyContext } = require("../skills/buildProductionSystemPrompt.cjs");
+const {
+  resolveLatestRegeneratedAssistant,
+  buildTrainingBranchMessages,
+} = require("../skills/messageVariants.cjs");
 
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY;
@@ -187,7 +191,15 @@ async function main() {
   const turnLines = [];
 
   for (const fb of allFeedback || []) {
-    const built = buildTurnFromFeedback(fb, messageById, messagesBySession, sessionById, trainerRules, exemplars);
+    const built = buildTurnFromFeedback(
+      fb,
+      messageById,
+      messagesBySession,
+      sessionById,
+      trainerRules,
+      exemplars,
+      allMessages,
+    );
     if (!built) continue;
     const key = built.payload._dedupe_key;
     if (seenTurnKeys.has(key)) continue;
@@ -325,10 +337,11 @@ function expandSessionToTurnLines({
   return lines;
 }
 
-function buildTurnFromFeedback(fb, messageById, messagesBySession, sessionById, trainerRules, exemplars) {
-  const assistant = messageById[fb.message_id];
-  if (!assistant || assistant.role !== "assistant") return null;
+function buildTurnFromFeedback(fb, messageById, messagesBySession, sessionById, trainerRules, exemplars, allMessages) {
+  const originalAssistant = messageById[fb.message_id];
+  if (!originalAssistant || originalAssistant.role !== "assistant") return null;
 
+  const assistant = resolveLatestRegeneratedAssistant(originalAssistant, allMessages || Object.values(messageById));
   const user = assistant.parent_message_id ? messageById[assistant.parent_message_id] : null;
   if (!user || user.role !== "user" || !(user.content || "").trim()) return null;
   if (!(assistant.content || "").trim()) return null;
@@ -352,13 +365,16 @@ function buildTurnFromFeedback(fb, messageById, messagesBySession, sessionById, 
     { role: "assistant", content: assistant.content.trim() },
   ];
 
+  const exportType = assistant.id !== originalAssistant.id ? "regeneration_turn" : "feedback_turn";
+
   return {
     payload: {
       messages,
-      _export_type: "feedback_turn",
+      _export_type: exportType,
       _feedback_id: fb.id,
       _message_id: assistant.id,
-      _dedupe_key: `msg:${assistant.id}`,
+      _source_message_id: originalAssistant.id,
+      _dedupe_key: `msg:${assistant.id}:fb:${fb.id}`,
     },
   };
 }
@@ -407,68 +423,6 @@ function buildPriorContext(sessionId, beforeUserId, messagesBySession, messageBy
     }
   }
   return prior.slice(-6);
-}
-
-function buildTrainingBranchMessages(allMessages, activeMessageId, feedbackByMessageId, starredAssistantIds) {
-  const display = [];
-  const indexed = allMessages.map((item, index) => ({ item, index }));
-  const linkedUserIds = new Set(
-    allMessages
-      .filter((item) => item.role === "assistant" && item.parent_message_id)
-      .map((item) => item.parent_message_id),
-  );
-  const selectedAssistantIds = new Set();
-
-  for (const { item, index } of indexed) {
-    if (item.role === "user") {
-      display.push(item);
-      continue;
-    }
-
-    if (!item.parent_message_id || !linkedUserIds.has(item.parent_message_id)) {
-      if (!selectedAssistantIds.has(item.id)) {
-        display.push(item);
-        selectedAssistantIds.add(item.id);
-      }
-      continue;
-    }
-
-    const parentIndex = indexed.findIndex((entry) => entry.item.id === item.parent_message_id);
-    if (parentIndex !== index - 1) continue;
-
-    const parentId = item.parent_message_id;
-    const variants = allMessages.filter(
-      (c) => c.role === "assistant" && c.parent_message_id === parentId,
-    );
-    if (variants.length === 0) continue;
-
-    const picked = pickAssistantVariant(
-      variants,
-      activeMessageId,
-      feedbackByMessageId,
-      starredAssistantIds,
-    );
-    if (selectedAssistantIds.has(picked.id)) continue;
-    selectedAssistantIds.add(picked.id);
-    display.push(picked);
-  }
-
-  return display;
-}
-
-function pickAssistantVariant(variants, activeMessageId, feedbackByMessageId, starredAssistantIds) {
-  if (activeMessageId) {
-    const explicit = variants.find((c) => c.id === activeMessageId);
-    if (explicit) return explicit;
-  }
-
-  const starred = variants.filter((v) => starredAssistantIds.has(v.id));
-  if (starred.length) return starred[starred.length - 1];
-
-  const withFeedback = variants.filter((v) => feedbackByMessageId[v.id]?.length);
-  if (withFeedback.length) return withFeedback[withFeedback.length - 1];
-
-  return variants[variants.length - 1];
 }
 
 function collectTrainerNotesForSession(allMessages, feedbackByMessageId) {

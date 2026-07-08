@@ -66,6 +66,31 @@ function formatJourneyContextForPrompt(ctx) {
     }
   }
 
+  if (ctx.progressSummary) {
+    lines.push(`Progress dashboard summary on file: ${ctx.progressSummary}`);
+  }
+  const goals = Array.isArray(ctx.userGoals) ? ctx.userGoals : [];
+  if (goals.length > 0) {
+    const goalLines = goals.map((g, i) => {
+      const title = g?.title ?? "Untitled";
+      const done = g?.completed ? "done" : "open";
+      return `  ${i + 1}. [${done}] ${title}`;
+    });
+    lines.push("User action steps on file (user ticks these in the app):");
+    lines.push(...goalLines);
+  }
+
+  const milestones = Array.isArray(ctx.phaseChecklist) ? ctx.phaseChecklist : [];
+  if (milestones.length > 0) {
+    const msLines = milestones.map((m, i) => {
+      const title = m?.title ?? "Milestone";
+      const done = m?.completed ? "done" : "open";
+      return `  ${i + 1}. [${done}] ${title}`;
+    });
+    lines.push("Session milestones on file (auto-tracked — personalise titles when you emit [[PROGRESS]]):");
+    lines.push(...msLines);
+  }
+
   lines.push("");
   lines.push("## Phase routing from this state (strict priority)");
 

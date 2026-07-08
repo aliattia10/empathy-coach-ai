@@ -17,6 +17,7 @@ import {
   setSessionActiveMessage,
   setChatMessageAdminStar,
   updateJourneyState,
+  updateProgressDashboard,
   type ChatMessage,
   type ChatFeedback,
   type FeedbackTag,
@@ -28,21 +29,19 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
-import { Bot, ChevronDown, CheckCircle2, Circle, Loader2, PanelRight, ArrowLeft } from "lucide-react";
+import { ChevronDown, Loader2, ArrowLeft, ListTodo } from "lucide-react";
 import type { TranscriptMessage } from "@/components/avatar/ChatTranscript";
 import PhaseStepper from "@/components/avatar/PhaseStepper";
 import { inferJourneyUpdates } from "@/lib/journeyInference";
+import { extractProgressUpdates } from "@/lib/goalExtraction";
+import { autoCompleteMatchingGoal, synthesizeDashboardGoals } from "@/lib/dashboardGoals";
+import { syncPhaseChecklist } from "@/lib/phaseChecklist";
 import { buildWelcomeMessage } from "@/lib/journeyWelcome";
 import { fetchChatReply } from "@/lib/fetchChatReply";
 import { detectAskedPhaseOneElements, nextPhaseOneElement } from "@/lib/phaseOneRouting";
 import {
   journeyStateFromSession,
   toJourneyContextPayload,
-  PHASE_LABELS,
-  PHASE_ONE_STEP_LABELS,
-  PHASE_CHECKLIST,
-  checklistProgress,
   type JourneyState,
 } from "@/types/journey";
 
@@ -65,10 +64,6 @@ function starterMessage(session: Partial<JourneyState> | null | undefined): Tran
     content: buildWelcomeMessage(journeyStateFromSession(session)),
   };
 }
-
-const DEFAULT_SCENARIO = {
-  objective: "Phase 1: understand. Phase 2: plan small steps. Phase 3: practise and sustain across logins.",
-};
 
 function journeyTitle(session: ChatSession | null): string {
   const name = session?.session_name?.trim();
@@ -328,6 +323,84 @@ export default function AvatarSessionPage() {
     );
   };
 
+  const applyProgressDashboardUpdates = async (
+    assistantContent: string,
+    current: JourneyState,
+    userMessage?: string,
+  ) => {
+    if (!sessionId) return current;
+
+    const extracted = extractProgressUpdates(assistantContent, current);
+    let nextGoals = current.user_goals;
+    let nextSummary = current.progress_summary;
+    let nextChecklist = syncPhaseChecklist(current);
+    const progressPatch: Partial<JourneyState> = {};
+
+    if (extracted.goals) {
+      nextGoals = extracted.goals;
+      progressPatch.user_goals = nextGoals;
+    }
+    if (extracted.progressSummary) {
+      nextSummary = extracted.progressSummary;
+      progressPatch.progress_summary = nextSummary;
+    }
+    if (extracted.phaseChecklist) {
+      nextChecklist = extracted.phaseChecklist;
+      progressPatch.phase_checklist = nextChecklist;
+    }
+
+    if (userMessage) {
+      const autoCompleted = autoCompleteMatchingGoal(nextGoals, userMessage);
+      if (autoCompleted) {
+        nextGoals = autoCompleted;
+        progressPatch.user_goals = nextGoals;
+      }
+    }
+
+    const mergedForSync = { ...current, ...progressPatch, user_goals: nextGoals, phase_checklist: nextChecklist };
+    const syncedChecklist = syncPhaseChecklist(mergedForSync);
+    if (JSON.stringify(syncedChecklist) !== JSON.stringify(current.phase_checklist)) {
+      nextChecklist = syncedChecklist;
+      progressPatch.phase_checklist = nextChecklist;
+    }
+
+    if (!progressPatch.user_goals && nextGoals.length === 0) {
+      const synthesized = synthesizeDashboardGoals(mergedForSync);
+      if (synthesized) {
+        nextGoals = synthesized.goals;
+        nextSummary = nextSummary ?? synthesized.summary;
+        progressPatch.user_goals = nextGoals;
+        if (!current.progress_summary && synthesized.summary) {
+          progressPatch.progress_summary = synthesized.summary;
+        }
+      }
+    }
+
+    if (Object.keys(progressPatch).length > 0) {
+      await updateProgressDashboard(sessionId, {
+        goals: progressPatch.user_goals ?? nextGoals,
+        progressSummary: progressPatch.progress_summary ?? nextSummary,
+        phaseChecklist: progressPatch.phase_checklist ?? nextChecklist,
+      });
+      setJourneySession((prev) =>
+        prev && prev.id === sessionId
+          ? {
+              ...prev,
+              ...progressPatch,
+              updated_at: new Date().toISOString(),
+            }
+          : prev,
+      );
+    }
+
+    return {
+      ...current,
+      user_goals: nextGoals,
+      progress_summary: nextSummary,
+      phase_checklist: nextChecklist,
+    };
+  };
+
   const maybeAutoRenameJourney = async (userTexts: string[]) => {
     if (!sessionId || !journeySession || !isAutoNamedJourney(journeySession.session_name)) return;
     const title = await suggestJourneyTitle(userTexts);
@@ -398,10 +471,12 @@ export default function AvatarSessionPage() {
 
       const content = result.reply;
       setIsCoachWarming(false);
+      const existingGoals = journeyState.user_goals ?? [];
+      const { displayContent } = extractProgressUpdates(content || "", existingGoals);
       const reply: TranscriptMessage = {
         id: (Date.now() + 1).toString(),
         role: "assistant",
-        content: content || "I didn't get a response. Please try again.",
+        content: displayContent || "I didn't get a response. Please try again.",
       };
       const savedReply = await saveChatMessage(sessionId, "assistant", reply.content, {
         parentMessageId: persistedUser.id,
@@ -419,8 +494,10 @@ export default function AvatarSessionPage() {
       setActiveAssistantId(savedReply.id);
       setMessages(buildDisplayMessages(nextRaw, savedReply.id));
       await setSessionActiveMessage(sessionId, savedReply.id);
-      const journeyUpdates = inferJourneyUpdates(text, previousAssistantContent, reply.content, journeyState);
+      const journeyUpdates = inferJourneyUpdates(text, previousAssistantContent, content, journeyState);
       await applyJourneyUpdates(journeyUpdates);
+      const mergedState = { ...journeyState, ...journeyUpdates };
+      await applyProgressDashboardUpdates(content, mergedState, text);
       const userTexts = buildDisplayMessages(nextRaw, savedReply.id)
         .filter((m) => m.role === "user")
         .map((m) => m.content);
@@ -687,19 +764,6 @@ export default function AvatarSessionPage() {
   const journey = journeyStateFromSession(journeySession);
   const displayTitle = journeyTitle(journeySession);
   const userTurns = messages.filter((message) => message.role === "user").length;
-  const progressPercent = (() => {
-    const phaseBase = journey.platform_phase === 1 ? 0 : journey.platform_phase === 2 ? 34 : 67;
-    if (journey.platform_phase === 1) {
-      return journey.phase_one_confirmed ? 33 : Math.min(28, userTurns * 6);
-    }
-    if (journey.platform_phase === 2) {
-      if (journey.active_micro_goal && (journey.micro_goal_confidence ?? 0) >= 7) return 66;
-      return phaseBase + Math.min(30, userTurns * 4);
-    }
-    if (journey.sustainability_pivot_active) return 72;
-    if (journey.last_check_in_at) return Math.min(100, 80 + userTurns * 2);
-    return phaseBase + Math.min(28, userTurns * 3);
-  })();
   const statusLabel = isCoachWarming
     ? "Getting ready…"
     : isAiResponding
@@ -707,145 +771,29 @@ export default function AvatarSessionPage() {
       : isSpeaking
         ? "Speaking..."
         : "Ready";
-  const phaseChecklist = PHASE_CHECKLIST[journey.platform_phase];
-  const checklistDone = checklistProgress(journey);
-  const empathyCuesWithStatus = phaseChecklist.map((cue, index) => ({
-    cue,
-    complete: checklistDone[index] ?? false,
-  }));
-
-  const progressPanel = (
-    <div className="rounded-2xl border border-border bg-card p-4">
-      <h3 className="text-lg font-semibold">Progress & Goals</h3>
-      <div className="mt-4 rounded-xl border border-border bg-muted/30 p-3 flex items-center justify-between">
-        <div>
-          <p className="text-xs uppercase tracking-wider text-muted-foreground">Current level</p>
-          <p className="text-2xl font-semibold mt-1">{Math.round(progressPercent)}%</p>
-        </div>
-        <div
-          className="h-14 w-14 rounded-full grid place-items-center text-sm font-semibold text-foreground"
-          style={{
-            background: `conic-gradient(hsl(var(--primary)) ${progressPercent * 3.6}deg, hsl(var(--muted)) 0deg)`,
-          }}
-        >
-          <span className="h-10 w-10 rounded-full bg-card grid place-items-center">{Math.round(progressPercent)}%</span>
-        </div>
-      </div>
-
-      <div className="mt-4 space-y-3">
-        <div className="rounded-xl border border-border p-3">
-          <p className="text-xs uppercase tracking-wider text-muted-foreground mb-1">Journey phase</p>
-          <p className="font-medium">{PHASE_LABELS[journey.platform_phase]}</p>
-          <p className="text-sm text-muted-foreground mt-1">
-            {journey.platform_phase === 1 && !journey.phase_one_confirmed && PHASE_ONE_STEP_LABELS[journey.phase_one_step]}
-            {journey.platform_phase === 1 && journey.phase_one_confirmed && "Conceptualisation confirmed — action planning unlocked."}
-            {journey.platform_phase === 2 && "Micro-goals and confidence check (7/10 minimum)."}
-            {journey.platform_phase === 3 && journey.sustainability_pivot_active && "Sustainability pivot — regulating first."}
-            {journey.platform_phase === 3 && journey.architectural_backtrack_active && "Updating assumptions before the next step."}
-            {journey.platform_phase === 3 &&
-              !journey.sustainability_pivot_active &&
-              !journey.architectural_backtrack_active &&
-              "Checking in and practising your action plan."}
-          </p>
-        </div>
-        {journey.presenting_challenge && journey.platform_phase === 1 && (
-          <div className="rounded-xl border border-border p-3">
-            <p className="text-xs uppercase tracking-wider text-muted-foreground mb-1">Presenting challenge</p>
-            <p className="text-sm line-clamp-4">{journey.presenting_challenge}</p>
-          </div>
-        )}
-        {journey.belief_strength_pct != null && (
-          <div className="rounded-xl border border-border p-3">
-            <p className="text-xs uppercase tracking-wider text-muted-foreground mb-1">Belief strength</p>
-            <p className="text-sm font-medium">{journey.belief_strength_pct}%</p>
-          </div>
-        )}
-        {journey.conceptualisation_summary && (
-          <div className="rounded-xl border border-border p-3">
-            <p className="text-xs uppercase tracking-wider text-muted-foreground mb-1">Conceptualisation</p>
-            <p className="text-sm line-clamp-5">{journey.conceptualisation_summary}</p>
-          </div>
-        )}
-        {journey.target_outcome && (
-          <div className="rounded-xl border border-border p-3">
-            <p className="text-xs uppercase tracking-wider text-muted-foreground mb-1">Target outcome</p>
-            <p className="text-sm">{journey.target_outcome}</p>
-          </div>
-        )}
-        {journey.active_micro_goal && (
-          <div className="rounded-xl border border-primary/20 bg-primary/5 p-3">
-            <p className="text-xs uppercase tracking-wider text-muted-foreground mb-1">Active micro-goal</p>
-            <p className="text-sm font-medium">{journey.active_micro_goal}</p>
-            {journey.micro_goal_confidence != null && (
-              <p className="text-xs text-muted-foreground mt-1">Confidence: {journey.micro_goal_confidence}/10</p>
-            )}
-          </div>
-        )}
-        <div className="rounded-xl border border-border p-3">
-          <p className="text-xs uppercase tracking-wider text-muted-foreground mb-1">Goal</p>
-          <p className="font-medium">{displayTitle}</p>
-          <p className="text-sm text-muted-foreground mt-1">{DEFAULT_SCENARIO.objective}</p>
-        </div>
-        <div className="rounded-xl border border-border p-3">
-          <p className="text-xs uppercase tracking-wider text-muted-foreground mb-2">Phase checklist</p>
-          <ul className="space-y-2">
-            {empathyCuesWithStatus.map((item) => (
-              <li key={item.cue} className="flex items-center gap-2 text-sm">
-                {item.complete ? (
-                  <CheckCircle2 className="w-4 h-4 text-primary" />
-                ) : (
-                  <Circle className="w-4 h-4 text-muted-foreground" />
-                )}
-                <span>{item.cue}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-        <div className="rounded-xl border border-border p-3 text-sm text-muted-foreground">
-          <p className="flex items-center gap-2 mb-1 text-foreground font-medium">
-            <Bot className="w-4 h-4 text-primary" />
-            Your journey
-          </p>
-          <p>
-            {displayTitle} — {userTurns} messages
-            {journeySession?.updated_at
-              ? ` · last active ${new Date(journeySession.updated_at).toLocaleDateString()}`
-              : ""}
-          </p>
-        </div>
-      </div>
-    </div>
-  );
 
   return (
     <div className="min-h-[calc(100vh-8rem)] px-3 md:px-5 py-4 pb-24 md:pb-4">
       <div className="max-w-5xl mx-auto relative">
-        <div className="fixed right-3 bottom-20 md:right-4 md:top-1/2 md:bottom-auto md:-translate-y-1/2 z-30">
-          <Sheet>
-            <SheetTrigger asChild>
-              <Button size="sm" variant="secondary" className="rounded-full shadow-md">
-                Progress <PanelRight className="w-4 h-4 ml-1" />
-              </Button>
-            </SheetTrigger>
-            <SheetContent side="right" className="w-[92vw] sm:w-[420px] p-4">
-              <SheetHeader className="mb-3">
-                <SheetTitle>Progress & Goals</SheetTitle>
-              </SheetHeader>
-              {progressPanel}
-            </SheetContent>
-          </Sheet>
-        </div>
-
         <main className="rounded-2xl border border-border bg-card/95 backdrop-blur p-4 md:p-5 flex flex-col gap-4">
           <div className="flex items-center justify-between gap-3 flex-wrap">
             <div>
-              <Link
-                to="/testing/journeys"
-                className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground mb-2"
-              >
-                <ArrowLeft className="w-3.5 h-3.5" />
-                All journeys
-              </Link>
+              <div className="flex flex-wrap items-center gap-3 mb-2">
+                <Link
+                  to={journeyId ? `/testing/journeys/${journeyId}` : "/testing/journeys"}
+                  className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+                >
+                  <ListTodo className="w-3.5 h-3.5" />
+                  Session tasks
+                </Link>
+                <Link
+                  to="/testing/journeys"
+                  className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+                >
+                  <ArrowLeft className="w-3.5 h-3.5" />
+                  All journeys
+                </Link>
+              </div>
               <p className="text-xs uppercase tracking-wider text-muted-foreground mb-1">AI Coach</p>
               <h1 className="text-xl md:text-2xl font-semibold">{displayTitle}</h1>
               <p className="text-xs text-muted-foreground mt-1">

@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
-import type { JourneyState } from "@/types/journey";
+import type { JourneyState, UserGoal } from "@/types/journey";
+import { normalizeUserGoals } from "@/types/journey";
 
 export type ChatSession = {
   id: string;
@@ -210,4 +211,60 @@ export async function updateJourneyState(sessionId: string, updates: Partial<Jou
   if (Object.keys(updates).length === 0) return;
   const { error } = await supabase.from("chat_sessions").update(updates).eq("id", sessionId);
   if (error) throw error;
+}
+
+export async function updateProgressDashboard(
+  sessionId: string,
+  patch: {
+    goals?: UserGoal[];
+    progressSummary?: string | null;
+    phaseChecklist?: JourneyState["phase_checklist"];
+  },
+) {
+  const updates: Partial<JourneyState> = {};
+  if (patch.goals !== undefined) updates.user_goals = patch.goals;
+  if (patch.progressSummary !== undefined) updates.progress_summary = patch.progressSummary;
+  if (patch.phaseChecklist !== undefined) updates.phase_checklist = patch.phaseChecklist;
+  if (Object.keys(updates).length === 0) return;
+  await updateJourneyState(sessionId, updates);
+}
+
+export async function updateUserGoals(sessionId: string, goals: UserGoal[], progressSummary?: string | null) {
+  await updateProgressDashboard(sessionId, { goals, progressSummary });
+}
+
+export function toggleGoalInList(goals: UserGoal[], goalId: string, completed: boolean): UserGoal[] {
+  const now = new Date().toISOString();
+  return goals.map((g) =>
+    g.id === goalId
+      ? { ...g, completed, completed_at: completed ? now : null }
+      : g,
+  );
+}
+
+function newTaskId(): string {
+  return `task-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+export function addUserTask(goals: UserGoal[], title: string): UserGoal[] {
+  const trimmed = title.trim().slice(0, 120);
+  if (!trimmed) return goals;
+  const exists = goals.some((g) => g.title.toLowerCase() === trimmed.toLowerCase());
+  if (exists) return goals;
+  const now = new Date().toISOString();
+  return [
+    ...goals,
+    {
+      id: newTaskId(),
+      title: trimmed,
+      completed: false,
+      completed_at: null,
+      source: "user" as const,
+      created_at: now,
+    },
+  ];
+}
+
+export function removeUserTask(goals: UserGoal[], taskId: string): UserGoal[] {
+  return goals.filter((g) => g.id !== taskId);
 }

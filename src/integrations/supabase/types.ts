@@ -157,12 +157,15 @@ export type Database = {
           phase_one_confirmed: boolean
           phase_one_step: number
           platform_phase: number
+          phase_checklist: Json
           presenting_challenge: string | null
+          progress_summary: string | null
           scenario: string
           session_name: string | null
           sustainability_pivot_active: boolean
           target_outcome: string | null
           updated_at: string
+          user_goals: Json
           user_id: string
         }
         Insert: {
@@ -178,12 +181,15 @@ export type Database = {
           phase_one_confirmed?: boolean
           phase_one_step?: number
           platform_phase?: number
+          phase_checklist?: Json
           presenting_challenge?: string | null
+          progress_summary?: string | null
           scenario?: string
           session_name?: string | null
           sustainability_pivot_active?: boolean
           target_outcome?: string | null
           updated_at?: string
+          user_goals?: Json
           user_id: string
         }
         Update: {
@@ -199,12 +205,15 @@ export type Database = {
           phase_one_confirmed?: boolean
           phase_one_step?: number
           platform_phase?: number
+          phase_checklist?: Json
           presenting_challenge?: string | null
+          progress_summary?: string | null
           scenario?: string
           session_name?: string | null
           sustainability_pivot_active?: boolean
           target_outcome?: string | null
           updated_at?: string
+          user_goals?: Json
           user_id?: string
         }
         Relationships: [

@@ -10,6 +10,7 @@ import RequireAuth from "@/components/auth/RequireAuth";
 import MainLandingPage from "./pages/MainLandingPage";
 import NotFound from "./pages/NotFound";
 import AvatarSessionPage from "./pages/AvatarSessionPage";
+import SessionWorkspacePage from "./pages/SessionWorkspacePage";
 import JourneysDashboardPage from "./pages/JourneysDashboardPage";
 import AdminChatPage from "./pages/AdminChatPage";
 import LoginPage from "./pages/LoginPage";
@@ -41,6 +42,7 @@ const App = () => {
               <Route element={<AppLayout />}>
                 <Route index element={<Navigate to="/testing/journeys" replace />} />
                 <Route path="journeys" element={<JourneysDashboardPage />} />
+                <Route path="journeys/:journeyId" element={<SessionWorkspacePage />} />
                 <Route path="avatar/session/:journeyId" element={<AvatarSessionPage />} />
                 <Route path="avatar/session" element={<Navigate to="/testing/journeys" replace />} />
                 <Route path="*" element={<Navigate to="/testing/journeys" replace />} />

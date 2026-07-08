@@ -2,6 +2,36 @@ export type PlatformPhase = 1 | 2 | 3;
 
 export type PhaseOneStep = 1 | 2 | 3;
 
+export type UserGoal = {
+  id: string;
+  title: string;
+  completed: boolean;
+  completed_at: string | null;
+  source: "ai" | "system" | "user";
+  created_at: string;
+};
+
+export type PhaseMilestoneKey =
+  | "situation"
+  | "triggers_rules"
+  | "belief_strength"
+  | "handshake"
+  | "target_outcome"
+  | "micro_goal"
+  | "confidence"
+  | "check_in"
+  | "regulate"
+  | "update_assumptions"
+  | "reactivate";
+
+export type PhaseChecklistItem = {
+  id: string;
+  key: PhaseMilestoneKey;
+  title: string;
+  completed: boolean;
+  phase: PlatformPhase;
+};
+
 export type JourneyState = {
   platform_phase: PlatformPhase;
   phase_one_step: PhaseOneStep;
@@ -15,6 +45,9 @@ export type JourneyState = {
   sustainability_pivot_active: boolean;
   architectural_backtrack_active: boolean;
   last_check_in_at: string | null;
+  progress_summary: string | null;
+  user_goals: UserGoal[];
+  phase_checklist: PhaseChecklistItem[];
 };
 
 export type JourneyContextPayload = {
@@ -33,6 +66,9 @@ export type JourneyContextPayload = {
   messageCount: number;
   phaseOneNextElement?: string | null;
   askedPhaseOneElements?: string | null;
+  progressSummary?: string | null;
+  userGoals?: UserGoal[];
+  phaseChecklist?: PhaseChecklistItem[];
 };
 
 export const DEFAULT_JOURNEY_STATE: JourneyState = {
@@ -48,6 +84,9 @@ export const DEFAULT_JOURNEY_STATE: JourneyState = {
   sustainability_pivot_active: false,
   architectural_backtrack_active: false,
   last_check_in_at: null,
+  progress_summary: null,
+  user_goals: [],
+  phase_checklist: [],
 };
 
 export function journeyStateFromSession(session: Partial<JourneyState> | null | undefined): JourneyState {
@@ -66,7 +105,56 @@ export function journeyStateFromSession(session: Partial<JourneyState> | null | 
     sustainability_pivot_active: session?.sustainability_pivot_active ?? false,
     architectural_backtrack_active: session?.architectural_backtrack_active ?? false,
     last_check_in_at: session?.last_check_in_at ?? null,
+    progress_summary: session?.progress_summary ?? null,
+    user_goals: normalizeUserGoals(session?.user_goals),
+    phase_checklist: normalizePhaseChecklist(session?.phase_checklist),
   };
+}
+
+export function normalizeUserGoals(raw: unknown): UserGoal[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter((item): item is Record<string, unknown> => !!item && typeof item === "object")
+    .map((item, index) => ({
+      id: typeof item.id === "string" ? item.id : `goal-${index}`,
+      title: typeof item.title === "string" ? item.title.trim() : "",
+      completed: !!item.completed,
+      completed_at: typeof item.completed_at === "string" ? item.completed_at : null,
+      source: item.source === "user" ? "user" : item.source === "system" ? "system" : "ai",
+      created_at: typeof item.created_at === "string" ? item.created_at : new Date().toISOString(),
+    }))
+    .filter((g) => g.title.length > 0);
+}
+
+export function normalizePhaseChecklist(raw: unknown): PhaseChecklistItem[] {
+  const validKeys = new Set([
+    "situation",
+    "triggers_rules",
+    "belief_strength",
+    "handshake",
+    "target_outcome",
+    "micro_goal",
+    "confidence",
+    "check_in",
+    "regulate",
+    "update_assumptions",
+    "reactivate",
+  ]);
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter((item): item is Record<string, unknown> => !!item && typeof item === "object")
+    .map((item, index) => {
+      const key = typeof item.key === "string" && validKeys.has(item.key) ? (item.key as PhaseMilestoneKey) : "situation";
+      const phase = item.phase === 2 || item.phase === 3 ? (item.phase as PlatformPhase) : 1;
+      return {
+        id: typeof item.id === "string" ? item.id : `ms-${index}`,
+        key,
+        title: typeof item.title === "string" ? item.title.trim().slice(0, 140) : "",
+        completed: !!item.completed,
+        phase,
+      };
+    })
+    .filter((m) => m.title.length > 0);
 }
 
 export function toJourneyContextPayload(
@@ -90,6 +178,9 @@ export function toJourneyContextPayload(
     messageCount,
     phaseOneNextElement: opts?.phaseOneNextElement ?? null,
     askedPhaseOneElements: opts?.askedPhaseOneElements ?? null,
+    progressSummary: state.progress_summary,
+    userGoals: state.user_goals,
+    phaseChecklist: state.phase_checklist,
   };
 }
 

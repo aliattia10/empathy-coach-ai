@@ -7,6 +7,7 @@ const { COACH_SYSTEM_PROMPT_TEXT } = require("./coachSystemPrompt.cjs");
 const { formatSkillsForPrompt } = require("./skillsLibrary.cjs");
 const { formatLlmEnginePhasesForPrompt } = require("./llmEnginePhases.cjs");
 const { formatJourneyContextForPrompt } = require("./journeyContext.cjs");
+const { formatProgressDashboardForPrompt } = require("./progressDashboard.cjs");
 
 function sessionRowToJourneyContext(sessionRow, messageCount = 0) {
   if (!sessionRow) return null;
@@ -24,6 +25,9 @@ function sessionRowToJourneyContext(sessionRow, messageCount = 0) {
     architecturalBacktrackActive: !!sessionRow.architectural_backtrack_active,
     isResuming: messageCount > 2,
     messageCount,
+    progressSummary: sessionRow.progress_summary ?? null,
+    userGoals: Array.isArray(sessionRow.user_goals) ? sessionRow.user_goals : [],
+    phaseChecklist: Array.isArray(sessionRow.phase_checklist) ? sessionRow.phase_checklist : [],
   };
 }
 
@@ -54,6 +58,7 @@ function buildProductionSystemPrompt(opts = {}) {
   if (journeyBlock) content += `\n\n${journeyBlock}\n`;
 
   content += `\n\n${formatSkillsForPrompt({ condensed })}\n`;
+  content += `\n\n${formatProgressDashboardForPrompt()}\n`;
 
   if (condensed) {
     content += `\n\n${INFERENCE_DIRECTIVES}\n`;

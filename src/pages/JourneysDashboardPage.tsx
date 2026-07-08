@@ -86,7 +86,7 @@ export default function JourneysDashboardPage() {
     setCreating(true);
     try {
       const journey = await createNewJourney(user.id);
-      navigate(`/testing/avatar/session/${journey.id}`);
+      navigate(`/testing/journeys/${journey.id}`);
     } catch (err) {
       console.error(err);
       toast.error("Could not start a new journey.");
@@ -186,7 +186,7 @@ export default function JourneysDashboardPage() {
               >
                 <div className="flex items-stretch gap-2 p-4">
                   <Link
-                    to={`/testing/avatar/session/${journey.id}`}
+                    to={`/testing/journeys/${journey.id}`}
                     className="flex-1 min-w-0 text-left"
                   >
                     <p className="font-medium truncate">{journeyDisplayName(journey)}</p>

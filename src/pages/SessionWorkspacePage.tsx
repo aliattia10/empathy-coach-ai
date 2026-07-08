@@ -30,41 +30,59 @@ function sessionTitle(session: ChatSession | null): string {
 export default function SessionWorkspacePage() {
   const { journeyId } = useParams<{ journeyId: string }>();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [session, setSession] = useState<ChatSession | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [busyTaskId, setBusyTaskId] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
 
+  const chatPath = journeyId ? `/testing/avatar/session/${journeyId}` : "/testing/journeys";
+
+  const openChat = () => navigate(chatPath);
+
   useEffect(() => {
+    if (authLoading) return;
+
+    if (!journeyId) {
+      navigate("/testing/journeys", { replace: true });
+      return;
+    }
+
+    if (!user) {
+      navigate("/testing/login", { replace: true });
+      return;
+    }
+
     let mounted = true;
     const load = async () => {
-      if (!user || !journeyId) {
-        navigate("/testing/journeys");
-        return;
-      }
       setLoading(true);
+      setLoadError(false);
       try {
         const row = await fetchJourneyById(journeyId, user.id);
         if (!mounted) return;
         if (!row) {
           toast.error("Session not found.");
-          navigate("/testing/journeys");
+          setLoadError(true);
           return;
         }
         setSession(row);
       } catch (err) {
         console.error(err);
-        toast.error("Could not load this session.");
+        if (mounted) {
+          setLoadError(true);
+          toast.error("Could not load tasks — you can still open chat.");
+        }
       } finally {
         if (mounted) setLoading(false);
       }
     };
+
     load();
     return () => {
       mounted = false;
     };
-  }, [user, journeyId, navigate]);
+  }, [user, authLoading, journeyId, navigate]);
 
   const journey = journeyStateFromSession(session);
   const title = sessionTitle(session);
@@ -126,24 +144,51 @@ export default function SessionWorkspacePage() {
     }
   };
 
-  if (loading) {
+  if (authLoading || loading) {
     return (
-      <div className="min-h-[calc(100vh-8rem)] flex items-center justify-center text-muted-foreground">
-        Loading your session…
+      <div className="min-h-[calc(100vh-8rem)] flex flex-col items-center justify-center gap-4 px-4 text-center">
+        <p className="text-muted-foreground">Loading your session…</p>
+        <Button variant="outline" className="rounded-xl" onClick={openChat}>
+          <MessageCircle className="w-4 h-4 mr-2" />
+          Open chat now
+        </Button>
+      </div>
+    );
+  }
+
+  if (loadError || !session) {
+    return (
+      <div className="min-h-[calc(100vh-8rem)] flex flex-col items-center justify-center gap-4 px-4 text-center">
+        <p className="text-muted-foreground max-w-sm">
+          Tasks could not be loaded for this journey. You can still continue the conversation with your coach.
+        </p>
+        <Button className="rounded-xl" onClick={openChat}>
+          <MessageCircle className="w-5 h-5 mr-2" />
+          Open chat
+        </Button>
+        <Link to="/testing/journeys" className="text-sm text-muted-foreground hover:text-foreground">
+          Back to all journeys
+        </Link>
       </div>
     );
   }
 
   return (
-    <div className="min-h-[calc(100vh-8rem)] px-4 py-6 pb-28 md:pb-8">
+    <div className="min-h-[calc(100vh-8rem)] px-4 py-6 pb-32 md:pb-24">
       <div className="max-w-lg mx-auto space-y-6">
-        <Link
-          to="/testing/journeys"
-          className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          All journeys
-        </Link>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <Link
+            to="/testing/journeys"
+            className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            All journeys
+          </Link>
+          <Button size="sm" className="rounded-xl" onClick={openChat}>
+            <MessageCircle className="w-4 h-4 mr-1.5" />
+            Open chat
+          </Button>
+        </div>
 
         <SessionTasksPanel
           journey={journey}
@@ -154,14 +199,15 @@ export default function SessionWorkspacePage() {
           busyTaskId={busyTaskId}
           adding={adding}
         />
+      </div>
 
-        <Button
-          className="w-full rounded-xl h-12 text-base"
-          onClick={() => navigate(`/testing/avatar/session/${journeyId}`)}
-        >
-          <MessageCircle className="w-5 h-5 mr-2" />
-          Talk to your coach
-        </Button>
+      <div className="fixed bottom-16 md:bottom-6 left-0 right-0 z-40 px-4 pointer-events-none">
+        <div className="max-w-lg mx-auto pointer-events-auto">
+          <Button className="w-full rounded-xl h-12 text-base shadow-lg" onClick={openChat}>
+            <MessageCircle className="w-5 h-5 mr-2" />
+            Talk to your coach
+          </Button>
+        </div>
       </div>
     </div>
   );

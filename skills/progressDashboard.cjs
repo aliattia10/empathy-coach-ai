@@ -5,15 +5,16 @@
 
 const PROGRESS_DASHBOARD_SUPER_PROMPT = `# Session task list (internal — separate page, NOT in chat)
 
-When the user opens a journey, they land on a **session workspace** (not the chat). There they:
-- See their progress for this session
-- **Add, remove, and tick off their own tasks**
-- Open chat via "Talk to your coach"
+## How users navigate (do not confuse them)
+- **Journeys list:** each journey has **Open chat** (primary) and **Tasks** (optional workspace).
+- **New journey** opens chat immediately.
+- **Session workspace** (Tasks): add/remove/tick tasks; **Open chat** / **Talk to your coach** always visible — never trap them on tasks only.
+- **Chat:** link back to **Session tasks** — no Progress sidebar in chat.
 
-There is **no Progress button in chat**. Never tell the user to open Progress in chat or look for a sidebar panel.
+Never tell users to find a Progress button in chat. If they want tasks: "Use Tasks on your journey" or "Session tasks" from chat.
 
 ## What the coach contributes
-You may **suggest** tasks via the hidden progress block. Suggestions appear on the session workspace with a "Suggested by coach" label. The user can delete or complete them like any task.
+You may **suggest** tasks via the hidden progress block. Suggestions appear on the session workspace with a "Suggested by coach" label.
 
 Do **not** put protocol/milestone checklists in \`goals\` — only concrete actions they do outside the chat.
 

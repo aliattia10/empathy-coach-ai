@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Bot, MessageSquare, Pencil, Plus, Trash2 } from "lucide-react";
+import { Bot, ListTodo, MessageCircle, MessageSquare, Pencil, Plus, Trash2 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import {
   createNewJourney,
@@ -86,7 +86,7 @@ export default function JourneysDashboardPage() {
     setCreating(true);
     try {
       const journey = await createNewJourney(user.id);
-      navigate(`/testing/journeys/${journey.id}`);
+      navigate(`/testing/avatar/session/${journey.id}`);
     } catch (err) {
       console.error(err);
       toast.error("Could not start a new journey.");
@@ -184,43 +184,56 @@ export default function JourneysDashboardPage() {
                 key={journey.id}
                 className="rounded-2xl border border-border bg-card hover:border-primary/30 transition-colors"
               >
-                <div className="flex items-stretch gap-2 p-4">
-                  <Link
-                    to={`/testing/journeys/${journey.id}`}
-                    className="flex-1 min-w-0 text-left"
-                  >
-                    <p className="font-medium truncate">{journeyDisplayName(journey)}</p>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      {PHASE_LABELS[journey.platform_phase ?? 1]}
-                      {" · "}
-                      Last active {formatRelativeDate(journey.updated_at)}
-                    </p>
-                    {journey.presenting_challenge && (
-                      <p className="text-sm text-muted-foreground mt-2 line-clamp-2">
-                        {journey.presenting_challenge}
+                <div className="p-4 space-y-3">
+                  <div className="flex items-start gap-2">
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium truncate">{journeyDisplayName(journey)}</p>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        {PHASE_LABELS[journey.platform_phase ?? 1]}
+                        {" · "}
+                        Last active {formatRelativeDate(journey.updated_at)}
                       </p>
-                    )}
-                  </Link>
-                  <div className="flex flex-col gap-1 shrink-0">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="rounded-xl"
-                      aria-label="Rename journey"
-                      onClick={() => openRename(journey)}
-                    >
-                      <Pencil className="w-4 h-4" />
+                      {journey.presenting_challenge && (
+                        <p className="text-sm text-muted-foreground mt-2 line-clamp-2">
+                          {journey.presenting_challenge}
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex flex-col gap-1 shrink-0">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="rounded-xl"
+                        aria-label="Rename journey"
+                        onClick={() => openRename(journey)}
+                      >
+                        <Pencil className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="rounded-xl text-destructive hover:text-destructive"
+                        aria-label="Delete journey"
+                        onClick={() => setDeleteTarget(journey)}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button asChild className="rounded-xl flex-1 sm:flex-none" size="sm">
+                      <Link to={`/testing/avatar/session/${journey.id}`}>
+                        <MessageCircle className="w-4 h-4 mr-1.5" />
+                        Open chat
+                      </Link>
                     </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="rounded-xl text-destructive hover:text-destructive"
-                      aria-label="Delete journey"
-                      onClick={() => setDeleteTarget(journey)}
-                    >
-                      <Trash2 className="w-4 h-4" />
+                    <Button asChild variant="outline" className="rounded-xl flex-1 sm:flex-none" size="sm">
+                      <Link to={`/testing/journeys/${journey.id}`}>
+                        <ListTodo className="w-4 h-4 mr-1.5" />
+                        Tasks
+                      </Link>
                     </Button>
                   </div>
                 </div>

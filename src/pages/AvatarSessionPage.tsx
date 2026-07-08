@@ -781,22 +781,20 @@ export default function AvatarSessionPage() {
       <div className="max-w-5xl mx-auto relative">
         <main className="rounded-2xl border border-border bg-card/95 backdrop-blur p-4 md:p-5 flex flex-col gap-4">
           <div className="flex items-center justify-between gap-3 flex-wrap">
-            <div>
-              <div className="flex flex-wrap items-center gap-3 mb-2">
-                <Link
-                  to={journeyId ? `/testing/journeys/${journeyId}` : "/testing/journeys"}
-                  className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-                >
-                  <ListTodo className="w-3.5 h-3.5" />
-                  Session tasks
-                </Link>
-                <Link
-                  to="/testing/journeys"
-                  className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-                >
-                  <ArrowLeft className="w-3.5 h-3.5" />
-                  All journeys
-                </Link>
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2 mb-3">
+                <Button variant="outline" size="sm" className="rounded-xl" asChild>
+                  <Link to="/testing/journeys">
+                    <ArrowLeft className="w-4 h-4 mr-1.5" />
+                    Back to journeys
+                  </Link>
+                </Button>
+                <Button variant="ghost" size="sm" className="rounded-xl" asChild>
+                  <Link to={journeyId ? `/testing/journeys/${journeyId}` : "/testing/journeys"}>
+                    <ListTodo className="w-4 h-4 mr-1.5" />
+                    Tasks
+                  </Link>
+                </Button>
               </div>
               <p className="text-xs uppercase tracking-wider text-muted-foreground mb-1">AI Coach</p>
               <h1 className="text-xl md:text-2xl font-semibold">{displayTitle}</h1>

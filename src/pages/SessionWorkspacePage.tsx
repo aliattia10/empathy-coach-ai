@@ -189,9 +189,12 @@ export default function SessionWorkspacePage() {
           <MessageCircle className="w-5 h-5 mr-2" />
           Open chat
         </Button>
-        <Link to="/testing/journeys" className="text-sm text-muted-foreground hover:text-foreground">
-          Back to all journeys
-        </Link>
+        <Button variant="outline" className="rounded-xl" asChild>
+          <Link to="/testing/journeys">
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Back to journeys
+          </Link>
+        </Button>
       </div>
     );
   }
@@ -200,13 +203,12 @@ export default function SessionWorkspacePage() {
     <div className="min-h-[calc(100vh-8rem)] px-4 py-6 pb-32 md:pb-24">
       <div className="max-w-lg mx-auto space-y-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <Link
-            to="/testing/journeys"
-            className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            All journeys
-          </Link>
+          <Button variant="outline" size="sm" className="rounded-xl" asChild>
+            <Link to="/testing/journeys">
+              <ArrowLeft className="w-4 h-4 mr-1.5" />
+              Back to journeys
+            </Link>
+          </Button>
           <Button size="sm" className="rounded-xl" onClick={openChat}>
             <MessageCircle className="w-4 h-4 mr-1.5" />
             Open chat

@@ -34,7 +34,8 @@ import type { TranscriptMessage } from "@/components/avatar/ChatTranscript";
 import PhaseStepper from "@/components/avatar/PhaseStepper";
 import { inferJourneyUpdates } from "@/lib/journeyInference";
 import { extractProgressUpdates } from "@/lib/goalExtraction";
-import { autoCompleteMatchingGoal, synthesizeDashboardGoals } from "@/lib/dashboardGoals";
+import { autoCompleteMatchingGoal } from "@/lib/dashboardGoals";
+import { syncSessionTasks } from "@/lib/coachTaskSync";
 import { syncPhaseChecklist } from "@/lib/phaseChecklist";
 import { buildWelcomeMessage } from "@/lib/journeyWelcome";
 import { fetchChatReply } from "@/lib/fetchChatReply";
@@ -364,15 +365,18 @@ export default function AvatarSessionPage() {
       progressPatch.phase_checklist = nextChecklist;
     }
 
-    if (!progressPatch.user_goals && nextGoals.length === 0) {
-      const synthesized = synthesizeDashboardGoals(mergedForSync);
-      if (synthesized) {
-        nextGoals = synthesized.goals;
-        nextSummary = nextSummary ?? synthesized.summary;
-        progressPatch.user_goals = nextGoals;
-        if (!current.progress_summary && synthesized.summary) {
-          progressPatch.progress_summary = synthesized.summary;
-        }
+    const coachSync = syncSessionTasks(
+      { ...mergedForSync, phase_checklist: nextChecklist },
+      { assistantMessage: assistantContent },
+    );
+    if (coachSync) {
+      nextGoals = coachSync.user_goals;
+      if (coachSync.progress_summary) {
+        nextSummary = coachSync.progress_summary;
+      }
+      progressPatch.user_goals = nextGoals;
+      if (coachSync.progress_summary) {
+        progressPatch.progress_summary = nextSummary;
       }
     }
 

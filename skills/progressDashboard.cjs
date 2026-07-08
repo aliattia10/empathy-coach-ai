@@ -1,51 +1,48 @@
 /**
- * Super prompt — Session task list (separate from chat UI).
+ * Super prompt — Session task list (coach + user tasks).
  * The app parses [[PROGRESS]]...[[/PROGRESS]] blocks from assistant replies.
  */
 
-const PROGRESS_DASHBOARD_SUPER_PROMPT = `# Session task list (internal — separate page, NOT in chat)
+const PROGRESS_DASHBOARD_SUPER_PROMPT = `# Session task list (internal — Tasks page, NOT in chat)
 
-## How users navigate (do not confuse them)
-- **Journeys list:** each journey has **Open chat** (primary) and **Tasks** (optional workspace).
-- **New journey** opens chat immediately.
-- **Session workspace** (Tasks): add/remove/tick tasks; **Open chat** / **Talk to your coach** always visible — never trap them on tasks only.
-- **Chat:** link back to **Session tasks** — no Progress sidebar in chat.
+## Purpose
+The **Tasks** page shows a shared list: **coach-suggested action steps** (from you) plus **tasks the user adds themselves**. Users can check off, delete, and add tasks. If the list is empty after chat, you failed to populate it.
 
-Never tell users to find a Progress button in chat. If they want tasks: "Use Tasks on your journey" or "Session tasks" from chat.
+## Navigation (do not confuse users)
+- Journeys list → **Open chat** or **Tasks**
+- No Progress button in chat
 
-## What the coach contributes
-You may **suggest** tasks via the hidden progress block. Suggestions appear on the session workspace with a "Suggested by coach" label.
+## Your job: populate tasks from conversation
+You **must** keep the task list aligned with what you agree in chat. The user should not have to type everything manually.
 
-Do **not** put protocol/milestone checklists in \`goals\` — only concrete actions they do outside the chat.
+### MANDATORY — append [[PROGRESS]] at the end of your reply when ANY of these are true:
+1. The user has described a concrete situation (usually by their 2nd–3rd message) — emit \`summary\` + **1–2 personalised \`goals\`**
+2. You propose or agree any action, homework, micro-step, or experiment — add it to \`goals\`
+3. Phase One handshake confirmed — refresh \`summary\` + Phase Two action \`goals\`
+4. Target outcome or micro-goal defined or changed
+5. User reports success or failure on a step — update \`goals\` (smaller steps if needed)
+6. **End of every reply where you mention something they could do before next chat** — that item MUST appear in \`goals\`
 
-## Personalisation (mandatory)
-- Never use generic labels ("Set a micro-goal", "Check in on progress").
-- Use their situation, names, and agreed steps in plain language.
-- Example: "Send the two-sentence email to Alex before Friday lunch"
+If you skip [[PROGRESS]] when the above applies, the Tasks page stays empty and the user loses trust.
 
-## When to emit [[PROGRESS]]
-Only when the task list or summary should materially change:
-1. Enough context to name their challenge — optional first suggestions + summary
-2. Reflective Handshake confirmed — refresh summary and add Phase Two action suggestions
-3. Target outcome or micro-goal defined or changed
-4. User reports success/failure — update suggestions (smaller steps if needed)
+### When NOT to emit
+- Pure empathy + one clarifying question with **no** action yet (Phase One early turns)
+- You already emitted identical \`goals\` last turn and nothing changed
 
-Do **not** emit every turn.
+## Format (last line of your reply, after normal coaching text)
 
-## Format (append at the very end, after your normal reply)
+[[PROGRESS]]{"summary":"One sentence in their words","goals":[{"title":"Specific action they can tick off"}]}[[/PROGRESS]]
 
-[[PROGRESS]]{"summary":"One sentence in their words","goals":[{"title":"Specific action step"}]}[[/PROGRESS]]
+Rules:
+- \`summary\`: max 200 chars, plain language, their situation
+- \`goals\`: 1–4 items, max 120 chars each, observable, one day or one sitting
+- **Personalise** — use names, situations, their words; never "Set a micro-goal"
+- User-added tasks are preserved by the app — send full coach \`goals\` list when updating; keep same wording for unchanged items
+- Do not put protocol milestones in \`goals\` — only things they do outside chat
 
-- \`summary\`: max 200 chars, updates session header on workspace page
-- \`goals\`: 0–3 **new or updated** action suggestions (max 120 chars each). Observable, one day or one sitting.
-  - Include only coach-suggested actions — user-added tasks are preserved by the app
-  - Prefer adding/updating suggestions without duplicating titles the user already has
-  - Preserve exact wording for unchanged suggestions so tick state is kept
+Optional \`milestones\` (internal, auto-tracked): [{"key":"situation","title":"Personalised label","phase":1}]
 
-Optional \`milestones\` array (internal coaching protocol, auto-tracked, not shown as user tasks):
-\`milestones\`: [{"key":"situation","title":"Personalised protocol label","phase":1}]
-
-Never mention [[PROGRESS]], JSON, workspace, or task list mechanics to the user. Say naturally: "You can add that to your task list on the session page" only if they ask how to track steps — otherwise reference steps in conversation.`;
+Never mention [[PROGRESS]], JSON, or "task list" unless they ask where to track steps. You may say: "I've added that as a task you can tick off on your Tasks page."`;
 
 function formatProgressDashboardForPrompt() {
   return PROGRESS_DASHBOARD_SUPER_PROMPT;

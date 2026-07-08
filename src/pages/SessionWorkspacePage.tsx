@@ -4,6 +4,7 @@ import { ArrowLeft, MessageCircle } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import {
   addUserTask,
+  fetchChatHistory,
   fetchJourneyById,
   removeUserTask,
   toggleGoalInList,
@@ -12,6 +13,7 @@ import {
 } from "@/hooks/useChatSession";
 import { isAutoNamedJourney } from "@/lib/journeyNaming";
 import SessionTasksPanel from "@/components/journey/SessionTasksPanel";
+import { syncSessionTasks } from "@/lib/coachTaskSync";
 import { journeyStateFromSession } from "@/types/journey";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -66,7 +68,28 @@ export default function SessionWorkspacePage() {
           setLoadError(true);
           return;
         }
-        setSession(row);
+
+        const history = await fetchChatHistory(journeyId);
+        const assistantHistory = history.filter((m) => m.role === "assistant").map((m) => m.content);
+        const userMessageCount = history.filter((m) => m.role === "user").length;
+        const baseState = journeyStateFromSession(row);
+        const synced = syncSessionTasks(baseState, { assistantHistory, userMessageCount });
+
+        let sessionRow = row;
+        if (synced) {
+          await updateProgressDashboard(journeyId, {
+            goals: synced.user_goals,
+            progressSummary: synced.progress_summary,
+          });
+          sessionRow = {
+            ...row,
+            user_goals: synced.user_goals,
+            progress_summary: synced.progress_summary ?? row.progress_summary,
+          };
+        }
+
+        if (!mounted) return;
+        setSession(sessionRow);
       } catch (err) {
         console.error(err);
         if (mounted) {

@@ -38,7 +38,7 @@ const INFERENCE_DIRECTIVES = `# Live inference directives (this turn — highest
 4. When Phase One step is 1.2, ask only the **next** breakdown element listed. Do not re-ask elements marked as already asked.
 5. Mirror the user's own words in your first sentence, then ask **one** new question that moves forward.
 6. If the user already answered the element you asked last turn, acknowledge it briefly and ask the **next** element — do not ask the same thing again.
-7. **Adaptive tone:** Match the user's register (casual, professional, stressed, brief). Never sound more formal or clinical than they do.`;
+7. **Session tasks:** When the user could act before next chat, append [[PROGRESS]] with personalised \`goals\` (see Session task list section).`;
 
 /**
  * @param {object} [opts]

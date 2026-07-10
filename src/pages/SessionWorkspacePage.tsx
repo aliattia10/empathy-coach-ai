@@ -4,7 +4,6 @@ import { ArrowLeft, MessageCircle } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import {
   addUserTask,
-  fetchChatHistory,
   fetchJourneyById,
   removeUserTask,
   toggleGoalInList,
@@ -69,11 +68,8 @@ export default function SessionWorkspacePage() {
           return;
         }
 
-        const history = await fetchChatHistory(journeyId);
-        const assistantHistory = history.filter((m) => m.role === "assistant").map((m) => m.content);
-        const userMessageCount = history.filter((m) => m.role === "user").length;
         const baseState = journeyStateFromSession(row);
-        const synced = syncSessionTasks(baseState, { assistantHistory, userMessageCount });
+        const synced = syncSessionTasks(baseState);
 
         let sessionRow = row;
         if (synced) {

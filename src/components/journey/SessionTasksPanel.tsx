@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { MessageSquare, Plus, Sparkles, Trash2 } from "lucide-react";
-import { PHASE_LABELS, sortGoalsByStep, type JourneyState, type UserGoal } from "@/types/journey";
+import { PHASE_LABELS, pruneOrphanCoachGoals, sortGoalsByStep, type JourneyState, type UserGoal } from "@/types/journey";
 import { computeJourneyProgressPercent, goalsCompletionRatio } from "@/lib/journeyProgress";
 
 type SessionTasksPanelProps = {
@@ -29,7 +29,7 @@ export default function SessionTasksPanel({
   const [draft, setDraft] = useState("");
   const progressPercent = computeJourneyProgressPercent(journey, 0);
   const { done, total } = goalsCompletionRatio(journey.user_goals);
-  const tasks = sortGoalsByStep(journey.user_goals);
+  const tasks = sortGoalsByStep(pruneOrphanCoachGoals(journey.user_goals));
 
   const handleAdd = () => {
     const title = draft.trim();
@@ -94,7 +94,7 @@ export default function SessionTasksPanel({
         {tasks.length === 0 ? (
           <div className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
             <MessageSquare className="w-8 h-8 mx-auto mb-2 opacity-60" />
-            Add tasks for this session, or talk to your coach — suggested steps will appear here too.
+            Add your own tasks, or agree a Goal and steps with your coach in chat — the plan will appear here.
           </div>
         ) : (
           <ul className="space-y-2">

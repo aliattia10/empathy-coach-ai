@@ -111,7 +111,7 @@ export function journeyStateFromSession(session: Partial<JourneyState> | null | 
     architectural_backtrack_active: session?.architectural_backtrack_active ?? false,
     last_check_in_at: session?.last_check_in_at ?? null,
     progress_summary: session?.progress_summary ?? null,
-    user_goals: normalizeUserGoals(session?.user_goals),
+    user_goals: pruneOrphanCoachGoals(normalizeUserGoals(session?.user_goals)),
     phase_checklist: normalizePhaseChecklist(session?.phase_checklist),
   };
 }
@@ -145,6 +145,37 @@ export function normalizeUserGoals(raw: unknown): UserGoal[] {
       };
     })
     .filter((g) => g.title.length > 0);
+}
+
+export function isStructuredGoal(goal: UserGoal): boolean {
+  return !!(goal.step || goal.tier);
+}
+
+/** True when the session has an agreed Goal + at least one step/sub-step. */
+export function hasAgreedGoalLadder(goals: UserGoal[]): boolean {
+  if (!goals.length) return false;
+  const hasGoalRow = goals.some((g) => g.tier === "goal" || g.step === "goal");
+  const hasSteps = goals.some(
+    (g) =>
+      g.tier === "major" ||
+      g.tier === "sub" ||
+      (g.step && g.step !== "goal"),
+  );
+  return hasGoalRow && hasSteps;
+}
+
+/** Keep user tasks + structured ladder rows; drop legacy auto-generated coach tasks. */
+export function pruneOrphanCoachGoals(goals: UserGoal[]): UserGoal[] {
+  const structured = goals.filter(isStructuredGoal);
+  const userGoals = goals.filter((g) => g.source === "user" && !isStructuredGoal(g));
+
+  if (structured.length > 0) {
+    const structuredTitles = new Set(structured.map((g) => g.title.toLowerCase()));
+    const userExtras = userGoals.filter((g) => !structuredTitles.has(g.title.toLowerCase()));
+    return sortGoalsByStep([...structured, ...userExtras]);
+  }
+
+  return userGoals;
 }
 
 /** Sort goal ladder: goal → 1 → 1.1 → 1.2 → 2 … */

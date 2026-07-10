@@ -377,10 +377,7 @@ export default function AvatarSessionPage() {
       progressPatch.phase_checklist = nextChecklist;
     }
 
-    const coachSync = syncSessionTasks(
-      { ...mergedForSync, phase_checklist: nextChecklist },
-      { assistantMessage: assistantContent },
-    );
+    const coachSync = syncSessionTasks({ ...mergedForSync, phase_checklist: nextChecklist });
     if (coachSync) {
       nextGoals = coachSync.user_goals;
       if (coachSync.progress_summary) {

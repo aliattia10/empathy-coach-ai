@@ -340,6 +340,18 @@ export default function AvatarSessionPage() {
     if (extracted.goals) {
       nextGoals = extracted.goals;
       progressPatch.user_goals = nextGoals;
+      const goalRow = nextGoals.find((g) => g.tier === "goal" || g.step === "goal");
+      if (goalRow?.title) {
+        progressPatch.target_outcome = goalRow.title;
+      }
+      const activeSub = nextGoals.find(
+        (g) => !g.completed && (g.tier === "sub" || (g.step && g.step.includes("."))),
+      );
+      const activeMajor = nextGoals.find((g) => !g.completed && g.tier === "major");
+      const active = activeSub ?? activeMajor;
+      if (active?.title) {
+        progressPatch.active_micro_goal = active.title;
+      }
     }
     if (extracted.progressSummary) {
       nextSummary = extracted.progressSummary;

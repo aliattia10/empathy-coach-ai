@@ -197,6 +197,7 @@ export function inferJourneyUpdates(
     updates.sustainability_pivot_active = true;
     updates.platform_phase = 3;
     updates.architectural_backtrack_active = false;
+    updates.micro_goal_confidence = null;
   }
 
   if (SUCCESS_EXEC.test(user) && !FAILURE_STRESS.test(user)) {

@@ -2,6 +2,8 @@ export type PlatformPhase = 1 | 2 | 3;
 
 export type PhaseOneStep = 1 | 2 | 3;
 
+export type GoalStepTier = "goal" | "major" | "sub";
+
 export type UserGoal = {
   id: string;
   title: string;
@@ -9,6 +11,9 @@ export type UserGoal = {
   completed_at: string | null;
   source: "ai" | "system" | "user";
   created_at: string;
+  /** Ladder label: "goal", "1", "1.1", "2", etc. */
+  step?: string;
+  tier?: GoalStepTier;
 };
 
 export type PhaseMilestoneKey =
@@ -115,15 +120,49 @@ export function normalizeUserGoals(raw: unknown): UserGoal[] {
   if (!Array.isArray(raw)) return [];
   return raw
     .filter((item): item is Record<string, unknown> => !!item && typeof item === "object")
-    .map((item, index) => ({
-      id: typeof item.id === "string" ? item.id : `goal-${index}`,
-      title: typeof item.title === "string" ? item.title.trim() : "",
-      completed: !!item.completed,
-      completed_at: typeof item.completed_at === "string" ? item.completed_at : null,
-      source: item.source === "user" ? "user" : item.source === "system" ? "system" : "ai",
-      created_at: typeof item.created_at === "string" ? item.created_at : new Date().toISOString(),
-    }))
+    .map((item, index) => {
+      const step = typeof item.step === "string" ? item.step.trim() : undefined;
+      const tierRaw = item.tier;
+      const tier: GoalStepTier | undefined =
+        tierRaw === "goal" || tierRaw === "major" || tierRaw === "sub"
+          ? tierRaw
+          : step === "goal"
+            ? "goal"
+            : step?.includes(".")
+              ? "sub"
+              : step
+                ? "major"
+                : undefined;
+      return {
+        id: typeof item.id === "string" ? item.id : `goal-${index}`,
+        title: typeof item.title === "string" ? item.title.trim() : "",
+        completed: !!item.completed,
+        completed_at: typeof item.completed_at === "string" ? item.completed_at : null,
+        source: item.source === "user" ? "user" : item.source === "system" ? "system" : "ai",
+        created_at: typeof item.created_at === "string" ? item.created_at : new Date().toISOString(),
+        step,
+        tier,
+      };
+    })
     .filter((g) => g.title.length > 0);
+}
+
+/** Sort goal ladder: goal → 1 → 1.1 → 1.2 → 2 … */
+export function sortGoalsByStep(goals: UserGoal[]): UserGoal[] {
+  const rank = (step?: string) => {
+    if (!step || step === "goal") return [-1];
+    return step.split(".").map((p) => parseInt(p, 10) || 0);
+  };
+  return [...goals].sort((a, b) => {
+    const ra = rank(a.step);
+    const rb = rank(b.step);
+    const len = Math.max(ra.length, rb.length);
+    for (let i = 0; i < len; i++) {
+      const diff = (ra[i] ?? 0) - (rb[i] ?? 0);
+      if (diff !== 0) return diff;
+    }
+    return a.title.localeCompare(b.title);
+  });
 }
 
 export function normalizePhaseChecklist(raw: unknown): PhaseChecklistItem[] {

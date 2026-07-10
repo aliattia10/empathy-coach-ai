@@ -1,12 +1,12 @@
 import type { UserGoal, JourneyState, PhaseChecklistItem } from "@/types/journey";
-import { normalizeUserGoals } from "@/types/journey";
+import { normalizeUserGoals, sortGoalsByStep } from "@/types/journey";
 import { mergePhaseChecklistFromAi } from "@/lib/phaseChecklist";
 
 const PROGRESS_BLOCK_RE = /\[\[PROGRESS\]\]([\s\S]*?)\[\[\/PROGRESS\]\]/i;
 
 export type ProgressPayload = {
   summary?: string;
-  goals?: Array<{ title?: string; id?: string }>;
+  goals?: Array<{ title?: string; id?: string; step?: string; tier?: "goal" | "major" | "sub" }>;
   milestones?: Array<{ key?: string; title?: string; phase?: number }>;
 };
 
@@ -51,8 +51,10 @@ export function mergeProgressGoals(
     if (!title) continue;
     const key = title.toLowerCase();
     const prev = result.get(key) ?? byTitle.get(key);
+    const step = item.step?.trim();
+    const tier = item.tier;
     if (prev) {
-      result.set(key, { ...prev, title });
+      result.set(key, { ...prev, title, step: step ?? prev.step, tier: tier ?? prev.tier });
     } else {
       result.set(key, {
         id: item.id?.trim() || newGoalId(),
@@ -61,6 +63,10 @@ export function mergeProgressGoals(
         completed_at: null,
         source: "ai",
         created_at: now,
+        step,
+        tier:
+          tier ??
+          (step === "goal" ? "goal" : step?.includes(".") ? "sub" : step ? "major" : undefined),
       });
     }
   }
@@ -72,7 +78,7 @@ export function mergeProgressGoals(
     }
   }
 
-  const goals = Array.from(result.values());
+  const goals = sortGoalsByStep(Array.from(result.values()));
   const summary =
     typeof payload.summary === "string" && payload.summary.trim()
       ? payload.summary.trim().slice(0, 400)

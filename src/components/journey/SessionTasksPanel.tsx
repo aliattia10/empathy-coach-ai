@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { MessageSquare, Plus, Sparkles, Trash2 } from "lucide-react";
-import { PHASE_LABELS, type JourneyState, type UserGoal } from "@/types/journey";
+import { PHASE_LABELS, sortGoalsByStep, type JourneyState, type UserGoal } from "@/types/journey";
 import { computeJourneyProgressPercent, goalsCompletionRatio } from "@/lib/journeyProgress";
 
 type SessionTasksPanelProps = {
@@ -29,7 +29,7 @@ export default function SessionTasksPanel({
   const [draft, setDraft] = useState("");
   const progressPercent = computeJourneyProgressPercent(journey, 0);
   const { done, total } = goalsCompletionRatio(journey.user_goals);
-  const tasks = journey.user_goals;
+  const tasks = sortGoalsByStep(journey.user_goals);
 
   const handleAdd = () => {
     const title = draft.trim();
@@ -126,9 +126,16 @@ function TaskRow({
   onRemove: (id: string) => void;
 }) {
   const fromCoach = task.source === "ai" || task.source === "system";
+  const isSub = task.tier === "sub" || (task.step?.includes(".") ?? false);
+  const isGoal = task.tier === "goal" || task.step === "goal";
+  const stepPrefix = task.step && task.step !== "goal" ? `${task.step}. ` : task.step === "goal" ? "Goal: " : "";
 
   return (
-    <li className="flex items-start gap-2 rounded-xl border border-border/80 p-3 hover:bg-muted/30 transition-colors">
+    <li
+      className={`flex items-start gap-2 rounded-xl border border-border/80 p-3 hover:bg-muted/30 transition-colors ${
+        isSub ? "ml-4 border-l-2 border-l-primary/30" : isGoal ? "bg-primary/5 border-primary/20" : ""
+      }`}
+    >
       <Checkbox
         checked={task.completed}
         disabled={busy}
@@ -138,16 +145,17 @@ function TaskRow({
       />
       <div className="flex-1 min-w-0">
         <p
-          className={`text-sm leading-snug ${
-            task.completed ? "text-muted-foreground line-through" : "text-foreground"
-          }`}
+          className={`leading-snug ${
+            isGoal ? "text-sm font-semibold text-foreground" : "text-sm"
+          } ${task.completed ? "text-muted-foreground line-through" : "text-foreground"}`}
         >
+          {stepPrefix}
           {task.title}
         </p>
-        {fromCoach && (
+        {fromCoach && !isGoal && (
           <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
             <Sparkles className="w-3 h-3" />
-            Suggested by coach
+            {task.tier === "major" ? "Major step" : task.tier === "sub" ? "Sub-step" : "Suggested by coach"}
           </p>
         )}
       </div>

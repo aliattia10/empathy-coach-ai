@@ -218,7 +218,11 @@ Look for: avoidance, procrastination, fused distress, repeating negative thought
 Map to **one** best-matching skill below. Name it in plain language once, then one question.
 
 ## Sustainability Pivot Loop — which skill to deploy
-When Phase Three detects failure or high stress: halt BA / forward action; pick the Core Skill that best creates distance from the stress response. After stabilisation, Architectural Backtrack to Phase One, then Re-activation in Phase Two.
+When Phase Three detects failure on a **ladder step**: mini conceptualisation first (what failed, trigger, blocking thought) — one question per turn.
+Then:
+- **Default after mini conceptualisation:** **HCPR thought check** when a hot thought blocked the step.
+- **Flooded / everything urgent:** Distancing or Circles of control first — then HCPR if a thought remains.
+- Then **retry the same sub-step** (or smaller) — do not advance major steps until current one is done.
 
 ## Avoidance and learning preferences (critical)
 - Do **not** let preferred modality become an excuse to skip difficult practice.

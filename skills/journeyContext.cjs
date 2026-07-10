@@ -71,13 +71,29 @@ function formatJourneyContextForPrompt(ctx) {
   }
   const goals = Array.isArray(ctx.userGoals) ? ctx.userGoals : [];
   if (goals.length > 0) {
-    const goalLines = goals.map((g, i) => {
+    const goalLine = goals.find((g) => g?.tier === "goal" || g?.step === "goal");
+    if (goalLine?.title) {
+      lines.push(`Agreed Goal on file: ${goalLine.title}`);
+    }
+    const goalLines = goals.map((g) => {
       const title = g?.title ?? "Untitled";
       const done = g?.completed ? "done" : "open";
-      return `  ${i + 1}. [${done}] ${title}`;
+      const label = g?.step ? `${g.step} ` : "";
+      const tier = g?.tier ? ` (${g.tier})` : "";
+      return `  [${done}] ${label}${title}${tier}`;
     });
-    lines.push("User action steps on file (user ticks these in the app):");
+    lines.push("Goal ladder on Tasks page (coach + user — work one active sub-step at a time):");
     lines.push(...goalLines);
+    const firstOpenSub = goals.find(
+      (g) => !g?.completed && (g?.tier === "sub" || (g?.step && String(g.step).includes("."))),
+    );
+    const firstOpenMajor = goals.find(
+      (g) => !g?.completed && g?.tier === "major",
+    );
+    const active = firstOpenSub ?? firstOpenMajor;
+    if (active) {
+      lines.push(`Active ladder focus (internal): step ${active.step ?? "?"} — ${active.title}`);
+    }
   }
 
   const milestones = Array.isArray(ctx.phaseChecklist) ? ctx.phaseChecklist : [];
@@ -95,12 +111,11 @@ function formatJourneyContextForPrompt(ctx) {
   lines.push("## Phase routing from this state (strict priority)");
 
   if (ctx.sustainabilityPivotActive) {
-    lines.push("1) Sustainability Pivot Loop — one Core Skill, regulate first.");
+    lines.push("1) Ladder step failed — mini conceptualisation on what blocked them (one question per turn).");
+    lines.push("2) HCPR thought check (default) or Distancing if flooded.");
+    lines.push("3) Retry same/smaller sub-step + 1–10 confidence — do not advance major step until done.");
     if (ctx.architecturalBacktrackActive) {
-      lines.push("2) Architectural Backtrack — ask if assumptions/rules changed during the attempt.");
-      lines.push("3) Re-activation — smaller Phase Two step + 1–10 confidence when stable.");
-    } else {
-      lines.push("2) When steadier → Architectural Backtrack, then Re-activation.");
+      lines.push("4) Architectural Backtrack — update assumptions from the attempt.");
     }
   } else if (!ctx.phaseOneConfirmed) {
     if (ctx.isResuming && ctx.activeMicroGoal) {
@@ -123,10 +138,12 @@ function formatJourneyContextForPrompt(ctx) {
     } else {
       lines.push("- Phase One Step 1.3: present summary; await explicit confirmation before Phase Two.");
     }
+  } else if (!ctx.targetOutcome && goals.length === 0) {
+    lines.push("- Phase Two: co-create Goal + ladder (Steps 1–5, subs 1.1…) and get explicit agreement before Tasks list.");
   } else if (phase === 2 || !ctx.activeMicroGoal || (ctx.microGoalConfidence ?? 0) < 7) {
-    lines.push("- Phase Two: target outcome → micro-goal → 1–10 confidence (≥7 to lock).");
+    lines.push("- Phase Two: agree Goal + ladder if not on Tasks yet; else coach **active sub-step** only + 1–10 confidence (≥7).");
   } else if (ctx.isResuming) {
-    lines.push("- Phase Three: check-in on micro-goal progress first.");
+    lines.push("- Phase Three: check-in on **active sub-step** from ladder first.");
   } else {
     lines.push("- Phase Three: coach execution; pivot on failure/stress.");
   }

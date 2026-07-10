@@ -41,6 +41,10 @@ See `docs/ENV-VARIABLES-AND-NETLIFY.md` and `docs/TEST-LLM-AND-VOICE.md` for Ope
 
 ## Docs
 
+- `docs/KNOWLEDGE-BASE-PROTOCOL.md` — Central KB protocol for team review (Jul 2026)
+- `docs/FEATURE-BACKLOG-AND-TIMELINE.md` — Cross-referenced backlog and timeline
+- `docs/SUPER-PROMPT-GOAL-ESTABLISHMENT.md` — Goal gate before later stages
+- `docs/SUPER-PROMPT-MIRRORING-AND-TONALITY.md` — Accessible language and mirroring
 - `docs/ENV-VARIABLES-AND-NETLIFY.md` — Env vars and OpenRouter
 - `docs/TEST-LLM-AND-VOICE.md` — Test LLM and voice
 - `docs/NEXT-STEPS-AND-BUDGET.md` — Cloud, voice, avatar roadmap

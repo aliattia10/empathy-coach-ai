@@ -12,8 +12,9 @@ That function is the single source of truth for prompt assembly order:
 
 | Layer | Source module | Also documented in |
 |-------|---------------|-------------------|
-| Coach identity + rules + crisis | `skills/coachSystemPrompt.cjs` | `docs/SUPER-PROMPT-CRISIS-TRIAGE.md`, `docs/SUPER-PROMPT-OPENING-PHASE.md` |
-| Platform phases (1–3) | `skills/llmEnginePhases.cjs` | `docs/SUPER-PROMPT-LLM-ENGINE-PHASES.md` |
+| Coach identity + rules + crisis | `skills/coachSystemPrompt.cjs` | `docs/SUPER-PROMPT-CRISIS-TRIAGE.md`, `docs/SUPER-PROMPT-OPENING-PHASE.md`, `docs/SUPER-PROMPT-MIRRORING-AND-TONALITY.md` |
+| Platform phases (1–3) | `skills/llmEnginePhases.cjs` | `docs/SUPER-PROMPT-LLM-ENGINE-PHASES.md`, `docs/SUPER-PROMPT-GOAL-ESTABLISHMENT.md` |
+| Knowledge base (team review) | `docs/KNOWLEDGE-BASE-PROTOCOL.md` | Scenario + skill templates before DB seed |
 | Journey state (phase, step, goals) | `skills/journeyContext.cjs` | Session columns on `chat_sessions` |
 | Skills library | `skills/skillsLibrary.cjs` | `docs/SUPER-PROMPT-SKILLS-AND-SKILL-GAPS.md` |
 | Trainer global bullets | Supabase `chat_feedback` (`apply_to_global_instructions`) | `docs/SUPER-PROMPT-TRAINER-GLOBAL-FEEDBACK.md` |

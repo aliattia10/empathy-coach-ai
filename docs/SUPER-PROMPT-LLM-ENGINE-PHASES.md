@@ -21,6 +21,7 @@ Aligned with *Changes needed for the LLM Engine* PDF. Live wiring:
 3. **Step 1.3 Reflective Handshake (gate)** — summary; `phase_one_confirmed` must be true before Phase Two.
 
 ### Phase Two — Micro-goals
+0. **Step 2.0 Goal establishment** — target outcome + 1–3 key steps before micro-stepping (meeting 8 Jul 2026)
 1. **Target outcome**
 2. **Socratic micro-stepping** — BA, time blocks, boundary communication
 3. **Safety-check** — confidence 1–10 for tomorrow; if &lt; 7, shrink the step

@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Groq vs RunPod — LLM Strategy Decision</title>
+  <style>
+    :root { --primary: #5b21b6; --text: #1f2937; --muted: #6b7280; --border: #e5e7eb; --bg: #fafafa; }
+    * { box-sizing: border-box; }
+    body { font-family: "Segoe UI", system-ui, sans-serif; color: var(--text); line-height: 1.55; max-width: 900px; margin: 0 auto; padding: 2rem 2.5rem; background: #fff; }
+    h1 { color: var(--primary); font-size: 1.75rem; margin-bottom: 0.25rem; }
+    h2 { color: var(--primary); font-size: 1.25rem; margin-top: 2rem; border-bottom: 2px solid var(--border); padding-bottom: 0.35rem; }
+    h3 { font-size: 1.05rem; margin-top: 1.25rem; }
+    .meta { color: var(--muted); font-size: 0.9rem; margin-bottom: 1.5rem; }
+    table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.88rem; }
+    th, td { border: 1px solid var(--border); padding: 0.5rem 0.65rem; text-align: left; vertical-align: top; }
+    th { background: var(--bg); font-weight: 600; }
+    tr:nth-child(even) td { background: #fcfcfc; }
+    .summary-box { background: #f5f3ff; border: 1px solid #ddd6fe; border-radius: 8px; padding: 1rem 1.25rem; margin: 1rem 0; }
+    .pro { color: #047857; }
+    .con { color: #b45309; }
+    ul { padding-left: 1.25rem; }
+    li { margin: 0.35rem 0; }
+    code, pre { background: var(--bg); border: 1px solid var(--border); border-radius: 4px; font-size: 0.82rem; }
+    pre { padding: 0.75rem 1rem; overflow-x: auto; }
+    .page-break { page-break-before: always; }
+    @media print {
+      body { padding: 1rem; font-size: 11pt; }
+      h2 { page-break-after: avoid; }
+      table { page-break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+
+<h1>Groq vs RunPod — LLM Strategy Decision</h1>
+<p class="meta"><strong>Project:</strong> ShiftED AI / Empathy Coach &nbsp;|&nbsp; <strong>Date:</strong> June 2026 &nbsp;|&nbsp; <strong>Version:</strong> 1.0</p>
+
+<div class="summary-box">
+  <h2 style="margin-top:0;border:none;">2-minute executive summary</h2>
+  <table>
+    <tr><th></th><th>Groq (hosted API)</th><th>RunPod (fine-tuned)</th></tr>
+    <tr><td><strong>Ease</strong></td><td>Much easier — API key only</td><td>Harder — GPU, volume, cold start</td></tr>
+    <tr><td><strong>Idle cost</strong></td><td><strong>$0</strong></td><td>$0 at scale-to-zero; ~$7–11/day if warm 10h</td></tr>
+    <tr><td><strong>Demo month</strong></td><td><strong>~$1–7</strong> (70B, moderate use)</td><td>~$15–40 (zero scale) or ~$150–240 (warm)</td></tr>
+    <tr><td><strong>Custom model</strong></td><td>No</td><td><strong>Yes — empathy-coach-qwen</strong></td></tr>
+    <tr><td><strong>Best for</strong></td><td>Demos, reliability, low ops</td><td>Long-term moat, Simon-trained tone</td></tr>
+  </table>
+  <p><strong>Recommendation:</strong> Use <strong>Groq for near-term demos</strong>; keep <strong>RunPod fine-tune</strong> as the strategic path. Hybrid switch via Netlify env vars only.</p>
+</div>
+
+<h2>1. What we have today</h2>
+<h3>RunPod (current target)</h3>
+<ul>
+  <li>Base: <strong>Qwen2.5-7B-Instruct</strong>, LoRA-trained on Simon feedback (~221 turns)</li>
+  <li>Model: <code>empathy-coach-qwen</code> on volume <code>empathy-coach-qwen-merged-v1</code></li>
+  <li>RunPod Serverless vLLM, scale to zero, async warm-up UI in app</li>
+</ul>
+<h3>Groq (alternative)</h3>
+<ul>
+  <li>Hosted models only (e.g. <code>llama-3.3-70b-versatile</code>) — cannot deploy our fine-tune</li>
+  <li>Same super prompt stack (phases, journey, trainer rules, memory)</li>
+</ul>
+
+<h2>2. Pros and cons</h2>
+<h3>Groq — Pros</h3>
+<ul class="pro">
+  <li>Instant inference, no cold start</li>
+  <li>Pay per token — $0 when idle</li>
+  <li>Very low cost at demo scale (~$0.01–$2/day typical)</li>
+  <li>Simple ops: API key + env vars</li>
+  <li>Free tier for prototyping</li>
+</ul>
+<h3>Groq — Cons</h3>
+<ul class="con">
+  <li>Cannot run empathy-coach-qwen fine-tune</li>
+  <li>Quality depends on base model + prompt only</li>
+  <li>Rate limits on free tier; card required for production</li>
+  <li>User coaching data sent to Groq infrastructure</li>
+</ul>
+<h3>RunPod — Pros</h3>
+<ul class="pro">
+  <li>Our fine-tuned model trained on Simon feedback</li>
+  <li>Re-trainable on new Supabase feedback</li>
+  <li>Scale to zero — no cost when idle</li>
+  <li>EU volume, owned weights</li>
+</ul>
+<h3>RunPod — Cons</h3>
+<ul class="con">
+  <li>Operational complexity (endpoint, GPUs, logs)</li>
+  <li>Cold start 1–3 min after idle</li>
+  <li>GPU availability issues (e.g. 80 GB unavailable)</li>
+  <li>Warm-up for instant demos costs ~$7–11/day</li>
+</ul>
+
+<div class="page-break"></div>
+
+<h2>3. Cost comparison</h2>
+<p><em>Groq bills per token. RunPod bills per GPU-second while a worker runs. “10 hours/day” applies to RunPod warm-up, not Groq.</em></p>
+
+<h3>Groq pricing (June 2026)</h3>
+<table>
+  <tr><th>Model</th><th>Input / 1M</th><th>Output / 1M</th></tr>
+  <tr><td>Llama 3.1 8B Instant</td><td>$0.05</td><td>$0.08</td></tr>
+  <tr><td>Llama 3.3 70B Versatile</td><td>$0.59</td><td>$0.79</td></tr>
+  <tr><td>Qwen3 32B</td><td>$0.29</td><td>$0.59</td></tr>
+</table>
+
+<h3>Groq — estimated monthly (weekdays)</h3>
+<table>
+  <tr><th>Scenario</th><th>Chats/day</th><th>8B</th><th>70B</th></tr>
+  <tr><td>Light demo</td><td>~20</td><td>~$0.20/mo</td><td>~$1.30/mo</td></tr>
+  <tr><td>Team testing</td><td>~100</td><td>~$0.70/mo</td><td>~$7/mo</td></tr>
+  <tr><td>Active pilots</td><td>~500</td><td>~$3/mo</td><td>~$35/mo</td></tr>
+</table>
+
+<h3>RunPod — estimated monthly</h3>
+<table>
+  <tr><th>Mode</th><th>RTX 4090 (~$1.10/hr)</th><th>L4 (~$0.68/hr)</th></tr>
+  <tr><td>Scale-to-zero, light use</td><td>~$10–40/mo</td><td>~$5–20/mo</td></tr>
+  <tr><td>Warm 10h/day (cron)</td><td>~$240/mo</td><td>~$150/mo</td></tr>
+  <tr><td>Min workers = 1 (24/7)</td><td>~$790/mo</td><td>~$490/mo</td></tr>
+</table>
+
+<h2>4. Decision matrix</h2>
+<table>
+  <tr><th>Priority</th><th>Choose</th></tr>
+  <tr><td>Reliability for demos this week</td><td><strong>Groq</strong></td></tr>
+  <tr><td>Lowest operational burden</td><td><strong>Groq</strong></td></tr>
+  <tr><td>Simon-aligned coaching from weights</td><td><strong>RunPod fine-tune</strong></td></tr>
+  <tr><td>Own model IP / re-train on feedback</td><td><strong>RunPod fine-tune</strong></td></tr>
+</table>
+
+<h2>5. Switch checklists</h2>
+<h3>Groq (Netlify)</h3>
+<pre>VLLM_API_URL=https://api.groq.com/openai/v1/chat/completions
+LLM_API_KEY=&lt;Groq API key&gt;
+VLLM_MODEL=llama-3.3-70b-versatile
+RUNPOD_ASYNC=false</pre>
+
+<h3>RunPod (fine-tuned)</h3>
+<pre>VLLM_API_URL=https://api.runpod.ai/v2/&lt;ENDPOINT_ID&gt;/openai/v1/chat/completions
+LLM_API_KEY=&lt;RunPod API key&gt;
+VLLM_MODEL=empathy-coach-qwen
+RUNPOD_ASYNC=true
+VLLM_MAX_CONTEXT_TOKENS=6144</pre>
+
+<h2>6. Suggested hybrid roadmap</h2>
+<ol>
+  <li><strong>Now:</strong> Groq 70B for demos and stakeholder testing</li>
+  <li><strong>Parallel:</strong> Stabilise RunPod (4090/L4, volume, logs)</li>
+  <li><strong>Next:</strong> Simon A/B — fine-tuned RunPod vs Groq 70B + super prompt</li>
+  <li><strong>Decide:</strong> Production path based on coaching quality review</li>
+</ol>
+
+<h2>7. References</h2>
+<ul>
+  <li>Groq: <a href="https://console.groq.com">console.groq.com</a></li>
+  <li>RunPod pricing: <a href="https://docs.runpod.io/serverless/pricing">docs.runpod.io/serverless/pricing</a></li>
+  <li>In-repo: <code>docs/SUPER-PROMPT-RUNPOD-OWN-LLM.md</code>, <code>docs/TRAIN-ON-SIMON-FEEDBACK.md</code></li>
+</ul>
+
+<p class="meta" style="margin-top:2rem;">Re-verify provider pricing before budget sign-off. Full markdown: <code>docs/GROQ-VS-RUNPOD-DECISION.md</code></p>
+
+</body>
+</html>

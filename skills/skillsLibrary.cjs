@@ -236,10 +236,9 @@ Then:
 function formatSkillsForPrompt(opts = {}) {
   if (opts.condensed) {
     return [
-      "# Skills (one per turn when a gap is clear)",
-      "Core (distancing when flooded): Distancing, HCPR, DTR, cost-benefit, circles of control.",
-      "Development/Activation (Phase 2–3 when stable): BA, micro goals, boundary communication, constructive feedback.",
-      ...SKILLS.map((s) => `- ${s.name}: ${s.whenToUse}`),
+      "# Skills (deploy one per turn when a gap is clear)",
+      "Core: Distancing (flooded), HCPR (hot thought), DTR, cost-benefit, circles of control.",
+      "Development: behavioural activation, micro-goals, boundary communication, constructive feedback.",
     ].join("\n");
   }
 

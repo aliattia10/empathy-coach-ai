@@ -12,6 +12,35 @@ function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function friendlyChatError(raw: string | undefined, status?: number): string {
+  const text = String(raw || "").trim();
+  if (!text) return "Avatar is currently unavailable. Please try again.";
+  if (/maximum context length|context length is|input_tokens|too many tokens/i.test(text)) {
+    return "The coach hit a context limit — please try again. If it keeps happening, start a fresh journey.";
+  }
+  if (text.startsWith("{") || text.startsWith("{'")) {
+    try {
+      const normalized = text.replace(/'/g, '"');
+      const parsed = JSON.parse(normalized) as { error?: { message?: string } | string; message?: string };
+      const msg =
+        typeof parsed.error === "object" && parsed.error?.message
+          ? parsed.error.message
+          : typeof parsed.error === "string"
+            ? parsed.error
+            : parsed.message;
+      if (msg && /maximum context length|context length is/i.test(msg)) {
+        return "The coach hit a context limit — please try again. If it keeps happening, start a fresh journey.";
+      }
+    } catch {
+      // fall through
+    }
+    return status === 400
+      ? "The coach could not process that message — please try again."
+      : "Avatar is currently unavailable. Please try again.";
+  }
+  return text.length < 220 ? text : "Avatar is currently unavailable. Please try again.";
+}
+
 async function pollRunPodJob(
   jobId: string,
 ): Promise<{ ok: true; reply: string } | { ok: false; error: string }> {
@@ -38,20 +67,14 @@ async function pollRunPodJob(
       if (pollData.status === "FAILED" || pollData.status === "CANCELLED") {
         return {
           ok: false,
-          error:
-            typeof pollData.error === "string"
-              ? pollData.error
-              : "The coach could not start. Check RunPod endpoint logs.",
+          error: friendlyChatError(pollData.error, pollRes.status),
         };
       }
 
       if (!pollRes.ok && !pollData.retryable) {
         return {
           ok: false,
-          error:
-            typeof pollData.error === "string"
-              ? pollData.error
-              : "Avatar is currently unavailable. Please try again.",
+          error: friendlyChatError(pollData.error, pollRes.status),
         };
       }
     } catch {
@@ -107,10 +130,7 @@ export async function fetchChatReply(
     if (!response.ok) {
       return {
         ok: false,
-        error:
-          typeof data.error === "string"
-            ? data.error
-            : "Avatar is currently unavailable. Please try again.",
+        error: friendlyChatError(data.error, response.status),
       };
     }
 

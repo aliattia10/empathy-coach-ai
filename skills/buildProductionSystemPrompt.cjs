@@ -3,7 +3,7 @@
  * Used by /api/chat and training export — keep assembly order in sync.
  */
 
-const { COACH_SYSTEM_PROMPT_TEXT } = require("./coachSystemPrompt.cjs");
+const { COACH_SYSTEM_PROMPT_TEXT, COACH_INFERENCE_SYSTEM_PROMPT_TEXT } = require("./coachSystemPrompt.cjs");
 const { formatSkillsForPrompt } = require("./skillsLibrary.cjs");
 const { formatLlmEnginePhasesForPrompt } = require("./llmEnginePhases.cjs");
 const { formatJourneyContextForPrompt } = require("./journeyContext.cjs");
@@ -51,14 +51,14 @@ const INFERENCE_DIRECTIVES = `# Live inference directives (this turn — highest
  */
 function buildProductionSystemPrompt(opts = {}) {
   const condensed = !!opts.forInference;
-  let content = COACH_SYSTEM_PROMPT_TEXT;
+  let content = condensed ? COACH_INFERENCE_SYSTEM_PROMPT_TEXT : COACH_SYSTEM_PROMPT_TEXT;
   content += `\n\n${formatLlmEnginePhasesForPrompt({ condensed })}\n`;
 
   const journeyBlock = formatJourneyContextForPrompt(opts.journeyContext);
   if (journeyBlock) content += `\n\n${journeyBlock}\n`;
 
   content += `\n\n${formatSkillsForPrompt({ condensed })}\n`;
-  content += `\n\n${formatProgressDashboardForPrompt()}\n`;
+  content += `\n\n${formatProgressDashboardForPrompt({ condensed })}\n`;
 
   if (condensed) {
     content += `\n\n${INFERENCE_DIRECTIVES}\n`;

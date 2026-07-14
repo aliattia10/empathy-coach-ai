@@ -50,10 +50,10 @@ function trimMessagesForContext(messages, opts = {}) {
   if (!Array.isArray(messages) || messages.length < 2) return messages;
 
   const maxContextTokens =
-    Number(opts.maxContextTokens) || Number(process.env.VLLM_MAX_CONTEXT_TOKENS) || 6144;
+    Number(opts.maxContextTokens) || Number(process.env.VLLM_MAX_CONTEXT_TOKENS) || 4096;
   const reserveOutputTokens =
-    Number(opts.reserveOutputTokens) || Number(process.env.VLLM_MAX_TOKENS) || 500;
-  const minHistoryMessages = Number(opts.minHistoryMessages) || 12;
+    Number(opts.reserveOutputTokens) || Number(process.env.VLLM_MAX_TOKENS) || 400;
+  const minHistoryMessages = Number(opts.minHistoryMessages) || 8;
 
   const budget = Math.max(1024, maxContextTokens - reserveOutputTokens);
   const system = messages[0];
@@ -78,7 +78,75 @@ function trimMessagesForContext(messages, opts = {}) {
     if (estimateTokens(kept[0].content) >= estimateTokens(head.content)) break;
   }
 
-  return [system, ...kept, last];
+  let systemMsg = system;
+  const totalWithSystem = () =>
+    estimateTokens(systemMsg.content) + estimateTokens(last.content) + estimateMessagesTokens(kept);
+
+  while (totalWithSystem() > budget && systemMsg?.content) {
+    const trimmed = trimSystemContent(
+      systemMsg.content,
+      budget - estimateTokens(last.content) - estimateMessagesTokens(kept) - 32,
+    );
+    if (trimmed === systemMsg.content) break;
+    systemMsg = { ...systemMsg, content: trimmed };
+  }
+
+  return [systemMsg, ...kept, last];
+}
+
+/** Shrink system prompt sections when still over the model context window. */
+function trimSystemContent(content, maxTokens) {
+  let text = String(content || "");
+  if (estimateTokens(text) <= maxTokens) return text;
+
+  const dropSections = [
+    /# Admin-starred exemplar replies[\s\S]*/i,
+    /# Trainer global standards[\s\S]*/i,
+    /# Conversation memory[\s\S]*/i,
+  ];
+  for (const pattern of dropSections) {
+    text = text.replace(pattern, "").trim();
+    if (estimateTokens(text) <= maxTokens) return text;
+  }
+
+  const maxChars = Math.max(1200, Math.floor(maxTokens * 3.2));
+  if (text.length > maxChars) {
+    return `${text.slice(0, maxChars)}\n\n[Context trimmed for model limit — obey core rules above.]`;
+  }
+  return text;
+}
+
+function isContextLengthError(errText) {
+  const t = String(errText || "");
+  return /maximum context length|context length is|input_tokens|too many tokens/i.test(t);
+}
+
+function parseLlmErrorMessage(errText, status) {
+  const raw = String(errText || "").trim();
+  if (!raw) return userFacingLlmError(status);
+
+  if (isContextLengthError(raw)) {
+    return "The coach hit a context limit — please try again. If it keeps happening, start a fresh journey.";
+  }
+
+  try {
+    const parsed = JSON.parse(raw);
+    const msg =
+      parsed?.error?.message ||
+      parsed?.message ||
+      (typeof parsed?.error === "string" ? parsed.error : null);
+    if (msg && isContextLengthError(msg)) {
+      return "The coach hit a context limit — please try again. If it keeps happening, start a fresh journey.";
+    }
+    if (typeof msg === "string" && msg.length > 0 && msg.length < 200) {
+      return msg;
+    }
+  } catch {
+    // not JSON
+  }
+
+  if (raw.length < 200 && !raw.includes("{")) return raw;
+  return userFacingLlmError(status);
 }
 
 function buildSamplingParams(mode) {
@@ -117,6 +185,7 @@ async function fetchLlmWithRetries(doRequest, opts = {}) {
 }
 
 function userFacingLlmError(status) {
+  if (status === 400) return "The coach could not process that message — please try again.";
   if (status === 429) return "The AI is in high demand. Please try again in a moment.";
   if (status === 503 || status === 504 || status === 524) {
     return "The coach is warming up — please send your message again in a few seconds.";
@@ -130,6 +199,9 @@ module.exports = {
   trimTrainerRules,
   trimExemplars,
   trimMessagesForContext,
+  trimSystemContent,
+  isContextLengthError,
+  parseLlmErrorMessage,
   buildSamplingParams,
   fetchLlmWithRetries,
   userFacingLlmError,

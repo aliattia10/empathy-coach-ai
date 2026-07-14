@@ -77,11 +77,21 @@ Rules:
 Never mention [[PROGRESS]], JSON, or "goal ladder" to the user unless they ask where tasks are stored.
 You may say: "I've added our agreed plan to your Tasks page — you'll see Goal, Step 1, and the small actions under it."`;
 
-function formatProgressDashboardForPrompt() {
+const PROGRESS_DASHBOARD_INFERENCE_PROMPT = `# Tasks page — goal ladder (internal)
+After Phase One handshake: co-create Goal + Steps 1–5 (subs 1.1, 1.2…) and get explicit agreement before emitting [[PROGRESS]].
+Work one active sub-step; confidence 1–10 on that item. On failure: mini conceptualisation → HCPR → retry same/smaller step.
+
+Emit [[PROGRESS]] as last line when ladder agreed/updated:
+[[PROGRESS]]{"summary":"Goal: …","goals":[{"step":"goal","tier":"goal","title":"…"},{"step":"1","tier":"major","title":"…"},{"step":"1.1","tier":"sub","title":"…"}]}[[/PROGRESS]]
+Every coach row needs step + tier (goal|major|sub). Personalise titles. Do not emit during Phase One intake or while still negotiating.`;
+
+function formatProgressDashboardForPrompt(opts = {}) {
+  if (opts?.condensed) return PROGRESS_DASHBOARD_INFERENCE_PROMPT;
   return PROGRESS_DASHBOARD_SUPER_PROMPT;
 }
 
 module.exports = {
   PROGRESS_DASHBOARD_SUPER_PROMPT,
+  PROGRESS_DASHBOARD_INFERENCE_PROMPT,
   formatProgressDashboardForPrompt,
 };

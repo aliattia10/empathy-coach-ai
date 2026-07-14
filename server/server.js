@@ -20,6 +20,7 @@ const {
   trimMessagesForContext,
   buildSamplingParams,
   estimateMessagesTokens,
+  parseLlmErrorMessage,
 } = require("../skills/llmChatHelpers.cjs");
 const {
   normalizeChatHistory,
@@ -44,8 +45,8 @@ Capture the main topic or situation (work conflict, feedback anxiety, burnout, e
 };
 
 const TRAINER_FEEDBACK_LIMIT = 25;
-const INFERENCE_TRAINER_LIMIT = 12;
-const INFERENCE_EXEMPLAR_LIMIT = 4;
+const INFERENCE_TRAINER_LIMIT = 6;
+const INFERENCE_EXEMPLAR_LIMIT = 2;
 
 async function fetchTrainerGlobalInstructions(limit = TRAINER_FEEDBACK_LIMIT) {
   const baseUrl = (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "").replace(/\/$/, "");
@@ -126,9 +127,9 @@ async function buildChatSystemContent(possibleCrisisLanguage, journeyContext, hi
     fetchTrainerGlobalInstructions(forInference ? INFERENCE_TRAINER_LIMIT : TRAINER_FEEDBACK_LIMIT),
     fetchStarredAssistantExemplars(forInference ? INFERENCE_EXEMPLAR_LIMIT : 8, forInference ? 280 : 480),
   ]);
-  const trainerRules = forInference ? trimTrainerRules(rawTrainerRules, 10, 180) : rawTrainerRules;
-  const exemplars = forInference ? trimExemplars(rawExemplars, 3, 220) : rawExemplars;
-  const conversationMemory = buildConversationMemoryBlock(history);
+  const trainerRules = forInference ? trimTrainerRules(rawTrainerRules, 6, 120) : rawTrainerRules;
+  const exemplars = forInference ? trimExemplars(rawExemplars, 2, 160) : rawExemplars;
+  const conversationMemory = buildConversationMemoryBlock(history, forInference ? 1000 : 2200);
   let content = buildProductionSystemPrompt({
     trainerRules,
     exemplars,
@@ -195,7 +196,7 @@ async function buildChatSystemContent(possibleCrisisLanguage, journeyContext, hi
       true,
     );
     messages = [{ role: "system", content: systemContent }, ...history, { role: "user", content: userMessage }];
-    messages = trimMessagesForContext(messages, { minHistoryMessages: 12 });
+    messages = trimMessagesForContext(messages, { minHistoryMessages: 8, reserveOutputTokens: 400 });
   }
 
   const apiKey = process.env.LLM_API_KEY;

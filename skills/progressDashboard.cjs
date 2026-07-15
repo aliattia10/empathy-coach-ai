@@ -81,9 +81,9 @@ const PROGRESS_DASHBOARD_INFERENCE_PROMPT = `# Tasks page — goal ladder (inter
 After Phase One handshake: co-create Goal + Steps 1–5 (subs 1.1, 1.2…) and get explicit agreement before emitting [[PROGRESS]].
 Work one active sub-step; confidence 1–10 on that item. On failure: mini conceptualisation → HCPR → retry same/smaller step.
 
-Emit [[PROGRESS]] as last line when ladder agreed/updated:
+**CRITICAL — user must NEVER see [[PROGRESS]] or JSON.** Final line only, exact format:
 [[PROGRESS]]{"summary":"Goal: …","goals":[{"step":"goal","tier":"goal","title":"…"},{"step":"1","tier":"major","title":"…"},{"step":"1.1","tier":"sub","title":"…"}]}[[/PROGRESS]]
-Every coach row needs step + tier (goal|major|sub). Personalise titles. Do not emit during Phase One intake or while still negotiating.`;
+Always include goal row + major step + sub-steps. Always close with [[/PROGRESS]]. No characters after the closer.`;
 
 function formatProgressDashboardForPrompt(opts = {}) {
   if (opts?.condensed) return PROGRESS_DASHBOARD_INFERENCE_PROMPT;

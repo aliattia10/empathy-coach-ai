@@ -4,6 +4,7 @@ import { ArrowLeft, MessageCircle } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import {
   addUserTask,
+  fetchChatHistory,
   fetchJourneyById,
   removeUserTask,
   toggleGoalInList,
@@ -13,6 +14,7 @@ import {
 import { isAutoNamedJourney } from "@/lib/journeyNaming";
 import SessionTasksPanel from "@/components/journey/SessionTasksPanel";
 import { syncSessionTasks } from "@/lib/coachTaskSync";
+import { extractLatestProgressFromHistory } from "@/lib/goalExtraction";
 import { journeyStateFromSession } from "@/types/journey";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -69,18 +71,41 @@ export default function SessionWorkspacePage() {
         }
 
         const baseState = journeyStateFromSession(row);
-        const synced = syncSessionTasks(baseState);
+        const history = await fetchChatHistory(journeyId);
+        const assistantHistory = history
+          .filter((m) => m.role === "assistant")
+          .map((m) => m.content);
+        const recovered = extractLatestProgressFromHistory(assistantHistory, baseState);
 
         let sessionRow = row;
-        if (synced) {
+        const pruneSync = syncSessionTasks(baseState);
+        const nextGoals = recovered.goals ?? pruneSync?.user_goals ?? baseState.user_goals;
+        const nextSummary =
+          recovered.progressSummary ?? pruneSync?.progress_summary ?? baseState.progress_summary;
+
+        const goalsChanged =
+          JSON.stringify(nextGoals) !== JSON.stringify(baseState.user_goals);
+        const summaryChanged = nextSummary !== baseState.progress_summary;
+
+        if (goalsChanged || summaryChanged) {
           await updateProgressDashboard(journeyId, {
-            goals: synced.user_goals,
-            progressSummary: synced.progress_summary,
+            goals: nextGoals,
+            progressSummary: nextSummary,
           });
           sessionRow = {
             ...row,
-            user_goals: synced.user_goals,
-            progress_summary: synced.progress_summary ?? row.progress_summary,
+            user_goals: nextGoals,
+            progress_summary: nextSummary ?? row.progress_summary,
+          };
+        } else if (pruneSync) {
+          await updateProgressDashboard(journeyId, {
+            goals: pruneSync.user_goals,
+            progressSummary: pruneSync.progress_summary,
+          });
+          sessionRow = {
+            ...row,
+            user_goals: pruneSync.user_goals,
+            progress_summary: pruneSync.progress_summary ?? row.progress_summary,
           };
         }
 

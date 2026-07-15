@@ -33,7 +33,7 @@ import { ChevronDown, Loader2, ArrowLeft, ListTodo } from "lucide-react";
 import type { TranscriptMessage } from "@/components/avatar/ChatTranscript";
 import PhaseStepper from "@/components/avatar/PhaseStepper";
 import { inferJourneyUpdates } from "@/lib/journeyInference";
-import { extractProgressUpdates } from "@/lib/goalExtraction";
+import { extractProgressUpdates, extractLatestProgressFromHistory, sanitizeAssistantDisplayContent } from "@/lib/goalExtraction";
 import { autoCompleteMatchingGoal } from "@/lib/dashboardGoals";
 import { syncSessionTasks } from "@/lib/coachTaskSync";
 import { syncPhaseChecklist } from "@/lib/phaseChecklist";
@@ -153,6 +153,7 @@ export default function AvatarSessionPage() {
       variantParentsRendered.add(parentUserId);
       display.push({
         ...picked.activeVariant,
+        content: sanitizeAssistantDisplayContent(picked.activeVariant.content),
         variantIndex: picked.activeIndex,
         variantTotal: picked.variants.length,
         isActiveVariant: true,
@@ -271,6 +272,24 @@ export default function AvatarSessionPage() {
         const history = await fetchChatHistory(journey.id);
         if (!isMounted) return;
         const restored = mapHistoryToStoredMessages(history);
+
+        const assistantHistory = restored
+          .filter((m) => m.role === "assistant")
+          .map((m) => m.content);
+        const journeyState = journeyStateFromSession(journey);
+        const recovered = extractLatestProgressFromHistory(assistantHistory, journeyState);
+        if (recovered.goals || recovered.progressSummary) {
+          await updateProgressDashboard(journey.id, {
+            goals: recovered.goals ?? journeyState.user_goals,
+            progressSummary: recovered.progressSummary ?? journeyState.progress_summary,
+          });
+          journey = {
+            ...journey,
+            user_goals: recovered.goals ?? journeyState.user_goals,
+            progress_summary: recovered.progressSummary ?? journey.progress_summary,
+          };
+        }
+
         const emptyStarter = starterMessage(journey);
         setRawMessages(restored.length > 0 ? restored : [emptyStarter]);
         setActiveAssistantId(journey.active_message_id || null);
@@ -484,8 +503,7 @@ export default function AvatarSessionPage() {
 
       const content = result.reply;
       setIsCoachWarming(false);
-      const existingGoals = journeyState.user_goals ?? [];
-      const { displayContent } = extractProgressUpdates(content || "", existingGoals);
+      const { displayContent } = extractProgressUpdates(content || "", journeyState);
       const reply: TranscriptMessage = {
         id: (Date.now() + 1).toString(),
         role: "assistant",

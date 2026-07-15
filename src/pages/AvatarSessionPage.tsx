@@ -30,6 +30,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ChevronDown, Loader2, ArrowLeft, ListTodo } from "lucide-react";
+import type { TranscriptMessageRow } from "@/lib/exportSessionTranscript";
+import TrainerSessionTools from "@/components/avatar/TrainerSessionTools";
 import type { TranscriptMessage } from "@/components/avatar/ChatTranscript";
 import PhaseStepper from "@/components/avatar/PhaseStepper";
 import { inferJourneyUpdates } from "@/lib/journeyInference";
@@ -50,6 +52,7 @@ type StoredMessage = TranscriptMessage & {
   parent_message_id?: string | null;
   regenerated_from_message_id?: string | null;
   branch_root_message_id?: string | null;
+  created_at?: string;
 };
 
 type RegenerationPayloadFeedback = {
@@ -201,6 +204,30 @@ export default function AvatarSessionPage() {
     return merged;
   }, [feedbackByMessageId, rawMessages]);
 
+  const transcriptExportMessages = useMemo((): TranscriptMessageRow[] => {
+    const fallbackTime = journeySession?.created_at || new Date().toISOString();
+    return rawMessages.map((message) => ({
+      role: message.role,
+      content: message.content,
+      created_at: message.created_at || fallbackTime,
+    }));
+  }, [rawMessages, journeySession?.created_at]);
+
+  const transcriptSessionMeta = useMemo(
+    () =>
+      journeySession
+        ? {
+            id: journeySession.id,
+            user_id: journeySession.user_id,
+            userLabel: user?.email || journeySession.user_id,
+            scenario: journeySession.scenario,
+            session_name: journeySession.session_name,
+            created_at: journeySession.created_at,
+          }
+        : null,
+    [journeySession, user?.email],
+  );
+
   const mapHistoryToStoredMessages = (history: ChatMessage[]): StoredMessage[] =>
     history.map((m) => ({
       id: m.id,
@@ -210,6 +237,7 @@ export default function AvatarSessionPage() {
       regenerated_from_message_id: m.regenerated_from_message_id,
       branch_root_message_id: m.branch_root_message_id,
       admin_quality_star: m.admin_quality_star ?? false,
+      created_at: m.created_at,
     }));
 
   const loadFeedbackForMessages = async (messageList: StoredMessage[]) => {
@@ -636,10 +664,13 @@ export default function AvatarSessionPage() {
         [messageId]: { text: "", rating: null, tags: [], open: true, composing: false, applyToGlobal: true },
       }));
       if (draft.applyToGlobal !== false) {
-        toast.success("Trainer feedback saved — applies to all users on their next messages.");
+        toast.success(
+          "Feedback saved (applies to all users on future messages). Regenerating this reply now…",
+        );
       } else {
-        toast.success("Feedback saved (trainer-only, not added to global standards).");
+        toast.success("Feedback saved (trainer-only). Regenerating this reply now…");
       }
+      void handleRegenerate(messageId);
       setMessages((prev) =>
         prev.map((item) =>
           item.id === messageId
@@ -856,6 +887,16 @@ export default function AvatarSessionPage() {
             </CollapsibleTrigger>
             <CollapsibleContent className="mt-3">
               <div className="grid md:grid-cols-2 gap-3">
+                {isAdmin ? (
+                  <TrainerSessionTools
+                    session={transcriptSessionMeta}
+                    messages={transcriptExportMessages}
+                    disabled={isSessionLoading || isAiResponding}
+                    onUploadAsMessage={async (text) => {
+                      handleSendRef.current(text);
+                    }}
+                  />
+                ) : null}
                 <div className="rounded-xl border border-primary/20 bg-primary/5 px-4 py-3">
                   <p className="text-xs font-semibold text-foreground uppercase tracking-wider mb-1.5">Voice input</p>
                   <p className="text-sm text-muted-foreground">

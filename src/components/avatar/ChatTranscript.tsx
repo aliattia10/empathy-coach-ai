@@ -196,7 +196,12 @@ export default function ChatTranscript({
                             size="sm"
                             type="button"
                             variant="secondary"
-                            disabled={isRegenerating}
+                            disabled={isRegenerating || !(msg.feedbackCount || feedbackItemsByMessageId[msg.id]?.length)}
+                            title={
+                              (msg.feedbackCount || feedbackItemsByMessageId[msg.id]?.length)
+                                ? "Create a new reply variant using saved feedback"
+                                : "Save feedback first, then regenerate"
+                            }
                             onClick={() => onRegenerate?.(msg.id)}
                           >
                             {isRegenerating ? "Regenerating..." : "Regenerate from feedback"}

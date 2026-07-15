@@ -13,10 +13,24 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
-import { jsPDF } from "jspdf";
-import JSZip from "jszip";
-import { Star } from "lucide-react";
+import {
+  buildTranscriptPdf,
+  buildTranscriptFilename,
+  downloadTranscriptPdf,
+  sanitizeFilename,
+  triggerBlobDownload,
+  type TranscriptMessageRow,
+  type TranscriptSessionMeta,
+} from "@/lib/exportSessionTranscript";
+import { Star, Languages } from "lucide-react";
 import { setChatMessageAdminStar } from "@/hooks/useChatSession";
+import { hasAdminRole as userHasAdminRole, isTrainerAdminEmail } from "@/lib/adminAccess";
+import {
+  ADMIN_TRANSLATE_SOURCES,
+  ADMIN_TRANSLATE_TARGETS,
+  fetchAdminTranslation,
+  type AdminTranslateLang,
+} from "@/lib/fetchAdminTranslation";
 
 type SessionRow = {
   id: string;
@@ -58,17 +72,13 @@ function chunkArray<T>(arr: T[], size: number): T[][] {
   );
 }
 
-function sanitizeFilename(value: string) {
-  return value.replace(/[\\/:*?"<>|]/g, "_");
-}
-
-const ONLY_ADMIN_EMAIL = "josh@admin.com";
+const DEFAULT_ADMIN_EMAIL = "josh@admin.com";
 
 export default function AdminChatPage() {
   const { user, loading } = useAuth();
   const [gatePass, setGatePass] = useState("");
   const [unlocked, setUnlocked] = useState(false);
-  const [email, setEmail] = useState(ONLY_ADMIN_EMAIL);
+  const [email, setEmail] = useState(DEFAULT_ADMIN_EMAIL);
   const [password, setPassword] = useState("");
   const [loginLoading, setLoginLoading] = useState(false);
   const [hasAdminRole, setHasAdminRole] = useState(false);
@@ -91,6 +101,10 @@ export default function AdminChatPage() {
     avgRating: null,
     avgRatingByPromptVersion: {},
   });
+  const [translateSource, setTranslateSource] = useState<AdminTranslateLang>("auto");
+  const [translateTarget, setTranslateTarget] = useState<AdminTranslateLang>("en");
+  const [translations, setTranslations] = useState<Record<string, string>>({});
+  const [translatingId, setTranslatingId] = useState<string | null>(null);
 
   const expectedPassword = useMemo(
     () => import.meta.env.VITE_ADMIN_CHAT_PASSWORD || "",
@@ -99,7 +113,7 @@ export default function AdminChatPage() {
 
   useEffect(() => {
     const checkRole = async () => {
-      if (!user || (user.email || "").toLowerCase() !== ONLY_ADMIN_EMAIL) {
+      if (!user || !isTrainerAdminEmail(user.email)) {
         setHasAdminRole(false);
         setCheckingRole(false);
         return;
@@ -112,7 +126,7 @@ export default function AdminChatPage() {
         .eq("user_id", user.id)
         .eq("role", "admin")
         .limit(1);
-      setHasAdminRole(!error && !!data && data.length > 0);
+      setHasAdminRole(!error && userHasAdminRole(data));
       setCheckingRole(false);
     };
 
@@ -186,6 +200,8 @@ export default function AdminChatPage() {
 
   useEffect(() => {
     if (!unlocked || !selectedSessionId || !hasAdminRole) return;
+
+    setTranslations({});
 
     const loadMessages = async () => {
       setLoadingMessages(true);
@@ -382,80 +398,20 @@ export default function AdminChatPage() {
     return (data || []) as MessageRow[];
   };
 
-  const buildTranscriptPdf = (session: SessionRow, transcriptMessages: MessageRow[]) => {
-    const doc = new jsPDF({ unit: "pt", format: "a4" });
-    const pageWidth = doc.internal.pageSize.getWidth();
-    const pageHeight = doc.internal.pageSize.getHeight();
-    const left = 40;
-    const right = 40;
-    const top = 40;
-    const bottom = 40;
-    const lineHeight = 14;
-    const maxWidth = pageWidth - left - right;
-    let y = top;
+  const toTranscriptSession = (session: SessionRow): TranscriptSessionMeta => ({
+    id: session.id,
+    user_id: session.user_id,
+    userLabel: getUserLabel(session.user_id),
+    scenario: session.scenario,
+    created_at: session.created_at,
+  });
 
-    const addLine = (text: string, options?: { bold?: boolean; gapAfter?: number }) => {
-      doc.setFont("helvetica", options?.bold ? "bold" : "normal");
-      doc.setFontSize(11);
-      const lines = doc.splitTextToSize(text, maxWidth) as string[];
-      for (const line of lines) {
-        if (y + lineHeight > pageHeight - bottom) {
-          doc.addPage();
-          y = top;
-        }
-        doc.text(line, left, y);
-        y += lineHeight;
-      }
-      y += options?.gapAfter ?? 0;
-    };
-
-    addLine("ShiftED AI - Chat Transcript", { bold: true, gapAfter: 6 });
-    addLine(`Session ID: ${session.id}`);
-    addLine(`User: ${getUserLabel(session.user_id)} (${session.user_id})`);
-    addLine(`Scenario: ${session.scenario}`);
-    addLine(`Session created: ${new Date(session.created_at).toLocaleString()}`, { gapAfter: 8 });
-    addLine("------------------------------------------------------------", { gapAfter: 4 });
-
-    if (transcriptMessages.length === 0) {
-      addLine("No messages in this session.");
-    } else {
-      transcriptMessages.forEach((message, index) => {
-        addLine(
-          `${message.role.toUpperCase()} - ${new Date(message.created_at).toLocaleString()}`,
-          { bold: true },
-        );
-        addLine(message.content || "(empty message)", { gapAfter: 6 });
-        if (index < transcriptMessages.length - 1) {
-          addLine(" ");
-        }
-      });
-    }
-
-    return doc;
-  };
-
-  const buildTranscriptFilename = (session: SessionRow) => {
-    const createdDate = new Date(session.created_at).toISOString().slice(0, 10);
-    const safeUser = sanitizeFilename(getUserLabel(session.user_id));
-    const safeSession = sanitizeFilename(session.id.slice(0, 8));
-    return `chat-transcript-${safeUser}-${createdDate}-${safeSession}.pdf`;
-  };
-
-  const downloadTranscriptPdf = (session: SessionRow, transcriptMessages: MessageRow[]) => {
-    const doc = buildTranscriptPdf(session, transcriptMessages);
-    doc.save(buildTranscriptFilename(session));
-  };
-
-  const triggerBlobDownload = (blob: Blob, filename: string) => {
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = filename;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    URL.revokeObjectURL(url);
-  };
+  const toTranscriptMessages = (rows: MessageRow[]): TranscriptMessageRow[] =>
+    rows.map((message) => ({
+      role: message.role,
+      content: message.content,
+      created_at: message.created_at,
+    }));
 
   const buildSessionFolderName = (session: SessionRow) => {
     const safeDate = new Date(session.created_at).toISOString().replace(/[:]/g, "-");
@@ -471,7 +427,7 @@ export default function AdminChatPage() {
         selectedSessionId === selectedSession?.id && messages.length > 0
           ? messages
           : await fetchMessagesBySessionId(selectedSessionId);
-      downloadTranscriptPdf(selectedSession, transcriptMessages);
+      downloadTranscriptPdf(toTranscriptSession(selectedSession), toTranscriptMessages(transcriptMessages));
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to export transcript.";
       alert(message);
@@ -486,7 +442,7 @@ export default function AdminChatPage() {
     try {
       for (const session of sessions) {
         const transcriptMessages = await fetchMessagesBySessionId(session.id);
-        downloadTranscriptPdf(session, transcriptMessages);
+        downloadTranscriptPdf(toTranscriptSession(session), toTranscriptMessages(transcriptMessages));
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to export all transcripts.";
@@ -512,9 +468,12 @@ export default function AdminChatPage() {
         const transcriptMessages = await fetchMessagesBySessionId(session.id);
         const sessionFolder = userFolder.folder(buildSessionFolderName(session));
         if (!sessionFolder) continue;
-        const pdfDoc = buildTranscriptPdf(session, transcriptMessages);
+        const pdfDoc = buildTranscriptPdf(
+          toTranscriptSession(session),
+          toTranscriptMessages(transcriptMessages),
+        );
         const pdfBuffer = pdfDoc.output("arraybuffer");
-        sessionFolder.file(buildTranscriptFilename(session), pdfBuffer);
+        sessionFolder.file(buildTranscriptFilename(toTranscriptSession(session), "pdf"), pdfBuffer);
       }
 
       const blob = await zip.generateAsync({ type: "blob" });
@@ -553,9 +512,12 @@ export default function AdminChatPage() {
           const transcriptMessages = await fetchMessagesBySessionId(session.id);
           const sessionFolder = userFolder.folder(buildSessionFolderName(session));
           if (!sessionFolder) continue;
-          const pdfDoc = buildTranscriptPdf(session, transcriptMessages);
+          const pdfDoc = buildTranscriptPdf(
+            toTranscriptSession(session),
+            toTranscriptMessages(transcriptMessages),
+          );
           const pdfBuffer = pdfDoc.output("arraybuffer");
-          sessionFolder.file(buildTranscriptFilename(session), pdfBuffer);
+          sessionFolder.file(buildTranscriptFilename(toTranscriptSession(session), "pdf"), pdfBuffer);
         }
       }
 
@@ -567,6 +529,22 @@ export default function AdminChatPage() {
     } finally {
       setExportingAllZip(false);
     }
+  };
+
+  const handleTranslateMessage = async (messageId: string, content: string) => {
+    if (!content.trim()) return;
+    setTranslatingId(messageId);
+    const result = await fetchAdminTranslation({
+      text: content,
+      targetLang: translateTarget,
+      sourceLang: translateSource,
+    });
+    setTranslatingId(null);
+    if (!result.ok) {
+      alert(result.error);
+      return;
+    }
+    setTranslations((prev) => ({ ...prev, [messageId]: result.translation }));
   };
 
   const onUnlock = () => {
@@ -593,7 +571,7 @@ export default function AdminChatPage() {
         <div className="rounded-2xl border border-border bg-card p-5 space-y-4">
           <h1 className="text-lg font-semibold">Admin sign in</h1>
           <p className="text-sm text-muted-foreground">
-            Only Joshua account can access admin chat.
+            Sign in with a trainer admin account (@admin.com) to access the monitor.
           </p>
           <form className="space-y-3" onSubmit={handleAdminLogin}>
             <div>
@@ -623,13 +601,13 @@ export default function AdminChatPage() {
     );
   }
 
-  if ((user.email || "").toLowerCase() !== ONLY_ADMIN_EMAIL) {
+  if (!isTrainerAdminEmail(user.email)) {
     return (
       <div className="max-w-md mx-auto px-4 py-10">
         <div className="rounded-2xl border border-border bg-card p-5 space-y-3">
           <h1 className="text-lg font-semibold">Access denied</h1>
           <p className="text-sm text-muted-foreground">
-            /adminchat is restricted to {ONLY_ADMIN_EMAIL}.
+            /adminchat is restricted to ShiftED trainer accounts ending in @admin.com with admin role.
           </p>
           <Button variant="outline" onClick={handleSignOut}>Sign out</Button>
         </div>
@@ -884,8 +862,44 @@ export default function AdminChatPage() {
         </div>
 
         <div className="lg:col-span-4 rounded-xl border border-border bg-card overflow-hidden flex flex-col max-h-[75vh]">
-          <div className="px-3 py-2 border-b border-border">
+          <div className="px-3 py-2 border-b border-border space-y-2">
             <h2 className="text-sm font-semibold">Chat</h2>
+            <div className="flex flex-wrap gap-2 items-end">
+              <div className="space-y-1">
+                <Label htmlFor="translate-source" className="text-[10px] text-muted-foreground">
+                  From
+                </Label>
+                <select
+                  id="translate-source"
+                  className="h-8 rounded-md border border-input bg-background px-2 text-xs"
+                  value={translateSource}
+                  onChange={(e) => setTranslateSource(e.target.value as AdminTranslateLang)}
+                >
+                  {ADMIN_TRANSLATE_SOURCES.map((lang) => (
+                    <option key={lang.code} value={lang.code}>
+                      {lang.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="translate-target" className="text-[10px] text-muted-foreground">
+                  Translate to
+                </Label>
+                <select
+                  id="translate-target"
+                  className="h-8 rounded-md border border-input bg-background px-2 text-xs"
+                  value={translateTarget}
+                  onChange={(e) => setTranslateTarget(e.target.value as AdminTranslateLang)}
+                >
+                  {ADMIN_TRANSLATE_TARGETS.map((lang) => (
+                    <option key={lang.code} value={lang.code}>
+                      {lang.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
           </div>
           <div className="overflow-y-auto flex-1 min-h-0 p-3 space-y-3">
             {!selectedSessionId && (
@@ -905,7 +919,19 @@ export default function AdminChatPage() {
                   <span>
                     {m.role.toUpperCase()} · {new Date(m.created_at).toLocaleString()}
                   </span>
-                  {m.role === "assistant" && (
+                  <div className="flex items-center gap-1 shrink-0">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      className="h-8 px-2 text-xs text-muted-foreground"
+                      disabled={translatingId === m.id}
+                      onClick={() => handleTranslateMessage(m.id, m.content)}
+                    >
+                      <Languages className="h-3.5 w-3.5 mr-1" />
+                      {translatingId === m.id ? "Translating…" : "Translate"}
+                    </Button>
+                    {m.role === "assistant" && (
                     <Button
                       type="button"
                       size="sm"
@@ -936,9 +962,21 @@ export default function AdminChatPage() {
                         )}
                       />
                     </Button>
-                  )}
+                    )}
+                  </div>
                 </div>
                 <p className="text-sm whitespace-pre-wrap">{m.content}</p>
+                {translations[m.id] && (
+                  <div className="mt-2 rounded-md border border-primary/20 bg-primary/5 p-2">
+                    <p className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1">
+                      Translation (
+                      {ADMIN_TRANSLATE_TARGETS.find((l) => l.code === translateTarget)?.label ||
+                        translateTarget}
+                      )
+                    </p>
+                    <p className="text-sm whitespace-pre-wrap">{translations[m.id]}</p>
+                  </div>
+                )}
               </div>
             ))}
           </div>

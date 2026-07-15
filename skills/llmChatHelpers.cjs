@@ -153,7 +153,7 @@ function buildSamplingParams(mode) {
   const temperature = Number(process.env.VLLM_TEMPERATURE) || 0.55;
   const base = {
     temperature:
-      mode === "regenerate" ? Math.max(temperature, 0.68) : mode === "name_journey" ? 0.3 : temperature,
+      mode === "regenerate" ? Math.max(temperature, 0.78) : mode === "name_journey" ? 0.3 : temperature,
     max_tokens: mode === "name_journey" ? 32 : Number(process.env.VLLM_MAX_TOKENS) || 500,
     repetition_penalty: Number(process.env.VLLM_REPETITION_PENALTY) || 1.12,
     presence_penalty: Number(process.env.VLLM_PRESENCE_PENALTY) || 0.25,

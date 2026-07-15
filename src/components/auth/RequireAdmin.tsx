@@ -2,8 +2,7 @@ import { useEffect, useState } from "react";
 import { Navigate, Outlet } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
-
-const ONLY_ADMIN_EMAIL = "josh@admin.com";
+import { hasAdminRole, isTrainerAdminEmail } from "@/lib/adminAccess";
 
 export default function RequireAdmin() {
   const { user, loading } = useAuth();
@@ -22,7 +21,7 @@ export default function RequireAdmin() {
         return;
       }
 
-      if ((user.email || "").toLowerCase() !== ONLY_ADMIN_EMAIL) {
+      if (!isTrainerAdminEmail(user.email)) {
         if (mounted) {
           setIsAdmin(false);
           setCheckingRole(false);
@@ -38,7 +37,7 @@ export default function RequireAdmin() {
         .limit(1);
 
       if (mounted) {
-        setIsAdmin(!error && !!data && data.length > 0);
+        setIsAdmin(!error && hasAdminRole(data));
         setCheckingRole(false);
       }
     };
@@ -64,4 +63,3 @@ export default function RequireAdmin() {
 
   return <Outlet />;
 }
-

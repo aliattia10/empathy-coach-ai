@@ -23,9 +23,13 @@ const {
   parseLlmErrorMessage,
 } = require("../skills/llmChatHelpers.cjs");
 const {
-  normalizeChatHistory,
-  buildConversationMemoryBlock,
-} = require("../skills/conversationMemory.cjs");
+  normalizeLang,
+  buildTranslationMessages,
+  extractTranslationFromLlm,
+  SUPPORTED_TARGET_LANGS,
+  SUPPORTED_SOURCE_LANGS,
+} = require("../skills/adminTranslate.cjs");
+
 
 const SYSTEM_PROMPT = {
   role: "system",
@@ -234,6 +238,47 @@ async function buildChatSystemContent(possibleCrisisLanguage, journeyContext, hi
       error: "Avatar is currently unavailable.",
       details: process.env.NODE_ENV === "development" ? error.message : undefined,
     });
+  }
+});
+
+app.post("/api/translate", async (req, res) => {
+  const text = typeof req.body?.text === "string" ? req.body.text.trim() : "";
+  if (!text) {
+    return res.status(400).json({ error: "text is required" });
+  }
+
+  const targetLang = normalizeLang(req.body?.targetLang, SUPPORTED_TARGET_LANGS, "en");
+  const sourceLang = normalizeLang(req.body?.sourceLang, SUPPORTED_SOURCE_LANGS, "auto");
+
+  const apiKey = process.env.LLM_API_KEY;
+  if (!apiKey?.trim()) {
+    return res.status(503).json({ error: "Translation unavailable (LLM_API_KEY not configured)." });
+  }
+
+  const isRunPod = VLLM_API_URL.includes("runpod.ai");
+  const model = process.env.VLLM_MODEL || "meta-llama/llama-3.2-3b-instruct:free";
+  const messages = buildTranslationMessages(text, sourceLang, targetLang);
+
+  try {
+    const response = await axios.post(
+      VLLM_API_URL,
+      { model, messages, temperature: 0.2, max_tokens: 900 },
+      {
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${apiKey.trim()}`,
+        },
+        timeout: Number(process.env.VLLM_TIMEOUT_MS) || 60000,
+      },
+    );
+    const translation = extractTranslationFromLlm(response.data);
+    if (!translation) {
+      return res.status(502).json({ error: "Translation returned empty." });
+    }
+    return res.json({ translation, targetLang, sourceLang });
+  } catch (error) {
+    console.error("Translate error:", error.message);
+    return res.status(502).json({ error: "Translation failed. Please try again." });
   }
 });
 

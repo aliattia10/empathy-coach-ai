@@ -1,15 +1,18 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Bot, ListTodo, MessageCircle, MessageSquare, Pencil, Plus, Trash2 } from "lucide-react";
+import { Bot, Download, ListTodo, Loader2, MessageCircle, MessageSquare, Pencil, Plus, Trash2 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import { useTrainerAdmin } from "@/hooks/useTrainerAdmin";
 import {
   createNewJourney,
   deleteChatSession,
+  fetchChatHistory,
   fetchUserJourneys,
   renameChatSession,
   type ChatSession,
 } from "@/hooks/useChatSession";
 import { isAutoNamedJourney } from "@/lib/journeyNaming";
+import { downloadTranscriptPdf, downloadTranscriptTxt } from "@/lib/exportSessionTranscript";
 import { PHASE_LABELS } from "@/types/journey";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -55,10 +58,12 @@ function formatRelativeDate(iso: string): string {
 
 export default function JourneysDashboardPage() {
   const { user } = useAuth();
+  const { isTrainerAdmin } = useTrainerAdmin(user?.email, user?.id);
   const navigate = useNavigate();
   const [journeys, setJourneys] = useState<ChatSession[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
+  const [downloadingJourneyId, setDownloadingJourneyId] = useState<string | null>(null);
   const [renameTarget, setRenameTarget] = useState<ChatSession | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<ChatSession | null>(null);
@@ -131,6 +136,36 @@ export default function JourneysDashboardPage() {
       toast.error("Could not delete journey.");
     } finally {
       setDeleteTarget(null);
+    }
+  };
+
+  const handleDownloadTranscript = async (journey: ChatSession, format: "pdf" | "txt") => {
+    setDownloadingJourneyId(journey.id);
+    try {
+      const history = await fetchChatHistory(journey.id);
+      const sessionMeta = {
+        id: journey.id,
+        user_id: journey.user_id,
+        userLabel: user?.email || journey.user_id,
+        scenario: journey.scenario,
+        session_name: journey.session_name,
+        created_at: journey.created_at,
+      };
+      const messages = history.map((message) => ({
+        role: message.role,
+        content: message.content,
+        created_at: message.created_at,
+      }));
+      if (format === "pdf") {
+        downloadTranscriptPdf(sessionMeta, messages);
+      } else {
+        downloadTranscriptTxt(sessionMeta, messages);
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("Could not download transcript.");
+    } finally {
+      setDownloadingJourneyId(null);
     }
   };
 
@@ -235,6 +270,35 @@ export default function JourneysDashboardPage() {
                         Tasks
                       </Link>
                     </Button>
+                    {isTrainerAdmin ? (
+                      <>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="rounded-xl flex-1 sm:flex-none"
+                          size="sm"
+                          disabled={downloadingJourneyId === journey.id}
+                          onClick={() => void handleDownloadTranscript(journey, "pdf")}
+                        >
+                          {downloadingJourneyId === journey.id ? (
+                            <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
+                          ) : (
+                            <Download className="w-4 h-4 mr-1.5" />
+                          )}
+                          PDF
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="rounded-xl flex-1 sm:flex-none"
+                          size="sm"
+                          disabled={downloadingJourneyId === journey.id}
+                          onClick={() => void handleDownloadTranscript(journey, "txt")}
+                        >
+                          Transcript
+                        </Button>
+                      </>
+                    ) : null}
                   </div>
                 </div>
               </li>

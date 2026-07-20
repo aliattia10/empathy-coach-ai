@@ -239,6 +239,7 @@ export default function SessionWorkspacePage() {
         <SessionTasksPanel
           journey={journey}
           displayTitle={title}
+          journeyId={journeyId}
           onToggleTask={handleToggleTask}
           onAddTask={handleAddTask}
           onRemoveTask={handleRemoveTask}

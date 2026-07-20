@@ -29,11 +29,13 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { ChevronDown, Loader2, ArrowLeft, ListTodo } from "lucide-react";
+import { ChevronDown, Loader2, ArrowLeft, ListTodo, Download } from "lucide-react";
 import type { TranscriptMessageRow } from "@/lib/exportSessionTranscript";
+import { downloadTranscriptPdf } from "@/lib/exportSessionTranscript";
 import TrainerSessionTools from "@/components/avatar/TrainerSessionTools";
 import type { TranscriptMessage } from "@/components/avatar/ChatTranscript";
 import PhaseStepper from "@/components/avatar/PhaseStepper";
+import GuidanceLadderWidget from "@/components/journey/GuidanceLadderWidget";
 import { inferJourneyUpdates } from "@/lib/journeyInference";
 import { extractProgressUpdates, extractLatestProgressFromHistory, sanitizeAssistantDisplayContent } from "@/lib/goalExtraction";
 import { autoCompleteMatchingGoal } from "@/lib/dashboardGoals";
@@ -864,17 +866,44 @@ export default function AvatarSessionPage() {
                 currentPhase={journey.platform_phase}
                 phaseOneConfirmed={journey.phase_one_confirmed}
               />
+              <GuidanceLadderWidget
+                className="mt-3"
+                journey={journey}
+                journeyId={journeyId}
+                variant="compact"
+              />
             </div>
-            <div className="inline-flex items-center gap-2 rounded-full px-3 py-1.5 bg-primary/10 text-primary text-sm font-medium">
-              {isCoachWarming ? (
-                <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-              ) : (
-                <span className="relative flex h-2.5 w-2.5">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75" />
-                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-primary" />
-                </span>
-              )}
-              {statusLabel}
+            <div className="flex flex-col items-end gap-2 shrink-0">
+              <div className="inline-flex items-center gap-2 rounded-full px-3 py-1.5 bg-primary/10 text-primary text-sm font-medium">
+                {isCoachWarming ? (
+                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                ) : (
+                  <span className="relative flex h-2.5 w-2.5">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75" />
+                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-primary" />
+                  </span>
+                )}
+                {statusLabel}
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="rounded-xl"
+                disabled={!transcriptSessionMeta || transcriptExportMessages.length === 0}
+                onClick={() => {
+                  if (!transcriptSessionMeta) return;
+                  try {
+                    downloadTranscriptPdf(transcriptSessionMeta, transcriptExportMessages);
+                  } catch (err) {
+                    console.error(err);
+                    toast.error("Could not download transcript.");
+                  }
+                }}
+              >
+                <Download className="w-4 h-4 mr-1.5" />
+                Transcript
+              </Button>
             </div>
           </div>
 
@@ -887,16 +916,15 @@ export default function AvatarSessionPage() {
             </CollapsibleTrigger>
             <CollapsibleContent className="mt-3">
               <div className="grid md:grid-cols-2 gap-3">
-                {isAdmin ? (
-                  <TrainerSessionTools
-                    session={transcriptSessionMeta}
-                    messages={transcriptExportMessages}
-                    disabled={isSessionLoading || isAiResponding}
-                    onUploadAsMessage={async (text) => {
-                      handleSendRef.current(text);
-                    }}
-                  />
-                ) : null}
+                <TrainerSessionTools
+                  session={transcriptSessionMeta}
+                  messages={transcriptExportMessages}
+                  disabled={isSessionLoading || isAiResponding}
+                  showUpload={isAdmin}
+                  onUploadAsMessage={async (text) => {
+                    handleSendRef.current(text);
+                  }}
+                />
                 <div className="rounded-xl border border-primary/20 bg-primary/5 px-4 py-3">
                   <p className="text-xs font-semibold text-foreground uppercase tracking-wider mb-1.5">Voice input</p>
                   <p className="text-sm text-muted-foreground">

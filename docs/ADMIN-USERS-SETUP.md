@@ -11,7 +11,7 @@ Use this to configure admin login accounts and admin chat monitoring.
 - `nikki@admin.com`
 - Create strong passwords in Supabase/Auth. Do not commit passwords to git.
 
-Only **Joshua** (`josh@admin.com`) should be able to access `/adminchat`.
+Any trainer account above with the `admin` role in `user_roles` can access `/adminchat` (not Joshua-only).
 
 ### @admin.com emails cannot be verified by inbox
 

@@ -1,10 +1,11 @@
 # ShiftED AI — Feature Backlog and Timeline (plain language)
 
-**Meeting:** ShiftED AI weekly, 8 July 2026  
+**Meetings:** ShiftED AI weekly, 8 July 2026 · updated 15 July 2026  
 **Prepared by:** Ali Attia  
 **For:** Whole team — what is done, what is left, and in what order  
 **Method:** Cross-checked Miro dashboard, live product, and meeting decisions. Ordered so backend work unlocks frontend work.  
-**Excluded:** External UI contractor scheduling (per team instruction).
+**Excluded:** External UI contractor scheduling (per team instruction).  
+**15 Jul super prompt:** `docs/SUPER-PROMPT-JUL15-MEETING.md`
 
 **Legend:** Done · In progress · Not started
 
@@ -27,8 +28,15 @@ These items control **what the AI says** and **in what order**. Everything else 
 | **P1.3** | **Full knowledge base protocol** (separate PDF) sent for team review and comments | Ali → Group | In progress | Review by 10 Jul |
 | **P1.4** | **Friday walkthrough** — Kara leads: step through LLM protocols and system steps live | Kara | Not started | 11 Jul |
 | **P1.5** | Simon sends **screenshots + specific feedback** on live coach replies by email | Simon | Not started | Ongoing |
+| **P1.6** | **Sequential stage lock** — AI stays on current tick-box step only; no re-loop (15 Jul) | Ali | In progress | 15–21 Jul |
+| **P1.7** | **Guidance widget + sustainability path UI** — visible ladder + recovery path when stuck (15 Jul) | Ali | Done | 20 Jul |
+| **P1.8** | **Transcript download** obvious for all users (PDF/TXT) — training backup (15 Jul) | Ali | Done | 20 Jul |
+| **P1.9** | **Italian + German** language options (15 Jul Friday test mention) | Ali | Deferred | — |
+| **P1.10** | **4 calendars** → Spinella / reservation (blocked on Joshua/Trello) | Ali | Deferred | — |
 
 **Why this order:** Stages first, then tone, then skills — meeting decision. Changing all three at once causes rework.
+
+**15 Jul:** Core engine before “revolving door” stage tabs. Tuesday weekly testing with Simon/Louise.
 
 **After deploy:** Netlify must redeploy for live site to change. Pushing to GitHub alone is not enough.
 

@@ -1,5 +1,6 @@
 import type { JourneyState } from "@/types/journey";
 import { detectPhaseOneFocusFromAssistant } from "@/lib/phaseOneRouting";
+import { withBeliefStrengthBeforeLocked } from "@/lib/beliefRatings";
 
 const HANDSHAKE_CONFIRM =
   /\b(yes|yeah|yep|that's right|that is right|accurate|correct|sounds right|you've got it|spot on|that's me|that describes|operating right now|that's it|fits|makes sense)\b/i;
@@ -127,11 +128,12 @@ export function inferJourneyUpdates(
         const n = parseInt(pctMatch[1], 10);
         if (n >= 0 && n <= 100) {
           updates.belief_strength_pct = n;
-          updates.conceptualisation_summary = appendBreakdownNote(
-            updates.conceptualisation_summary ?? current.conceptualisation_summary,
-            "Belief strength",
-            `${n}%`,
-          );
+          // Lock "before" on first rating so later re-rates show before → now comparison.
+          let summaryBase = updates.conceptualisation_summary ?? current.conceptualisation_summary;
+          if (current.belief_strength_pct == null) {
+            summaryBase = withBeliefStrengthBeforeLocked(summaryBase, n);
+          }
+          updates.conceptualisation_summary = appendBreakdownNote(summaryBase, "Belief strength", `${n}%`);
         }
       }
     }

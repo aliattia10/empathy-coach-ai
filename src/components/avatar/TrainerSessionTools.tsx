@@ -17,9 +17,17 @@ type Props = {
   messages: TranscriptMessageRow[];
   disabled?: boolean;
   onUploadAsMessage: (text: string) => void | Promise<void>;
+  /** When false, only download controls (for all learners). Default true. */
+  showUpload?: boolean;
 };
 
-export default function TrainerSessionTools({ session, messages, disabled, onUploadAsMessage }: Props) {
+export default function TrainerSessionTools({
+  session,
+  messages,
+  disabled,
+  onUploadAsMessage,
+  showUpload = true,
+}: Props) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
   const [downloadingTxt, setDownloadingTxt] = useState(false);
@@ -76,11 +84,18 @@ export default function TrainerSessionTools({ session, messages, disabled, onUpl
   };
 
   return (
-    <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 px-4 py-3 space-y-3 md:col-span-2">
-      <p className="text-xs font-semibold text-foreground uppercase tracking-wider">Trainer tools</p>
+    <div
+      className={`rounded-xl border px-4 py-3 space-y-3 md:col-span-2 ${
+        showUpload ? "border-amber-500/30 bg-amber-500/5" : "border-primary/20 bg-primary/5"
+      }`}
+    >
+      <p className="text-xs font-semibold text-foreground uppercase tracking-wider">
+        {showUpload ? "Trainer tools" : "Download transcript"}
+      </p>
       <p className="text-sm text-muted-foreground">
-        Download this session transcript or upload a text file into the conversation (scenario notes, example
-        dialogue, etc.).
+        {showUpload
+          ? "Download this session transcript or upload a text file into the conversation (scenario notes, example dialogue, etc.)."
+          : "Save this conversation as PDF or text for your notes or training feedback backup."}
       </p>
       <div className="flex flex-wrap gap-2">
         <Button
@@ -113,39 +128,48 @@ export default function TrainerSessionTools({ session, messages, disabled, onUpl
           )}
           Download TXT
         </Button>
-        <Button
-          type="button"
-          size="sm"
-          variant="secondary"
-          className="rounded-xl"
-          disabled={disabled || uploading}
-          onClick={() => fileInputRef.current?.click()}
-        >
-          {uploading ? (
-            <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
-          ) : (
-            <FileUp className="w-4 h-4 mr-1.5" />
-          )}
-          Upload file to chat
-        </Button>
-        <input
-          ref={fileInputRef}
-          type="file"
-          className="hidden"
-          accept=".txt,.md,.markdown,.csv,.json,.html,.htm,.xml,.log,.rtf,.yaml,.yml,text/*"
-          onChange={(event) => void handleFileChange(event)}
-        />
+        {showUpload ? (
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            className="rounded-xl"
+            disabled={disabled || uploading}
+            onClick={() => fileInputRef.current?.click()}
+          >
+            {uploading ? (
+              <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
+            ) : (
+              <FileUp className="w-4 h-4 mr-1.5" />
+            )}
+            Upload file to chat
+          </Button>
+        ) : null}
+        {showUpload ? (
+          <input
+            ref={fileInputRef}
+            type="file"
+            className="hidden"
+            accept=".txt,.md,.markdown,.csv,.json,.html,.htm,.xml,.log,.rtf,.yaml,.yml,text/*"
+            onChange={(event) => void handleFileChange(event)}
+          />
+        ) : null}
       </div>
-      <div className="flex items-start gap-2">
-        <Checkbox
-          id="trainer-send-after-upload"
-          checked={sendAfterUpload}
-          onCheckedChange={(checked) => setSendAfterUpload(checked === true)}
-        />
-        <Label htmlFor="trainer-send-after-upload" className="text-xs font-normal leading-snug text-muted-foreground">
-          Send uploaded file to the coach immediately (uncheck to copy text to clipboard instead).
-        </Label>
-      </div>
+      {showUpload ? (
+        <div className="flex items-start gap-2">
+          <Checkbox
+            id="trainer-send-after-upload"
+            checked={sendAfterUpload}
+            onCheckedChange={(checked) => setSendAfterUpload(checked === true)}
+          />
+          <Label
+            htmlFor="trainer-send-after-upload"
+            className="text-xs font-normal leading-snug text-muted-foreground"
+          >
+            Send uploaded file to the coach immediately (uncheck to copy text to clipboard instead).
+          </Label>
+        </div>
+      ) : null}
     </div>
   );
 }

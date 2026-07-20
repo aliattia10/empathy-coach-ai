@@ -1,5 +1,6 @@
 import type { JourneyState, PhaseChecklistItem, PhaseMilestoneKey, PlatformPhase } from "@/types/journey";
 import { normalizePhaseChecklist } from "@/types/journey";
+import { parseBeliefStrengthBefore } from "@/lib/beliefRatings";
 
 function newId(): string {
   return `ms-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
@@ -38,9 +39,15 @@ export function buildSessionPhaseChecklist(state: JourneyState): PhaseChecklistI
       {
         id: newId(),
         key: "belief_strength",
-        title: state.belief_strength_pct != null
-          ? `Belief strength recorded (${state.belief_strength_pct}%)`
-          : "Rate how strongly you believe the hot thought (0–100%)",
+        title: (() => {
+          const before = parseBeliefStrengthBefore(state.conceptualisation_summary);
+          const now = state.belief_strength_pct;
+          if (now == null) return "Rate how strongly you believe the hot thought (0–100%)";
+          if (before != null && before !== now) {
+            return `Belief strength: ${before}% → ${now}%`;
+          }
+          return `Belief strength recorded (${now}%)`;
+        })(),
         completed: state.belief_strength_pct != null,
         phase: 1,
       },

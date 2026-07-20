@@ -14,7 +14,7 @@ Each coaching journey has a **Progress** panel in chat with two lists:
 | Super prompt | `skills/progressDashboard.cjs` |
 | Milestone sync | `src/lib/phaseChecklist.ts` |
 | Action steps | `src/lib/goalExtraction.ts` |
-| UI | `src/components/journey/ProgressGoalsPanel.tsx` |
+| UI | `src/components/journey/GuidanceLadderWidget.tsx`, `SustainabilityPathBanner.tsx`, `SessionTasksPanel.tsx` |
 | DB | `user_goals`, `progress_summary`, `phase_checklist` on `chat_sessions` |
 
 ## PROGRESS block format

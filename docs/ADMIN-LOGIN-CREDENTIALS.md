@@ -18,5 +18,6 @@
 
 ## Access policy note
 
-- Current `/adminchat` access is restricted to **Joshua** (`josh@admin.com`) in app logic.
+- `/adminchat` is open to any **trainer admin** account ending in `@admin.com` with the `admin` role in `user_roles` (kara, josh, simon, louise, nikki).
+- **Translation** defaults to **English**; admins can also translate to French, Spanish, German, Arabic, or Icelandic (see `docs/SUPER-PROMPT-ADMIN-PANEL.md`).
 

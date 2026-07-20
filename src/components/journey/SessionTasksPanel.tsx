@@ -6,10 +6,12 @@ import { Progress } from "@/components/ui/progress";
 import { MessageSquare, Plus, Sparkles, Trash2 } from "lucide-react";
 import { PHASE_LABELS, pruneOrphanCoachGoals, sortGoalsByStep, type JourneyState, type UserGoal } from "@/types/journey";
 import { computeJourneyProgressPercent, goalsCompletionRatio } from "@/lib/journeyProgress";
+import GuidanceLadderWidget from "@/components/journey/GuidanceLadderWidget";
 
 type SessionTasksPanelProps = {
   journey: JourneyState;
   displayTitle: string;
+  journeyId?: string | null;
   onToggleTask: (taskId: string, completed: boolean) => void;
   onAddTask: (title: string) => void;
   onRemoveTask: (taskId: string) => void;
@@ -20,6 +22,7 @@ type SessionTasksPanelProps = {
 export default function SessionTasksPanel({
   journey,
   displayTitle,
+  journeyId,
   onToggleTask,
   onAddTask,
   onRemoveTask,
@@ -66,6 +69,8 @@ export default function SessionTasksPanel({
           )}
         </div>
       </div>
+
+      <GuidanceLadderWidget journey={journey} journeyId={journeyId} variant="full" />
 
       <div className="rounded-2xl border border-border bg-card p-5">
         <p className="text-sm font-medium mb-3">Add a task</p>

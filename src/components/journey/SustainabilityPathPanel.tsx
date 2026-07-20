@@ -1,7 +1,9 @@
-import { useState } from "react";
-import { BookOpen, Brain, Heart, Users } from "lucide-react";
+import { useMemo, useState } from "react";
+import { BookOpen, Brain, Check, ChevronDown, ChevronUp, GripVertical, Heart, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { JourneyState } from "@/types/journey";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -9,98 +11,102 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  DEFAULT_SUSTAINABILITY_PATH,
+  normalizeSustainabilityPath,
+  type SustainabilityPathItem,
+  type SustainabilityPathStepId,
+} from "@/lib/sustainabilityPath";
 
-/** Miro “Sustainability Path” nodes (right rail on session UI). */
-export const SUSTAINABILITY_PATH_STEPS = [
-  {
-    id: "self_reflection",
-    number: 1,
-    title: "Self-Reflection and journaling",
-    icon: BookOpen,
+const ICONS: Record<SustainabilityPathStepId, typeof BookOpen> = {
+  self_reflection: BookOpen,
+  mindfulness: Brain,
+  gratitude: Heart,
+  social_logs: Users,
+};
+
+const SUMMARIES: Record<SustainabilityPathStepId, { summary: string; when: string }> = {
+  self_reflection: {
     summary:
       "Pause and write what happened, what you felt, and what the hot thought was. Creates space before you act again.",
     when: "Use after a setback, or when a step feels foggy.",
   },
-  {
-    id: "mindfulness",
-    number: 2,
-    title: "Mindfulness Exercise",
-    icon: Brain,
+  mindfulness: {
     summary:
       "Short grounding: notice breath, body, and the room. Softens the stress spike so thinking can come back online.",
     when: "Use when flooded, rushed, or stuck in fight-or-flight.",
   },
-  {
-    id: "gratitude",
-    number: 3,
-    title: "Gratitude and Meditation",
-    icon: Heart,
+  gratitude: {
     summary:
       "Name one steadying thing that went okay, then a brief settle. Rebuilds motivation without forcing the big step.",
     when: "Use when confidence drops or the day feels all-or-nothing.",
   },
-  {
-    id: "social_logs",
-    number: 4,
-    title: "Social Interaction Logs",
-    icon: Users,
+  social_logs: {
     summary:
       "Log a real conversation: what you said, how it landed, what you’d try next time. Turns practice into memory.",
     when: "Use after trying a people-step (feedback, boundary, difficult talk).",
   },
-] as const;
-
-export type SustainabilityPathStepId = (typeof SUSTAINABILITY_PATH_STEPS)[number]["id"];
-
-function unlockedStepIds(journey: JourneyState): Set<SustainabilityPathStepId> {
-  const unlocked = new Set<SustainabilityPathStepId>();
-  // Always show step 1 once Phase One is underway
-  if (journey.phase_one_step >= 2 || journey.phase_one_confirmed || journey.belief_strength_pct != null) {
-    unlocked.add("self_reflection");
-  }
-  if (journey.phase_one_confirmed || journey.sustainability_pivot_active) {
-    unlocked.add("self_reflection");
-    unlocked.add("mindfulness");
-  }
-  if (journey.platform_phase >= 2 || journey.sustainability_pivot_active) {
-    unlocked.add("gratitude");
-  }
-  if (journey.platform_phase >= 3 || journey.user_goals.some((g) => g.completed)) {
-    unlocked.add("social_logs");
-  }
-  // Pivot unlocks the full recovery toolkit
-  if (journey.sustainability_pivot_active || journey.architectural_backtrack_active) {
-    SUSTAINABILITY_PATH_STEPS.forEach((s) => unlocked.add(s.id));
-  }
-  return unlocked;
-}
-
-function activeStepId(journey: JourneyState): SustainabilityPathStepId | null {
-  if (journey.sustainability_pivot_active) {
-    if (journey.architectural_backtrack_active) return "self_reflection";
-    return "mindfulness";
-  }
-  if (journey.platform_phase >= 3) return "social_logs";
-  if (journey.platform_phase === 2) return "gratitude";
-  if (journey.phase_one_confirmed) return "mindfulness";
-  if (journey.phase_one_step >= 2) return "self_reflection";
-  return null;
-}
+};
 
 type Props = {
   journey: JourneyState;
   className?: string;
+  onReorder?: (items: SustainabilityPathItem[]) => void;
+  onToggleComplete?: (id: string, completed: boolean) => void;
+  busy?: boolean;
 };
 
 /**
- * Right-rail Sustainability Path — matches ShiftED Miro mock:
- * vertical numbered nodes; unlock as user progresses; click opens skill pop-up.
+ * Right-rail Sustainability Path — Miro layout.
+ * Steps are reorderable (drag or ↑↓) and markable complete.
  */
-export default function SustainabilityPathPanel({ journey, className }: Props) {
-  const unlocked = unlockedStepIds(journey);
-  const active = activeStepId(journey);
+export default function SustainabilityPathPanel({
+  journey,
+  className,
+  onReorder,
+  onToggleComplete,
+  busy,
+}: Props) {
+  const steps = useMemo(
+    () => normalizeSustainabilityPath(journey.sustainability_path),
+    [journey.sustainability_path],
+  );
   const [openId, setOpenId] = useState<SustainabilityPathStepId | null>(null);
-  const openStep = SUSTAINABILITY_PATH_STEPS.find((s) => s.id === openId) ?? null;
+  const [dragId, setDragId] = useState<string | null>(null);
+  const openMeta = openId
+    ? DEFAULT_SUSTAINABILITY_PATH.find((s) => s.id === openId) ?? null
+    : null;
+  const openStep = openId ? steps.find((s) => s.id === openId) : null;
+  const editable = !!(onReorder || onToggleComplete);
+
+  const move = (id: string, direction: "up" | "down") => {
+    if (!onReorder) return;
+    const index = steps.findIndex((s) => s.id === id);
+    const target = direction === "up" ? index - 1 : index + 1;
+    if (index < 0 || target < 0 || target >= steps.length) return;
+    const next = [...steps];
+    const [removed] = next.splice(index, 1);
+    next.splice(target, 0, removed);
+    onReorder(next.map((item, i) => ({ ...item, sort_order: i })));
+  };
+
+  const onDropOn = (toId: string) => {
+    if (!onReorder || !dragId || dragId === toId) {
+      setDragId(null);
+      return;
+    }
+    const fromIndex = steps.findIndex((s) => s.id === dragId);
+    const toIndex = steps.findIndex((s) => s.id === toId);
+    if (fromIndex < 0 || toIndex < 0) {
+      setDragId(null);
+      return;
+    }
+    const next = [...steps];
+    const [removed] = next.splice(fromIndex, 1);
+    next.splice(toIndex, 0, removed);
+    onReorder(next.map((item, i) => ({ ...item, sort_order: i })));
+    setDragId(null);
+  };
 
   return (
     <>
@@ -115,7 +121,7 @@ export default function SustainabilityPathPanel({ journey, className }: Props) {
           <p className="text-xs uppercase tracking-wider text-primary font-semibold">ShiftED</p>
           <h2 className="text-sm font-semibold mt-0.5">The Sustainability Path</h2>
           <p className="text-[11px] text-muted-foreground mt-1 leading-snug">
-            Steps unlock as you progress. When a step is hard, the coach plugs these skills so you can continue.
+            Drag steps to reorder, mark complete when done. When a step is hard, the coach plugs these skills.
           </p>
         </div>
 
@@ -125,70 +131,104 @@ export default function SustainabilityPathPanel({ journey, className }: Props) {
           </div>
         )}
 
-        <ol className="relative flex-1 space-y-0 pl-1">
-          {/* vertical connector */}
-          <span
-            className="absolute left-[1.15rem] top-4 bottom-4 w-0.5 bg-primary/25"
-            aria-hidden
-          />
-          {SUSTAINABILITY_PATH_STEPS.map((step) => {
-            const isUnlocked = unlocked.has(step.id);
-            const isActive = active === step.id;
-            const Icon = step.icon;
+        <ol className="relative flex-1 space-y-2 pl-0">
+          {steps.map((step, index) => {
+            const Icon = ICONS[step.id as SustainabilityPathStepId] || BookOpen;
+            const isActive = journey.sustainability_pivot_active && !step.completed && index === steps.findIndex((s) => !s.completed);
             return (
-              <li key={step.id} className="relative flex gap-3 pb-5 last:pb-0">
-                <button
-                  type="button"
-                  disabled={!isUnlocked}
-                  onClick={() => isUnlocked && setOpenId(step.id)}
-                  className={cn(
-                    "relative z-10 flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-2 text-xs font-bold transition-colors",
-                    isActive && "border-primary bg-primary text-primary-foreground shadow-md shadow-primary/25",
-                    !isActive && isUnlocked && "border-primary/50 bg-primary/10 text-primary hover:bg-primary/20",
-                    !isUnlocked && "border-muted bg-muted text-muted-foreground cursor-not-allowed opacity-50",
-                  )}
-                  aria-label={
-                    isUnlocked ? `Open ${step.title}` : `${step.title} (locked until you progress)`
-                  }
-                >
-                  {step.number}
-                </button>
-                <button
-                  type="button"
-                  disabled={!isUnlocked}
-                  onClick={() => isUnlocked && setOpenId(step.id)}
-                  className={cn(
-                    "min-w-0 flex-1 text-left rounded-xl px-2 py-1.5 -ml-1 transition-colors",
-                    isUnlocked && "hover:bg-muted/50",
-                    !isUnlocked && "cursor-not-allowed",
-                  )}
-                >
-                  <div className="flex items-start gap-1.5">
-                    <Icon
-                      className={cn(
-                        "h-3.5 w-3.5 shrink-0 mt-0.5",
-                        isActive ? "text-primary" : "text-muted-foreground",
-                      )}
-                    />
-                    <div>
+              <li
+                key={step.id}
+                draggable={editable && !!onReorder}
+                onDragStart={() => setDragId(step.id)}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={() => onDropOn(step.id)}
+                className={cn(
+                  "relative flex gap-2 rounded-xl border border-border/80 p-2 bg-background/60",
+                  dragId === step.id && "opacity-60",
+                  isActive && "ring-1 ring-primary/40 bg-primary/5",
+                  step.completed && "opacity-80",
+                )}
+              >
+                {editable && onReorder ? (
+                  <span
+                    className="mt-1.5 text-muted-foreground cursor-grab active:cursor-grabbing shrink-0"
+                    aria-hidden
+                    title="Drag to reorder"
+                  >
+                    <GripVertical className="h-4 w-4" />
+                  </span>
+                ) : null}
+
+                <div className="relative z-10 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 border-primary/40 bg-primary/10 text-xs font-bold text-primary">
+                  {step.completed ? <Check className="h-3.5 w-3.5" /> : index + 1}
+                </div>
+
+                <div className="min-w-0 flex-1">
+                  <button
+                    type="button"
+                    className="text-left w-full"
+                    onClick={() => setOpenId(step.id as SustainabilityPathStepId)}
+                  >
+                    <div className="flex items-start gap-1.5">
+                      <Icon className="h-3.5 w-3.5 shrink-0 mt-0.5 text-muted-foreground" />
                       <p
                         className={cn(
-                          "text-xs leading-snug",
-                          isActive ? "font-semibold text-foreground" : "font-medium text-foreground/90",
-                          !isUnlocked && "text-muted-foreground",
+                          "text-xs font-medium leading-snug",
+                          step.completed && "line-through text-muted-foreground",
                         )}
                       >
                         {step.title}
                       </p>
-                      {isActive && (
-                        <p className="text-[10px] uppercase tracking-wide text-primary mt-0.5">Now</p>
-                      )}
-                      {!isUnlocked && (
-                        <p className="text-[10px] text-muted-foreground mt-0.5">Unlocks as you progress</p>
-                      )}
                     </div>
+                  </button>
+                  <div className="mt-1.5 flex flex-wrap items-center gap-1">
+                    {onToggleComplete ? (
+                      <label className="inline-flex items-center gap-1.5 text-[10px] text-muted-foreground cursor-pointer">
+                        <Checkbox
+                          checked={step.completed}
+                          disabled={busy}
+                          onCheckedChange={(checked) =>
+                            onToggleComplete(step.id, checked === true)
+                          }
+                          aria-label={step.completed ? "Mark incomplete" : "Mark complete"}
+                        />
+                        Done
+                      </label>
+                    ) : null}
+                    {isActive && !step.completed ? (
+                      <span className="text-[10px] uppercase tracking-wide text-primary font-medium">
+                        Now
+                      </span>
+                    ) : null}
                   </div>
-                </button>
+                </div>
+
+                {editable && onReorder ? (
+                  <div className="flex flex-col gap-0.5 shrink-0">
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="ghost"
+                      className="h-7 w-7"
+                      disabled={busy || index === 0}
+                      aria-label="Move up"
+                      onClick={() => move(step.id, "up")}
+                    >
+                      <ChevronUp className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="ghost"
+                      className="h-7 w-7"
+                      disabled={busy || index === steps.length - 1}
+                      aria-label="Move down"
+                      onClick={() => move(step.id, "down")}
+                    >
+                      <ChevronDown className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                ) : null}
               </li>
             );
           })}
@@ -197,21 +237,21 @@ export default function SustainabilityPathPanel({ journey, className }: Props) {
 
       <Dialog open={!!openStep} onOpenChange={(open) => !open && setOpenId(null)}>
         <DialogContent className="rounded-2xl max-w-md">
-          {openStep && (
+          {openStep && openMeta && (
             <>
               <DialogHeader>
                 <DialogTitle className="flex items-center gap-2">
                   <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-bold">
-                    {openStep.number}
+                    {steps.findIndex((s) => s.id === openStep.id) + 1}
                   </span>
                   {openStep.title}
                 </DialogTitle>
                 <DialogDescription className="text-left pt-2 space-y-2">
-                  <span className="block text-sm text-foreground leading-relaxed">{openStep.summary}</span>
-                  <span className="block text-xs text-muted-foreground">{openStep.when}</span>
-                  <span className="block text-xs text-muted-foreground border-t border-border pt-2 mt-2">
-                    In chat, your coach will guide this skill when you need it — especially after a setback.
-                    You can also note insights on your Tasks page.
+                  <span className="block text-sm text-foreground leading-relaxed">
+                    {SUMMARIES[openStep.id as SustainabilityPathStepId]?.summary}
+                  </span>
+                  <span className="block text-xs text-muted-foreground">
+                    {SUMMARIES[openStep.id as SustainabilityPathStepId]?.when}
                   </span>
                 </DialogDescription>
               </DialogHeader>

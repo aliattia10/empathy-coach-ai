@@ -210,7 +210,10 @@ export async function setSessionActiveMessage(sessionId: string, messageId: stri
 export async function updateJourneyState(sessionId: string, updates: Partial<JourneyState>) {
   if (Object.keys(updates).length === 0) return;
   const { error } = await supabase.from("chat_sessions").update(updates).eq("id", sessionId);
-  if (error) throw error;
+  if (error) {
+    // Column may not exist yet (sustainability_path migration); allow callers to fall back.
+    throw error;
+  }
 }
 
 export async function updateProgressDashboard(
@@ -219,12 +222,14 @@ export async function updateProgressDashboard(
     goals?: UserGoal[];
     progressSummary?: string | null;
     phaseChecklist?: JourneyState["phase_checklist"];
+    sustainabilityPath?: JourneyState["sustainability_path"];
   },
 ) {
   const updates: Partial<JourneyState> = {};
   if (patch.goals !== undefined) updates.user_goals = patch.goals;
   if (patch.progressSummary !== undefined) updates.progress_summary = patch.progressSummary;
   if (patch.phaseChecklist !== undefined) updates.phase_checklist = patch.phaseChecklist;
+  if (patch.sustainabilityPath !== undefined) updates.sustainability_path = patch.sustainabilityPath;
   if (Object.keys(updates).length === 0) return;
   await updateJourneyState(sessionId, updates);
 }

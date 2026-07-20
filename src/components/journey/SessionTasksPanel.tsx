@@ -3,11 +3,18 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
-import { MessageSquare, Plus, Sparkles, Trash2 } from "lucide-react";
-import { PHASE_LABELS, pruneOrphanCoachGoals, sortGoalsByStep, type JourneyState, type UserGoal } from "@/types/journey";
+import { ChevronDown, ChevronUp, GripVertical, MessageSquare, Plus, Sparkles, Trash2 } from "lucide-react";
+import {
+  PHASE_LABELS,
+  pruneOrphanCoachGoals,
+  sortGoalsByStep,
+  type JourneyState,
+  type UserGoal,
+} from "@/types/journey";
 import { computeJourneyProgressPercent, goalsCompletionRatio } from "@/lib/journeyProgress";
 import GuidanceLadderWidget from "@/components/journey/GuidanceLadderWidget";
 import SustainabilityPathPanel from "@/components/journey/SustainabilityPathPanel";
+import type { SustainabilityPathItem } from "@/lib/sustainabilityPath";
 
 type SessionTasksPanelProps = {
   journey: JourneyState;
@@ -16,8 +23,13 @@ type SessionTasksPanelProps = {
   onToggleTask: (taskId: string, completed: boolean) => void;
   onAddTask: (title: string) => void;
   onRemoveTask: (taskId: string) => void;
+  onMoveTask?: (taskId: string, direction: "up" | "down") => void;
+  onReorderTasks?: (fromId: string, toId: string) => void;
+  onReorderPath?: (items: SustainabilityPathItem[]) => void;
+  onTogglePathComplete?: (id: string, completed: boolean) => void;
   busyTaskId?: string | null;
   adding?: boolean;
+  pathBusy?: boolean;
 };
 
 export default function SessionTasksPanel({
@@ -27,10 +39,16 @@ export default function SessionTasksPanel({
   onToggleTask,
   onAddTask,
   onRemoveTask,
+  onMoveTask,
+  onReorderTasks,
+  onReorderPath,
+  onTogglePathComplete,
   busyTaskId,
   adding,
+  pathBusy,
 }: SessionTasksPanelProps) {
   const [draft, setDraft] = useState("");
+  const [dragId, setDragId] = useState<string | null>(null);
   const progressPercent = computeJourneyProgressPercent(journey, 0);
   const { done, total } = goalsCompletionRatio(journey.user_goals);
   const tasks = sortGoalsByStep(pruneOrphanCoachGoals(journey.user_goals));
@@ -72,7 +90,12 @@ export default function SessionTasksPanel({
       </div>
 
       <GuidanceLadderWidget journey={journey} journeyId={journeyId} variant="full" />
-      <SustainabilityPathPanel journey={journey} />
+      <SustainabilityPathPanel
+        journey={journey}
+        onReorder={onReorderPath}
+        onToggleComplete={onTogglePathComplete}
+        busy={pathBusy}
+      />
 
       <div className="rounded-2xl border border-border bg-card p-5">
         <p className="text-sm font-medium mb-3">Add a task</p>
@@ -97,7 +120,10 @@ export default function SessionTasksPanel({
       </div>
 
       <div className="rounded-2xl border border-border bg-card p-5">
-        <p className="text-sm font-medium mb-4">Your tasks</p>
+        <p className="text-sm font-medium mb-1">Your tasks</p>
+        <p className="text-xs text-muted-foreground mb-4">
+          Tick complete, drag or use arrows to reorder.
+        </p>
         {tasks.length === 0 ? (
           <div className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
             <MessageSquare className="w-8 h-8 mx-auto mb-2 opacity-60" />
@@ -105,13 +131,23 @@ export default function SessionTasksPanel({
           </div>
         ) : (
           <ul className="space-y-2">
-            {tasks.map((task) => (
+            {tasks.map((task, index) => (
               <TaskRow
                 key={task.id}
                 task={task}
+                index={index}
+                total={tasks.length}
                 busy={busyTaskId === task.id}
+                dragId={dragId}
+                onDragStart={() => setDragId(task.id)}
+                onDragEnd={() => setDragId(null)}
+                onDropOn={() => {
+                  if (dragId && onReorderTasks) onReorderTasks(dragId, task.id);
+                  setDragId(null);
+                }}
                 onToggle={onToggleTask}
                 onRemove={onRemoveTask}
+                onMove={onMoveTask}
               />
             ))}
           </ul>
@@ -123,14 +159,28 @@ export default function SessionTasksPanel({
 
 function TaskRow({
   task,
+  index,
+  total,
   busy,
+  dragId,
+  onDragStart,
+  onDragEnd,
+  onDropOn,
   onToggle,
   onRemove,
+  onMove,
 }: {
   task: UserGoal;
+  index: number;
+  total: number;
   busy: boolean;
+  dragId: string | null;
+  onDragStart: () => void;
+  onDragEnd: () => void;
+  onDropOn: () => void;
   onToggle: (id: string, completed: boolean) => void;
   onRemove: (id: string) => void;
+  onMove?: (id: string, direction: "up" | "down") => void;
 }) {
   const fromCoach = task.source === "ai" || task.source === "system";
   const isSub = task.tier === "sub" || (task.step?.includes(".") ?? false);
@@ -139,10 +189,20 @@ function TaskRow({
 
   return (
     <li
+      draggable={!!onMove}
+      onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
+      onDragOver={(e) => e.preventDefault()}
+      onDrop={onDropOn}
       className={`flex items-start gap-2 rounded-xl border border-border/80 p-3 hover:bg-muted/30 transition-colors ${
         isSub ? "ml-4 border-l-2 border-l-primary/30" : isGoal ? "bg-primary/5 border-primary/20" : ""
-      }`}
+      } ${dragId === task.id ? "opacity-60" : ""}`}
     >
+      {onMove ? (
+        <span className="mt-1 text-muted-foreground cursor-grab active:cursor-grabbing shrink-0" title="Drag to reorder">
+          <GripVertical className="w-4 h-4" />
+        </span>
+      ) : null}
       <Checkbox
         checked={task.completed}
         disabled={busy}
@@ -166,6 +226,32 @@ function TaskRow({
           </p>
         )}
       </div>
+      {onMove ? (
+        <div className="flex flex-col gap-0.5 shrink-0">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            disabled={busy || index === 0}
+            aria-label="Move up"
+            onClick={() => onMove(task.id, "up")}
+          >
+            <ChevronUp className="w-3.5 h-3.5" />
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            disabled={busy || index === total - 1}
+            aria-label="Move down"
+            onClick={() => onMove(task.id, "down")}
+          >
+            <ChevronDown className="w-3.5 h-3.5" />
+          </Button>
+        </div>
+      ) : null}
       <Button
         type="button"
         variant="ghost"

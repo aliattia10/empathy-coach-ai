@@ -14,6 +14,16 @@ export type UserGoal = {
   /** Ladder label: "goal", "1", "1.1", "2", etc. */
   step?: string;
   tier?: GoalStepTier;
+  /** Manual display order (Tasks drag / move). Lower = higher in list. */
+  sort_order?: number;
+};
+
+export type SustainabilityPathItem = {
+  id: string;
+  title: string;
+  completed: boolean;
+  completed_at: string | null;
+  sort_order: number;
 };
 
 export type PhaseMilestoneKey =
@@ -53,6 +63,7 @@ export type JourneyState = {
   progress_summary: string | null;
   user_goals: UserGoal[];
   phase_checklist: PhaseChecklistItem[];
+  sustainability_path: SustainabilityPathItem[];
 };
 
 export type JourneyContextPayload = {
@@ -92,6 +103,7 @@ export const DEFAULT_JOURNEY_STATE: JourneyState = {
   progress_summary: null,
   user_goals: [],
   phase_checklist: [],
+  sustainability_path: [],
 };
 
 export function journeyStateFromSession(session: Partial<JourneyState> | null | undefined): JourneyState {
@@ -113,7 +125,24 @@ export function journeyStateFromSession(session: Partial<JourneyState> | null | 
     progress_summary: session?.progress_summary ?? null,
     user_goals: pruneOrphanCoachGoals(normalizeUserGoals(session?.user_goals)),
     phase_checklist: normalizePhaseChecklist(session?.phase_checklist),
+    sustainability_path: normalizeSustainabilityPathField(session?.sustainability_path),
   };
+}
+
+function normalizeSustainabilityPathField(raw: unknown): SustainabilityPathItem[] {
+  // Lazy import shape — keep defaults in types without circular deps on lib.
+  if (!Array.isArray(raw) || raw.length === 0) return [];
+  return raw
+    .filter((item): item is Record<string, unknown> => !!item && typeof item === "object")
+    .map((item, index) => ({
+      id: typeof item.id === "string" ? item.id : `path-${index}`,
+      title: typeof item.title === "string" ? item.title.trim() : `Step ${index + 1}`,
+      completed: !!item.completed,
+      completed_at: typeof item.completed_at === "string" ? item.completed_at : null,
+      sort_order: typeof item.sort_order === "number" ? item.sort_order : index,
+    }))
+    .filter((item) => item.title.length > 0)
+    .sort((a, b) => a.sort_order - b.sort_order);
 }
 
 export function normalizeUserGoals(raw: unknown): UserGoal[] {
@@ -142,6 +171,7 @@ export function normalizeUserGoals(raw: unknown): UserGoal[] {
         created_at: typeof item.created_at === "string" ? item.created_at : new Date().toISOString(),
         step,
         tier,
+        sort_order: typeof item.sort_order === "number" ? item.sort_order : index,
       };
     })
     .filter((g) => g.title.length > 0);
@@ -178,8 +208,17 @@ export function pruneOrphanCoachGoals(goals: UserGoal[]): UserGoal[] {
   return userGoals;
 }
 
-/** Sort goal ladder: goal → 1 → 1.1 → 1.2 → 2 … */
+/** Sort goal ladder: manual sort_order when set, else goal → 1 → 1.1 → 1.2 → 2 … */
 export function sortGoalsByStep(goals: UserGoal[]): UserGoal[] {
+  const hasManualOrder = goals.some((g) => typeof g.sort_order === "number");
+  if (hasManualOrder) {
+    return [...goals].sort((a, b) => {
+      const ao = typeof a.sort_order === "number" ? a.sort_order : Number.MAX_SAFE_INTEGER;
+      const bo = typeof b.sort_order === "number" ? b.sort_order : Number.MAX_SAFE_INTEGER;
+      if (ao !== bo) return ao - bo;
+      return a.title.localeCompare(b.title);
+    });
+  }
   const rank = (step?: string) => {
     if (!step || step === "goal") return [-1];
     return step.split(".").map((p) => parseInt(p, 10) || 0);
@@ -194,6 +233,30 @@ export function sortGoalsByStep(goals: UserGoal[]): UserGoal[] {
     }
     return a.title.localeCompare(b.title);
   });
+}
+
+export function moveGoalInList(goals: UserGoal[], goalId: string, direction: "up" | "down"): UserGoal[] {
+  const sorted = sortGoalsByStep(goals);
+  const index = sorted.findIndex((g) => g.id === goalId);
+  if (index < 0) return goals;
+  const target = direction === "up" ? index - 1 : index + 1;
+  if (target < 0 || target >= sorted.length) return goals;
+  const next = [...sorted];
+  const [removed] = next.splice(index, 1);
+  next.splice(target, 0, removed);
+  return next.map((g, i) => ({ ...g, sort_order: i }));
+}
+
+export function reorderGoalsByDrag(goals: UserGoal[], fromId: string, toId: string): UserGoal[] {
+  if (fromId === toId) return goals;
+  const sorted = sortGoalsByStep(goals);
+  const fromIndex = sorted.findIndex((g) => g.id === fromId);
+  const toIndex = sorted.findIndex((g) => g.id === toId);
+  if (fromIndex < 0 || toIndex < 0) return goals;
+  const next = [...sorted];
+  const [removed] = next.splice(fromIndex, 1);
+  next.splice(toIndex, 0, removed);
+  return next.map((g, i) => ({ ...g, sort_order: i }));
 }
 
 export function normalizePhaseChecklist(raw: unknown): PhaseChecklistItem[] {

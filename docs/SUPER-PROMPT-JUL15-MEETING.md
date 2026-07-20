@@ -90,6 +90,10 @@ Prompt already covers mini-conceptualisation → HCPR.
 
 **Code:** `src/components/journey/SustainabilityPathPanel.tsx` on `AvatarSessionPage` (lg right rail; stacked on mobile).
 
+**Editable path (20 Jul):** each step can be **dragged / moved ↑↓** and **marked complete**. Same controls on Tasks. Persisted via `chat_sessions.sustainability_path` (+ localStorage fallback). Migration: `supabase/migrations/20260720190000_sustainability_path_jsonb.sql`.
+
+**Full-bleed session:** chat + path use the full main width (no `max-w-6xl` gutters on `/testing/avatar/session/*`).
+
 Default path nodes (Miro):
 1. Self-Reflection and journaling
 2. Mindfulness Exercise

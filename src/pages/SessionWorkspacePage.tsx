@@ -15,7 +15,14 @@ import { isAutoNamedJourney } from "@/lib/journeyNaming";
 import SessionTasksPanel from "@/components/journey/SessionTasksPanel";
 import { syncSessionTasks } from "@/lib/coachTaskSync";
 import { extractLatestProgressFromHistory } from "@/lib/goalExtraction";
-import { journeyStateFromSession } from "@/types/journey";
+import { journeyStateFromSession, moveGoalInList, reorderGoalsByDrag } from "@/types/journey";
+import {
+  loadPathFromLocal,
+  normalizeSustainabilityPath,
+  savePathToLocal,
+  togglePathItemComplete,
+  type SustainabilityPathItem,
+} from "@/lib/sustainabilityPath";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 
@@ -39,6 +46,7 @@ export default function SessionWorkspacePage() {
   const [loadError, setLoadError] = useState(false);
   const [busyTaskId, setBusyTaskId] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
+  const [pathBusy, setPathBusy] = useState(false);
 
   const chatPath = journeyId ? `/testing/avatar/session/${journeyId}` : "/testing/journeys";
 
@@ -110,7 +118,11 @@ export default function SessionWorkspacePage() {
         }
 
         if (!mounted) return;
-        setSession(sessionRow);
+        const localPath = loadPathFromLocal(journeyId);
+        const rawPath = (sessionRow as ChatSession).sustainability_path;
+        const hasDbPath = Array.isArray(rawPath) && rawPath.length > 0;
+        const path = hasDbPath ? normalizeSustainabilityPath(rawPath) : localPath ?? normalizeSustainabilityPath(rawPath);
+        setSession({ ...sessionRow, sustainability_path: path });
       } catch (err) {
         console.error(err);
         if (mounted) {
@@ -188,6 +200,69 @@ export default function SessionWorkspacePage() {
     }
   };
 
+  const handleMoveTask = async (taskId: string, direction: "up" | "down") => {
+    if (!session) return;
+    const previous = session.user_goals ?? [];
+    const next = moveGoalInList(previous, taskId, direction);
+    setBusyTaskId(taskId);
+    setSession((prev) => (prev ? { ...prev, user_goals: next } : prev));
+    try {
+      await persistTasks(next);
+    } catch (err) {
+      console.error(err);
+      setSession((prev) => (prev ? { ...prev, user_goals: previous } : prev));
+      toast.error("Could not reorder task.");
+    } finally {
+      setBusyTaskId(null);
+    }
+  };
+
+  const handleReorderTasks = async (fromId: string, toId: string) => {
+    if (!session) return;
+    const previous = session.user_goals ?? [];
+    const next = reorderGoalsByDrag(previous, fromId, toId);
+    setSession((prev) => (prev ? { ...prev, user_goals: next } : prev));
+    try {
+      await persistTasks(next);
+    } catch (err) {
+      console.error(err);
+      setSession((prev) => (prev ? { ...prev, user_goals: previous } : prev));
+      toast.error("Could not reorder tasks.");
+    }
+  };
+
+  const persistPath = async (items: SustainabilityPathItem[]) => {
+    if (!session) return;
+    savePathToLocal(session.id, items);
+    setSession((prev) => (prev ? { ...prev, sustainability_path: items } : prev));
+    try {
+      await updateProgressDashboard(session.id, { sustainabilityPath: items });
+    } catch (err) {
+      console.warn("Path saved locally; run DB migration for cloud sync.", err);
+    }
+  };
+
+  const handleReorderPath = async (items: SustainabilityPathItem[]) => {
+    setPathBusy(true);
+    try {
+      await persistPath(items);
+    } finally {
+      setPathBusy(false);
+    }
+  };
+
+  const handleTogglePathComplete = async (id: string, completed: boolean) => {
+    if (!session) return;
+    const current = normalizeSustainabilityPath(session.sustainability_path);
+    const next = togglePathItemComplete(current, id, completed);
+    setPathBusy(true);
+    try {
+      await persistPath(next);
+    } finally {
+      setPathBusy(false);
+    }
+  };
+
   if (authLoading || loading) {
     return (
       <div className="min-h-[calc(100vh-8rem)] flex flex-col items-center justify-center gap-4 px-4 text-center">
@@ -221,8 +296,8 @@ export default function SessionWorkspacePage() {
   }
 
   return (
-    <div className="min-h-[calc(100vh-8rem)] px-4 py-6 pb-32 md:pb-24">
-      <div className="max-w-lg mx-auto space-y-6">
+    <div className="min-h-[calc(100vh-8rem)] px-3 md:px-5 py-6 pb-32 md:pb-24">
+      <div className="w-full max-w-5xl mx-auto space-y-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <Button variant="outline" size="sm" className="rounded-xl" asChild>
             <Link to="/testing/journeys">
@@ -243,13 +318,18 @@ export default function SessionWorkspacePage() {
           onToggleTask={handleToggleTask}
           onAddTask={handleAddTask}
           onRemoveTask={handleRemoveTask}
+          onMoveTask={handleMoveTask}
+          onReorderTasks={handleReorderTasks}
+          onReorderPath={handleReorderPath}
+          onTogglePathComplete={handleTogglePathComplete}
           busyTaskId={busyTaskId}
           adding={adding}
+          pathBusy={pathBusy}
         />
       </div>
 
       <div className="fixed bottom-16 md:bottom-6 left-0 right-0 z-40 px-4 pointer-events-none">
-        <div className="max-w-lg mx-auto pointer-events-auto">
+        <div className="max-w-5xl mx-auto pointer-events-auto">
           <Button className="w-full rounded-xl h-12 text-base shadow-lg" onClick={openChat}>
             <MessageCircle className="w-5 h-5 mr-2" />
             Talk to your coach

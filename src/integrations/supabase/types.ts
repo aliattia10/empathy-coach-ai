@@ -163,6 +163,7 @@ export type Database = {
           scenario: string
           session_name: string | null
           sustainability_pivot_active: boolean
+          sustainability_path: Json
           target_outcome: string | null
           updated_at: string
           user_goals: Json
@@ -187,6 +188,7 @@ export type Database = {
           scenario?: string
           session_name?: string | null
           sustainability_pivot_active?: boolean
+          sustainability_path?: Json
           target_outcome?: string | null
           updated_at?: string
           user_goals?: Json
@@ -211,6 +213,7 @@ export type Database = {
           scenario?: string
           session_name?: string | null
           sustainability_pivot_active?: boolean
+          sustainability_path?: Json
           target_outcome?: string | null
           updated_at?: string
           user_goals?: Json

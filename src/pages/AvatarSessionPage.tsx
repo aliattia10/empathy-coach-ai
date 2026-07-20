@@ -50,6 +50,13 @@ import {
   toJourneyContextPayload,
   type JourneyState,
 } from "@/types/journey";
+import {
+  loadPathFromLocal,
+  normalizeSustainabilityPath,
+  savePathToLocal,
+  togglePathItemComplete,
+  type SustainabilityPathItem,
+} from "@/lib/sustainabilityPath";
 
 type StoredMessage = TranscriptMessage & {
   parent_message_id?: string | null;
@@ -297,6 +304,12 @@ export default function AvatarSessionPage() {
           return;
         }
         if (!isMounted) return;
+        const localPath = loadPathFromLocal(journey.id);
+        const hasDbPath = Array.isArray(journey.sustainability_path) && journey.sustainability_path.length > 0;
+        const path = hasDbPath
+          ? normalizeSustainabilityPath(journey.sustainability_path)
+          : localPath ?? normalizeSustainabilityPath(journey.sustainability_path);
+        journey = { ...journey, sustainability_path: path };
         setJourneySession(journey);
         setSessionId(journey.id);
 
@@ -837,9 +850,29 @@ export default function AvatarSessionPage() {
         ? "Speaking..."
         : "Ready";
 
+  const persistPath = async (items: SustainabilityPathItem[]) => {
+    if (!sessionId) return;
+    savePathToLocal(sessionId, items);
+    setJourneySession((prev) => (prev ? { ...prev, sustainability_path: items } : prev));
+    try {
+      await updateProgressDashboard(sessionId, { sustainabilityPath: items });
+    } catch (err) {
+      console.warn("Path saved locally; run sustainability_path migration for cloud sync.", err);
+    }
+  };
+
+  const handleReorderPath = async (items: SustainabilityPathItem[]) => {
+    await persistPath(items);
+  };
+
+  const handleTogglePathComplete = async (id: string, completed: boolean) => {
+    const current = normalizeSustainabilityPath(journey.sustainability_path);
+    await persistPath(togglePathItemComplete(current, id, completed));
+  };
+
   return (
-    <div className="min-h-[calc(100vh-8rem)] px-3 md:px-5 py-4 pb-24 md:pb-4">
-      <div className="max-w-7xl mx-auto relative grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_272px] gap-4 items-start">
+    <div className="min-h-[calc(100vh-8rem)] px-2 md:px-3 py-3 pb-24 md:pb-3">
+      <div className="w-full relative grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(280px,340px)] gap-3 items-start">
         <main className="rounded-2xl border border-border bg-card/95 backdrop-blur p-4 md:p-5 flex flex-col gap-4 min-w-0">
           <div className="flex items-center justify-between gap-3 flex-wrap">
             <div className="min-w-0 flex-1">
@@ -981,9 +1014,15 @@ export default function AvatarSessionPage() {
         <SustainabilityPathPanel
           className="hidden lg:flex lg:sticky lg:top-4 max-h-[calc(100vh-6rem)] overflow-y-auto"
           journey={journey}
+          onReorder={handleReorderPath}
+          onToggleComplete={handleTogglePathComplete}
         />
         <div className="lg:hidden">
-          <SustainabilityPathPanel journey={journey} />
+          <SustainabilityPathPanel
+            journey={journey}
+            onReorder={handleReorderPath}
+            onToggleComplete={handleTogglePathComplete}
+          />
         </div>
       </div>
     </div>

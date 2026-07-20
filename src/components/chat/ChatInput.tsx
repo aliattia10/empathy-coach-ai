@@ -1,6 +1,8 @@
 import { useRef, useState, KeyboardEvent } from "react";
-import { Loader2, Mic, Send, Square, Volume2, VolumeX } from "lucide-react";
+import { Loader2, Mic, Paperclip, Send, Square, Volume2, VolumeX } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { readUploadedConversationFile, UPLOAD_ACCEPT } from "@/lib/readUploadedConversationFile";
+import { toast } from "sonner";
 
 interface Props {
   onSend: (message: string) => void;
@@ -8,6 +10,8 @@ interface Props {
   voiceEnabled?: boolean;
   onToggleVoice?: () => void;
   disabled?: boolean;
+  /** Allow attaching PDF / DOCX / transcript files for the coach to analyse. Default true. */
+  allowFileUpload?: boolean;
 }
 
 export default function ChatInput({
@@ -16,12 +20,17 @@ export default function ChatInput({
   voiceEnabled,
   onToggleVoice,
   disabled,
+  allowFileUpload = true,
 }: Props) {
   const [value, setValue] = useState("");
   const [isRecording, setIsRecording] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const [recorder, setRecorder] = useState<MediaRecorder | null>(null);
   const audioChunksRef = useRef<BlobPart[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const busy = disabled || isTranscribing || isUploading;
 
   const canUseRecorder =
     typeof window !== "undefined" &&
@@ -30,7 +39,7 @@ export default function ChatInput({
     !!navigator.mediaDevices.getUserMedia;
 
   const handleSend = () => {
-    if (!value.trim() || disabled) return;
+    if (!value.trim() || busy) return;
     onSend(value.trim());
     setValue("");
   };
@@ -42,8 +51,25 @@ export default function ChatInput({
     }
   };
 
+  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file || busy) return;
+    setIsUploading(true);
+    try {
+      const messageText = await readUploadedConversationFile(file);
+      onSend(messageText);
+      toast.success(`Uploaded ${file.name} — coach will analyse it.`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Could not read that file.";
+      toast.error(message);
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
   const startRecording = async () => {
-    if (!onTranscribeAudio || !canUseRecorder || disabled || isTranscribing) return;
+    if (!onTranscribeAudio || !canUseRecorder || busy) return;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const mediaRecorder = new MediaRecorder(stream, { mimeType: "audio/webm" });
@@ -84,14 +110,36 @@ export default function ChatInput({
 
   return (
     <div className="flex gap-2 items-end bg-card border border-border rounded-2xl p-2 shadow-soft">
+      {allowFileUpload ? (
+        <>
+          <Button
+            type="button"
+            size="icon"
+            variant="outline"
+            className="rounded-xl shrink-0"
+            disabled={busy}
+            title="Upload PDF, Word, or transcript for the coach to analyse"
+            onClick={() => fileInputRef.current?.click()}
+          >
+            {isUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Paperclip className="w-4 h-4" />}
+          </Button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            className="hidden"
+            accept={UPLOAD_ACCEPT}
+            onChange={(event) => void handleFileChange(event)}
+          />
+        </>
+      ) : null}
       <textarea
         value={value}
         onChange={(e) => setValue(e.target.value)}
         onKeyDown={handleKeyDown}
-        placeholder="Describe the situation you're navigating..."
+        placeholder="Describe the situation, or attach a PDF / transcript…"
         rows={1}
         className="flex-1 resize-none bg-transparent text-sm px-2 py-2 outline-none text-foreground placeholder:text-muted-foreground"
-        disabled={disabled || isTranscribing}
+        disabled={busy}
       />
       {onTranscribeAudio && canUseRecorder && (
         <Button
@@ -99,7 +147,7 @@ export default function ChatInput({
           size="icon"
           variant="outline"
           onClick={isRecording ? stopRecording : startRecording}
-          disabled={disabled || isTranscribing}
+          disabled={busy}
           className="rounded-xl shrink-0"
           title={isRecording ? "Stop recording" : "Record voice message"}
         >
@@ -118,7 +166,7 @@ export default function ChatInput({
           size="icon"
           variant={voiceEnabled ? "secondary" : "outline"}
           onClick={onToggleVoice}
-          disabled={disabled || isTranscribing}
+          disabled={busy}
           className="rounded-xl shrink-0"
           title={voiceEnabled ? "Voice playback on" : "Voice playback off"}
         >
@@ -128,8 +176,9 @@ export default function ChatInput({
       <Button
         size="icon"
         onClick={handleSend}
-        disabled={!value.trim() || disabled || isTranscribing}
+        disabled={!value.trim() || busy}
         className="rounded-xl bg-secondary text-secondary-foreground hover:bg-secondary/90 shrink-0"
+        title="Send"
       >
         <Send className="w-4 h-4" />
       </Button>

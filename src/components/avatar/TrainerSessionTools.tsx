@@ -9,7 +9,7 @@ import {
   type TranscriptMessageRow,
   type TranscriptSessionMeta,
 } from "@/lib/exportSessionTranscript";
-import { readUploadedConversationFile } from "@/lib/readUploadedConversationFile";
+import { readUploadedConversationFile, UPLOAD_ACCEPT } from "@/lib/readUploadedConversationFile";
 import { toast } from "sonner";
 
 type Props = {
@@ -17,7 +17,7 @@ type Props = {
   messages: TranscriptMessageRow[];
   disabled?: boolean;
   onUploadAsMessage: (text: string) => void | Promise<void>;
-  /** When false, only download controls (for all learners). Default true. */
+  /** When false, only download controls. Default true — all users can upload for LLM analysis. */
   showUpload?: boolean;
 };
 
@@ -70,7 +70,7 @@ export default function TrainerSessionTools({
       const messageText = await readUploadedConversationFile(file);
       if (sendAfterUpload) {
         await onUploadAsMessage(messageText);
-        toast.success(`Uploaded ${file.name} and sent to the coach.`);
+        toast.success(`Uploaded ${file.name} — coach will analyse it.`);
       } else {
         await navigator.clipboard.writeText(messageText);
         toast.success(`Uploaded ${file.name} — copied to clipboard. Paste into the chat to send.`);
@@ -86,15 +86,15 @@ export default function TrainerSessionTools({
   return (
     <div
       className={`rounded-xl border px-4 py-3 space-y-3 md:col-span-2 ${
-        showUpload ? "border-amber-500/30 bg-amber-500/5" : "border-primary/20 bg-primary/5"
+        showUpload ? "border-primary/20 bg-primary/5" : "border-primary/20 bg-primary/5"
       }`}
     >
       <p className="text-xs font-semibold text-foreground uppercase tracking-wider">
-        {showUpload ? "Trainer tools" : "Download transcript"}
+        {showUpload ? "Transcript & documents" : "Download transcript"}
       </p>
       <p className="text-sm text-muted-foreground">
         {showUpload
-          ? "Download this session transcript or upload a text file into the conversation (scenario notes, example dialogue, etc.)."
+          ? "Download this session, or upload a PDF, Word (.docx), or text transcript so the coach can analyse it in chat."
           : "Save this conversation as PDF or text for your notes or training feedback backup."}
       </p>
       <div className="flex flex-wrap gap-2">
@@ -142,7 +142,7 @@ export default function TrainerSessionTools({
             ) : (
               <FileUp className="w-4 h-4 mr-1.5" />
             )}
-            Upload file to chat
+            Upload for analysis
           </Button>
         ) : null}
         {showUpload ? (
@@ -150,7 +150,7 @@ export default function TrainerSessionTools({
             ref={fileInputRef}
             type="file"
             className="hidden"
-            accept=".txt,.md,.markdown,.csv,.json,.html,.htm,.xml,.log,.rtf,.yaml,.yml,text/*"
+            accept={UPLOAD_ACCEPT}
             onChange={(event) => void handleFileChange(event)}
           />
         ) : null}

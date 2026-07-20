@@ -955,7 +955,7 @@ export default function AvatarSessionPage() {
                   session={transcriptSessionMeta}
                   messages={transcriptExportMessages}
                   disabled={isSessionLoading || isAiResponding}
-                  showUpload={isAdmin}
+                  showUpload
                   onUploadAsMessage={async (text) => {
                     handleSendRef.current(text);
                   }}

@@ -7,6 +7,7 @@ import { MessageSquare, Plus, Sparkles, Trash2 } from "lucide-react";
 import { PHASE_LABELS, pruneOrphanCoachGoals, sortGoalsByStep, type JourneyState, type UserGoal } from "@/types/journey";
 import { computeJourneyProgressPercent, goalsCompletionRatio } from "@/lib/journeyProgress";
 import GuidanceLadderWidget from "@/components/journey/GuidanceLadderWidget";
+import SustainabilityPathPanel from "@/components/journey/SustainabilityPathPanel";
 
 type SessionTasksPanelProps = {
   journey: JourneyState;
@@ -71,6 +72,7 @@ export default function SessionTasksPanel({
       </div>
 
       <GuidanceLadderWidget journey={journey} journeyId={journeyId} variant="full" />
+      <SustainabilityPathPanel journey={journey} />
 
       <div className="rounded-2xl border border-border bg-card p-5">
         <p className="text-sm font-medium mb-3">Add a task</p>

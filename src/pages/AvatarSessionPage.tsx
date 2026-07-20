@@ -36,6 +36,7 @@ import TrainerSessionTools from "@/components/avatar/TrainerSessionTools";
 import type { TranscriptMessage } from "@/components/avatar/ChatTranscript";
 import PhaseStepper from "@/components/avatar/PhaseStepper";
 import GuidanceLadderWidget from "@/components/journey/GuidanceLadderWidget";
+import SustainabilityPathPanel from "@/components/journey/SustainabilityPathPanel";
 import { inferJourneyUpdates } from "@/lib/journeyInference";
 import { extractProgressUpdates, extractLatestProgressFromHistory, sanitizeAssistantDisplayContent } from "@/lib/goalExtraction";
 import { autoCompleteMatchingGoal } from "@/lib/dashboardGoals";
@@ -838,8 +839,8 @@ export default function AvatarSessionPage() {
 
   return (
     <div className="min-h-[calc(100vh-8rem)] px-3 md:px-5 py-4 pb-24 md:pb-4">
-      <div className="max-w-5xl mx-auto relative">
-        <main className="rounded-2xl border border-border bg-card/95 backdrop-blur p-4 md:p-5 flex flex-col gap-4">
+      <div className="max-w-7xl mx-auto relative grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_272px] gap-4 items-start">
+        <main className="rounded-2xl border border-border bg-card/95 backdrop-blur p-4 md:p-5 flex flex-col gap-4 min-w-0">
           <div className="flex items-center justify-between gap-3 flex-wrap">
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2 mb-3">
@@ -856,7 +857,7 @@ export default function AvatarSessionPage() {
                   </Link>
                 </Button>
               </div>
-              <p className="text-xs uppercase tracking-wider text-muted-foreground mb-1">AI Coach</p>
+              <p className="text-xs uppercase tracking-wider text-muted-foreground mb-1">ShiftED AI</p>
               <h1 className="text-xl md:text-2xl font-semibold">{displayTitle}</h1>
               <p className="text-xs text-muted-foreground mt-1">
                 {userTurns > 0 ? "Pick up where you left off" : "Share what's on your mind to begin"}
@@ -871,6 +872,7 @@ export default function AvatarSessionPage() {
                 journey={journey}
                 journeyId={journeyId}
                 variant="compact"
+                showSustainabilityBanner={false}
               />
             </div>
             <div className="flex flex-col items-end gap-2 shrink-0">
@@ -975,6 +977,14 @@ export default function AvatarSessionPage() {
             </div>
           </div>
         </main>
+
+        <SustainabilityPathPanel
+          className="hidden lg:flex lg:sticky lg:top-4 max-h-[calc(100vh-6rem)] overflow-y-auto"
+          journey={journey}
+        />
+        <div className="lg:hidden">
+          <SustainabilityPathPanel journey={journey} />
+        </div>
       </div>
     </div>
   );

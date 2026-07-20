@@ -16,6 +16,8 @@ type Props = {
   journeyId?: string | null;
   /** compact = chat strip; full = Tasks page */
   variant?: "compact" | "full";
+  /** When false, omit the amber recovery banner (e.g. session uses SustainabilityPathPanel). */
+  showSustainabilityBanner?: boolean;
   className?: string;
 };
 
@@ -32,6 +34,7 @@ export default function GuidanceLadderWidget({
   journey,
   journeyId,
   variant = "compact",
+  showSustainabilityBanner = true,
   className,
 }: Props) {
   const { goal, active, majors, sorted } = activeLadderItems(journey.user_goals);
@@ -63,7 +66,7 @@ export default function GuidanceLadderWidget({
 
   return (
     <div className={cn("space-y-3", className)}>
-      <SustainabilityPathBanner journey={journey} />
+      {showSustainabilityBanner ? <SustainabilityPathBanner journey={journey} /> : null}
 
       <div
         className={cn(

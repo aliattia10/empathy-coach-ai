@@ -80,7 +80,21 @@ Inject into live coach prompt:
 
 ### SP-B — Sustainability path (prompt + UI)
 
-Prompt already covers mini-conceptualisation → HCPR. UI must make the path **visible** when `sustainability_pivot_active` (or equivalent) is true.
+Prompt already covers mini-conceptualisation → HCPR.
+
+**Miro layout (source of truth for placement):**
+- Chat in the **center**
+- **The Sustainability Path** as a **right-hand vertical map** with numbered circular nodes
+- Nodes unlock as the user progresses; click opens a skill pop-up
+- When the user hits a setback, the AI plugs these path skills so they can continue
+
+**Code:** `src/components/journey/SustainabilityPathPanel.tsx` on `AvatarSessionPage` (lg right rail; stacked on mobile).
+
+Default path nodes (Miro):
+1. Self-Reflection and journaling
+2. Mindfulness Exercise
+3. Gratitude and Meditation
+4. Social Interaction Logs
 
 ### SP-C — Guidance widget (UI)
 

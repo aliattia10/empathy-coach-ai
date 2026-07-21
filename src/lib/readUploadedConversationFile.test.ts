@@ -29,4 +29,11 @@ describe("formatUploadedFileAsUserMessage", () => {
   it("rejects empty content", () => {
     expect(() => formatUploadedFileAsUserMessage("empty.txt", "   ")).toThrow(/empty/i);
   });
+
+  it("does not cut mid-size documents in the browser", () => {
+    const body = "paragraph ".repeat(800); // well above the old 3.5k cap
+    const message = formatUploadedFileAsUserMessage("long.txt", body);
+    expect(message).toContain(body.trim());
+    expect(message).not.toMatch(/truncated for length/i);
+  });
 });

@@ -1,5 +1,7 @@
-const MAX_UPLOAD_BYTES = 4_000_000; // 4 MB
-const MAX_EXTRACTED_CHARS = 3_500; // ~1k tokens — leave room for system + history in 4k models
+/** Practical browser / Netlify payload ceiling — not a coaching “product” limit. */
+const MAX_UPLOAD_BYTES = 25_000_000; // 25 MB
+/** Keep JSON body under typical Netlify function request size (~6 MB). */
+const MAX_MESSAGE_CHARS = 1_500_000;
 
 const TEXT_EXTENSIONS = new Set([
   ".txt",
@@ -27,9 +29,10 @@ export function formatUploadedFileAsUserMessage(filename: string, content: strin
   if (!trimmed) {
     throw new Error("That file is empty or no text could be extracted.");
   }
+  // Send the full extract; the chat API packs into the model window (no early 3.5k cut).
   const body =
-    trimmed.length > MAX_EXTRACTED_CHARS
-      ? `${trimmed.slice(0, MAX_EXTRACTED_CHARS)}\n\n[…truncated for length — uploaded ${trimmed.length} characters total…]`
+    trimmed.length > MAX_MESSAGE_CHARS
+      ? `${trimmed.slice(0, MAX_MESSAGE_CHARS)}\n\n[…document longer than ${MAX_MESSAGE_CHARS} characters — first portion sent…]`
       : trimmed;
 
   return `[Uploaded document for analysis: ${filename}]
@@ -78,8 +81,8 @@ async function extractPdfText(file: File): Promise<string> {
   const loadingTask = pdfjs.getDocument({ data });
   const pdf = await loadingTask.promise;
   const pages: string[] = [];
-  const maxPages = Math.min(pdf.numPages, 40);
-  for (let pageNum = 1; pageNum <= maxPages; pageNum++) {
+  // Extract every page — packing to the model window happens on the server.
+  for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
     const page = await pdf.getPage(pageNum);
     const content = await page.getTextContent();
     const line = content.items
@@ -88,9 +91,6 @@ async function extractPdfText(file: File): Promise<string> {
       .replace(/\s+/g, " ")
       .trim();
     if (line) pages.push(line);
-  }
-  if (pdf.numPages > maxPages) {
-    pages.push(`[…${pdf.numPages - maxPages} more page(s) not extracted…]`);
   }
   return pages.join("\n\n");
 }
@@ -104,7 +104,7 @@ async function extractDocxText(file: File): Promise<string> {
 
 export async function readUploadedConversationFile(file: File): Promise<string> {
   if (file.size > MAX_UPLOAD_BYTES) {
-    throw new Error("File is too large (max 4 MB). Try a shorter PDF/DOCX or paste an excerpt.");
+    throw new Error("File is too large (max 25 MB). Try a smaller file or paste an excerpt.");
   }
 
   const extension = extensionOf(file.name);

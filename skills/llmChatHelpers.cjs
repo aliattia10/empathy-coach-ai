@@ -48,7 +48,13 @@ function truncateToTokenBudget(text, maxTokens) {
   if (estimateTokens(raw) <= maxTokens) return raw;
   const maxChars = Math.max(80, Math.floor(maxTokens * 2.8));
   if (raw.length <= maxChars) return raw;
-  return `${raw.slice(0, maxChars)}\n\n[…trimmed for model context limit…]`;
+  // Keep head + tail so long documents (uploads) don't lose endings/conclusions.
+  const head = Math.max(40, Math.floor(maxChars * 0.72));
+  const tail = Math.max(24, Math.floor(maxChars * 0.22));
+  if (head + tail + 80 < raw.length) {
+    return `${raw.slice(0, head)}\n\n[…middle omitted to fit the model window — ${raw.length} characters total…]\n\n${raw.slice(-tail)}`;
+  }
+  return `${raw.slice(0, maxChars)}\n\n[…trimmed to fit the model window…]`;
 }
 
 /**
@@ -71,21 +77,31 @@ function trimMessagesForContext(messages, opts = {}) {
   const history = messages.slice(1, -1);
 
   const lastTokens = estimateTokens(last.content);
-  // Large uploads / long replies leave little room for history.
+  const looksLikeUpload = /\[Uploaded document for analysis:/i.test(String(last.content || ""));
+  // Prefer the latest turn (especially uploads); drop older history rather than cutting the doc early.
   let minHistoryMessages = Number(opts.minHistoryMessages);
   if (!Number.isFinite(minHistoryMessages)) {
-    minHistoryMessages = lastTokens > 1200 ? 2 : lastTokens > 600 ? 4 : 6;
+    if (looksLikeUpload || lastTokens > 1200) minHistoryMessages = 0;
+    else if (lastTokens > 600) minHistoryMessages = 2;
+    else minHistoryMessages = 8;
   }
-  if (aggressive) minHistoryMessages = Math.min(minHistoryMessages, 2);
+  if (aggressive) minHistoryMessages = Math.min(minHistoryMessages, 0);
 
+  // Note: Array#slice(-0) returns the full array — treat 0 as “drop all history”.
   let kept =
-    history.length > minHistoryMessages ? history.slice(-minHistoryMessages) : [...history];
+    minHistoryMessages <= 0
+      ? []
+      : history.length > minHistoryMessages
+        ? history.slice(-minHistoryMessages)
+        : [...history];
 
   const packTokens = (sysContent, lastContent, hist) =>
     estimateTokens(sysContent) + estimateTokens(lastContent) + estimateMessagesTokens(hist);
 
-  // Cap latest user message first so history trimming has room to work.
-  const maxLastShare = Math.floor(budget * (aggressive ? 0.35 : 0.45));
+  // Give uploads as much of the window as possible; only shrink when still over budget.
+  const maxLastShare = Math.floor(
+    budget * (looksLikeUpload ? (aggressive ? 0.78 : 0.85) : aggressive ? 0.4 : 0.55),
+  );
   if (estimateTokens(last.content) > maxLastShare) {
     last = { ...last, content: truncateToTokenBudget(last.content, maxLastShare) };
   }
@@ -171,7 +187,7 @@ function parseLlmErrorMessage(errText, status) {
   if (!raw) return userFacingLlmError(status);
 
   if (isContextLengthError(raw)) {
-    return "The coach hit a context limit — please try again. If it keeps happening, start a fresh journey.";
+    return "That message was too large for the coach model — please send it again (we’ll pack more tightly).";
   }
 
   try {
@@ -181,7 +197,7 @@ function parseLlmErrorMessage(errText, status) {
       parsed?.message ||
       (typeof parsed?.error === "string" ? parsed.error : null);
     if (msg && isContextLengthError(msg)) {
-      return "The coach hit a context limit — please try again. If it keeps happening, start a fresh journey.";
+      return "That message was too large for the coach model — please send it again (we’ll pack more tightly).";
     }
     if (typeof msg === "string" && msg.length > 0 && msg.length < 200) {
       return msg;

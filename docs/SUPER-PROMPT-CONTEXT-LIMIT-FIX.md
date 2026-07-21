@@ -1,19 +1,27 @@
-# Super Prompt — Fix context limit (4k window)
+# Super Prompt — Fix context limit (model window)
 
-**Symptom:** Toast — “The coach hit a context limit — please try again…”
+**Symptom:** Toast — “The coach hit a context limit…” / oversized message errors.
 
-**Cause:** RunPod coach model has a **4096-token** context. Long chat history + full system prompt + large uploaded documents could exceed it. Older trim kept min 8 history turns and **never truncated the latest user message**, so PDF uploads could still blow the budget.
+**Cause:** RunPod coach model has a finite context (often **4096 tokens**). Long chat history + system prompt + large uploads can exceed it.
 
-## Fix (21 Jul 2026)
+## Fix
 
 1. **Safer token estimate** (`chars / 3`) — slightly over-counts so we trim early.
-2. **`trimMessagesForContext`** now:
-   - Caps the **latest user** turn when large (uploads)
-   - Adapts how much history to keep based on last-message size
+2. **`trimMessagesForContext`**:
+   - Prefers the **latest user** turn (especially uploads) — up to ~85% of the window
+   - Drops older history first
+   - Head+tail truncate for huge documents
    - Hard-guarantees final pack fits under budget
 3. **Retry once** on API context errors with aggressive trim.
-4. **Upload extract cap** lowered to **3,500 chars** (~1k tokens).
-5. Async RunPod submit re-trims if estimate is still high.
+4. **No early 3.5k upload cut** — full extract from the browser; packing is server-side (see `SUPER-PROMPT-NO-ARTIFICIAL-LIMITS.md`).
+
+## Ops: larger window
+
+```env
+VLLM_MAX_CONTEXT_TOKENS=8192
+```
+
+Match the deployed model’s real max.
 
 ## Code
 
@@ -21,11 +29,10 @@
 |-------|------|
 | Trim + estimate | `skills/llmChatHelpers.cjs` |
 | Chat API | `netlify/functions/chat.js`, `server/server.js` |
-| Upload size | `src/lib/readUploadedConversationFile.ts` |
+| Upload extract | `src/lib/readUploadedConversationFile.ts` |
 | Tests | `src/lib/llmChatHelpers.test.ts` |
 
 ## Acceptance
 
-- Long journeys no longer hard-fail with the context toast after a normal turn.
-- Uploading a PDF still works; excess text is truncated for the model.
+- Long journeys and large uploads do not hard-fail when packing succeeds.
 - `node scripts/check-context-budget.cjs` and vitest helpers pass.

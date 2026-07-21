@@ -16,7 +16,7 @@ function friendlyChatError(raw: string | undefined, status?: number): string {
   const text = String(raw || "").trim();
   if (!text) return "Avatar is currently unavailable. Please try again.";
   if (/maximum context length|context length is|input_tokens|too many tokens/i.test(text)) {
-    return "The coach hit a context limit — please try again. If it keeps happening, start a fresh journey.";
+    return "That message was too large for the coach model — please send it again (we’ll pack more tightly).";
   }
   if (text.startsWith("{") || text.startsWith("{'")) {
     try {
@@ -29,7 +29,7 @@ function friendlyChatError(raw: string | undefined, status?: number): string {
             ? parsed.error
             : parsed.message;
       if (msg && /maximum context length|context length is/i.test(msg)) {
-        return "The coach hit a context limit — please try again. If it keeps happening, start a fresh journey.";
+        return "That message was too large for the coach model — please send it again (we’ll pack more tightly).";
       }
     } catch {
       // fall through

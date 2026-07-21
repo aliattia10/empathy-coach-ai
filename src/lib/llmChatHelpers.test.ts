@@ -52,4 +52,26 @@ describe("trimMessagesForContext", () => {
   it("uses a conservative token estimate", () => {
     expect(estimateTokens("abcd")).toBeGreaterThanOrEqual(2);
   });
+
+  it("gives uploaded documents most of the window and keeps head+tail", () => {
+    const head = "DOCUMENT_START_MARKER " + "alpha ".repeat(2000);
+    const mid = "MIDDLE_SHOULD_DROP ".repeat(2000);
+    const tail = "DOCUMENT_END_MARKER " + "omega ".repeat(200);
+    const upload = `[Uploaded document for analysis: big.pdf]\n\nPlease analyse.\n---\n${head}${mid}${tail}\n---`;
+    const messages = [
+      { role: "system", content: "You are a coach." },
+      { role: "user", content: "old context ".repeat(100) },
+      { role: "assistant", content: "old reply ".repeat(100) },
+      { role: "user", content: upload },
+    ];
+    const trimmed = trimMessagesForContext(messages, {
+      maxContextTokens: 4096,
+      reserveOutputTokens: 450,
+    });
+    const last = trimmed[trimmed.length - 1].content;
+    expect(estimateMessagesTokens(trimmed)).toBeLessThanOrEqual(4096 - 450 - 100);
+    expect(last).toContain("DOCUMENT_START_MARKER");
+    expect(last).toContain("DOCUMENT_END_MARKER");
+    expect(trimmed.length).toBeLessThanOrEqual(3); // system + optional hist + user
+  });
 });

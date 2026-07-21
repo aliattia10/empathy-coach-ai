@@ -5,7 +5,7 @@
 ## Behaviour
 
 1. User attaches a file (paperclip in chat, or **Upload for analysis** in Session tools).
-2. Client extracts text (PDF via pdf.js, DOCX via mammoth, plain text as-is).
+2. Client extracts text (PDF via pdf.js, DOCX via mammoth, plain text as-is) — **full document**, all PDF pages.
 3. Message is sent as a normal user turn wrapped as:
 
 ```
@@ -13,11 +13,12 @@
 
 Please read and analyse this document…
 ---
-{extracted text, truncated if long}
+{extracted text}
 ---
 ```
 
-4. Coach replies with a short analysis + **one** clarifying question (existing protocol rules).
+4. Chat API packs the turn into the model window (prefer document over old history; head+tail if still too long).
+5. Coach replies with a short analysis + **one** clarifying question (existing protocol rules).
 
 ## Supported types
 
@@ -27,7 +28,7 @@ Please read and analyse this document…
 | PDF | `.pdf` (text-based; scanned images may extract poorly) |
 | Word | `.docx` |
 
-Max file size: **4 MB**. Extracted text capped (~**3.5k chars**) for the RunPod **4k** context budget.
+Max file size: **25 MB**. No early character cap for coaching — only a large HTTP safety ceiling (~1.5M chars). See `docs/SUPER-PROMPT-NO-ARTIFICIAL-LIMITS.md`.
 
 ## Code map
 
@@ -36,6 +37,7 @@ Max file size: **4 MB**. Extracted text capped (~**3.5k chars**) for the RunPod 
 | Extract + wrap | `src/lib/readUploadedConversationFile.ts` |
 | Chat paperclip | `src/components/chat/ChatInput.tsx` |
 | Session tools upload | `src/components/avatar/TrainerSessionTools.tsx` |
+| Context packing | `skills/llmChatHelpers.cjs` |
 | Coach rules | `skills/coachSystemPrompt.cjs` |
 
 ## Acceptance

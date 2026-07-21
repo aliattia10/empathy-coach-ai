@@ -27,7 +27,7 @@ Please read and analyse this document…
 | PDF | `.pdf` (text-based; scanned images may extract poorly) |
 | Word | `.docx` |
 
-Max file size: **4 MB**. Extracted text capped (~10k chars) for RunPod context budget.
+Max file size: **4 MB**. Extracted text capped (~**3.5k chars**) for the RunPod **4k** context budget.
 
 ## Code map
 

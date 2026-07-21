@@ -188,6 +188,7 @@ async function buildChatSystemContent(possibleCrisisLanguage, journeyContext, hi
       { role: "system", content: regenContent },
       { role: "user", content: buildRegenerationUserPrompt(regenerationContext) },
     ];
+    messages = trimMessagesForContext(messages, { reserveOutputTokens: 450 });
   } else {
     if (!userMessage || typeof userMessage !== "string") {
       return res.status(400).json({ error: "userMessage is required and must be a string." });
@@ -200,7 +201,7 @@ async function buildChatSystemContent(possibleCrisisLanguage, journeyContext, hi
       true,
     );
     messages = [{ role: "system", content: systemContent }, ...history, { role: "user", content: userMessage }];
-    messages = trimMessagesForContext(messages, { minHistoryMessages: 8, reserveOutputTokens: 400 });
+    messages = trimMessagesForContext(messages, { reserveOutputTokens: 450 });
   }
 
   const apiKey = process.env.LLM_API_KEY;

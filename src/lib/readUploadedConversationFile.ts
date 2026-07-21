@@ -1,5 +1,5 @@
 const MAX_UPLOAD_BYTES = 4_000_000; // 4 MB
-const MAX_EXTRACTED_CHARS = 10_000; // keep room in 4k-context coach models
+const MAX_EXTRACTED_CHARS = 3_500; // ~1k tokens — leave room for system + history in 4k models
 
 const TEXT_EXTENSIONS = new Set([
   ".txt",

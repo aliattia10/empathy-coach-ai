@@ -18,6 +18,7 @@ const {
   userFacingLlmError,
   parseLlmErrorMessage,
   estimateMessagesTokens,
+  isContextLengthError,
 } = require("../../skills/llmChatHelpers.cjs");
 const {
   parseRunPodEndpointId,
@@ -253,6 +254,7 @@ exports.handler = async (event) => {
       { role: "system", content: regenContent },
       { role: "user", content: buildRegenerationUserPrompt(regenerationContext) },
     ];
+    messages = trimMessagesForContext(messages, { reserveOutputTokens: 450 });
   } else {
     if (!userMessage || typeof userMessage !== "string") {
       return { statusCode: 400, body: JSON.stringify({ error: "userMessage is required and must be a string." }) };
@@ -265,7 +267,7 @@ exports.handler = async (event) => {
       true,
     );
     messages = [{ role: "system", content: systemContent }, ...history, { role: "user", content: userMessage }];
-    messages = trimMessagesForContext(messages, { minHistoryMessages: 8, reserveOutputTokens: 400 });
+    messages = trimMessagesForContext(messages, { reserveOutputTokens: 450 });
   }
 
   const isRunPod = url.includes("runpod.ai");
@@ -286,6 +288,14 @@ exports.handler = async (event) => {
 
   if ((mode === "chat" || mode === "regenerate") && useRunPodAsync(url) && endpointId) {
     try {
+      // Hard-guarantee fit before async submit (no mid-job retry path).
+      if (estimateMessagesTokens(messages) > 3400) {
+        messages = trimMessagesForContext(messages, {
+          aggressive: true,
+          minHistoryMessages: 0,
+          reserveOutputTokens: 450,
+        });
+      }
       const jobId = await submitRunPodJob(endpointId, apiKey, messages, sampling);
       console.log("RunPod async job submitted:", jobId, "estTokens=", estimateMessagesTokens(messages));
       return {
@@ -331,10 +341,42 @@ exports.handler = async (event) => {
     });
 
   try {
-    const { res, attempts } = await fetchLlmWithRetries(doRequest, { isRunPod });
+    let { res, attempts } = await fetchLlmWithRetries(doRequest, { isRunPod });
 
     if (!res.ok) {
-      const errText = await res.text();
+      let errText = await res.text();
+      // One aggressive re-trim + retry when the model rejects for context length.
+      if (isContextLengthError(errText) && (mode === "chat" || mode === "regenerate")) {
+        console.warn("Context length error — retrying with aggressive trim. est was", estimateMessagesTokens(messages));
+        messages = trimMessagesForContext(messages, {
+          aggressive: true,
+          minHistoryMessages: 0,
+          reserveOutputTokens: 450,
+        });
+        const retryPayload = { model, messages, ...sampling };
+        const retryRes = await fetch(url, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${apiKey.trim()}`,
+          },
+          body: JSON.stringify(retryPayload),
+          signal: AbortSignal.timeout(timeoutMs),
+        });
+        if (retryRes.ok) {
+          const data = await retryRes.json();
+          const reply = data.choices?.[0]?.message?.content ?? "";
+          return {
+            statusCode: 200,
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ reply }),
+          };
+        }
+        errText = await retryRes.text();
+        res = retryRes;
+        attempts += 1;
+      }
+
       console.error(
         "LLM error:",
         res.status,

@@ -3,8 +3,9 @@
  * Keeps RunPod/vLLM context inside model limits and retries cold starts.
  */
 
+/** Conservative estimate — prefer over-counting so we trim before the API rejects. */
 function estimateTokens(text) {
-  return Math.ceil(String(text || "").length / 3.5);
+  return Math.ceil(String(text || "").length / 3);
 }
 
 function estimateMessagesTokens(messages) {
@@ -42,9 +43,17 @@ function trimExemplars(exemplars, maxItems = 3, maxItemChars = 220) {
     .join("\n");
 }
 
+function truncateToTokenBudget(text, maxTokens) {
+  const raw = String(text || "");
+  if (estimateTokens(raw) <= maxTokens) return raw;
+  const maxChars = Math.max(80, Math.floor(maxTokens * 2.8));
+  if (raw.length <= maxChars) return raw;
+  return `${raw.slice(0, maxChars)}\n\n[…trimmed for model context limit…]`;
+}
+
 /**
  * Drop oldest history until messages fit token budget (always keeps system + latest user).
- * Guarantees a minimum number of recent turns so the model retains conversation context.
+ * Also truncates an oversized latest user turn (e.g. uploaded PDF) so it cannot blow the window.
  */
 function trimMessagesForContext(messages, opts = {}) {
   if (!Array.isArray(messages) || messages.length < 2) return messages;
@@ -52,43 +61,80 @@ function trimMessagesForContext(messages, opts = {}) {
   const maxContextTokens =
     Number(opts.maxContextTokens) || Number(process.env.VLLM_MAX_CONTEXT_TOKENS) || 4096;
   const reserveOutputTokens =
-    Number(opts.reserveOutputTokens) || Number(process.env.VLLM_MAX_TOKENS) || 400;
-  const minHistoryMessages = Number(opts.minHistoryMessages) || 8;
+    Number(opts.reserveOutputTokens) || Number(process.env.VLLM_MAX_TOKENS) || 500;
+  const safetyMargin = Number(opts.safetyMarginTokens) || 192;
+  const aggressive = !!opts.aggressive;
 
-  const budget = Math.max(1024, maxContextTokens - reserveOutputTokens);
+  const budget = Math.max(900, maxContextTokens - reserveOutputTokens - safetyMargin);
   const system = messages[0];
-  const last = messages[messages.length - 1];
+  let last = messages[messages.length - 1];
   const history = messages.slice(1, -1);
+
+  const lastTokens = estimateTokens(last.content);
+  // Large uploads / long replies leave little room for history.
+  let minHistoryMessages = Number(opts.minHistoryMessages);
+  if (!Number.isFinite(minHistoryMessages)) {
+    minHistoryMessages = lastTokens > 1200 ? 2 : lastTokens > 600 ? 4 : 6;
+  }
+  if (aggressive) minHistoryMessages = Math.min(minHistoryMessages, 2);
 
   let kept =
     history.length > minHistoryMessages ? history.slice(-minHistoryMessages) : [...history];
 
-  const totalTokens = () =>
-    estimateTokens(system.content) + estimateTokens(last.content) + estimateMessagesTokens(kept);
+  const packTokens = (sysContent, lastContent, hist) =>
+    estimateTokens(sysContent) + estimateTokens(lastContent) + estimateMessagesTokens(hist);
 
-  while (kept.length > 2 && totalTokens() > budget) {
+  // Cap latest user message first so history trimming has room to work.
+  const maxLastShare = Math.floor(budget * (aggressive ? 0.35 : 0.45));
+  if (estimateTokens(last.content) > maxLastShare) {
+    last = { ...last, content: truncateToTokenBudget(last.content, maxLastShare) };
+  }
+
+  while (kept.length > 0 && packTokens(system.content, last.content, kept) > budget) {
     kept.shift();
   }
 
-  while (totalTokens() > budget && kept.length > 0) {
+  // Shorten remaining oldest history turns
+  while (kept.length > 0 && packTokens(system.content, last.content, kept) > budget) {
     const head = kept[0];
-    const shorter = String(head.content || "").slice(Math.floor(String(head.content || "").length * 0.25));
-    if (shorter.length < 40) break;
-    kept[0] = { ...head, content: `…${shorter}` };
-    if (estimateTokens(kept[0].content) >= estimateTokens(head.content)) break;
+    const allowed = Math.max(
+      40,
+      budget - estimateTokens(system.content) - estimateTokens(last.content) - estimateMessagesTokens(kept.slice(1)) - 8,
+    );
+    const shorter = truncateToTokenBudget(head.content, allowed);
+    if (shorter === head.content || shorter.length < 48) {
+      kept.shift();
+      continue;
+    }
+    kept[0] = { ...head, content: shorter };
+    if (packTokens(system.content, last.content, kept) > budget) kept.shift();
+    else break;
   }
 
   let systemMsg = system;
-  const totalWithSystem = () =>
-    estimateTokens(systemMsg.content) + estimateTokens(last.content) + estimateMessagesTokens(kept);
-
-  while (totalWithSystem() > budget && systemMsg?.content) {
-    const trimmed = trimSystemContent(
-      systemMsg.content,
-      budget - estimateTokens(last.content) - estimateMessagesTokens(kept) - 32,
-    );
+  while (packTokens(systemMsg.content, last.content, kept) > budget && systemMsg?.content) {
+    const room =
+      budget - estimateTokens(last.content) - estimateMessagesTokens(kept) - 32;
+    const trimmed = trimSystemContent(systemMsg.content, Math.max(400, room));
     if (trimmed === systemMsg.content) break;
     systemMsg = { ...systemMsg, content: trimmed };
+  }
+
+  // Final hard guarantee: shrink last message until we fit.
+  while (packTokens(systemMsg.content, last.content, kept) > budget) {
+    const room = budget - estimateTokens(systemMsg.content) - estimateMessagesTokens(kept) - 16;
+    if (room < 80) {
+      // Drop all history if still impossible
+      if (kept.length > 0) {
+        kept = [];
+        continue;
+      }
+      last = { ...last, content: truncateToTokenBudget(last.content, Math.max(60, room)) };
+      break;
+    }
+    const next = truncateToTokenBudget(last.content, room);
+    if (next === last.content) break;
+    last = { ...last, content: next };
   }
 
   return [systemMsg, ...kept, last];
@@ -103,22 +149,21 @@ function trimSystemContent(content, maxTokens) {
     /# Admin-starred exemplar replies[\s\S]*/i,
     /# Trainer global standards[\s\S]*/i,
     /# Conversation memory[\s\S]*/i,
+    /## Sequential stage lock[\s\S]*?(?=## |\n# |$)/i,
   ];
   for (const pattern of dropSections) {
     text = text.replace(pattern, "").trim();
     if (estimateTokens(text) <= maxTokens) return text;
   }
 
-  const maxChars = Math.max(1200, Math.floor(maxTokens * 3.2));
-  if (text.length > maxChars) {
-    return `${text.slice(0, maxChars)}\n\n[Context trimmed for model limit — obey core rules above.]`;
-  }
-  return text;
+  return truncateToTokenBudget(text, maxTokens);
 }
 
 function isContextLengthError(errText) {
   const t = String(errText || "");
-  return /maximum context length|context length is|input_tokens|too many tokens/i.test(t);
+  return /maximum context length|context length is|input_tokens|too many tokens|context window|token limit/i.test(
+    t,
+  );
 }
 
 function parseLlmErrorMessage(errText, status) {
@@ -154,7 +199,7 @@ function buildSamplingParams(mode) {
   const base = {
     temperature:
       mode === "regenerate" ? Math.max(temperature, 0.78) : mode === "name_journey" ? 0.3 : temperature,
-    max_tokens: mode === "name_journey" ? 32 : Number(process.env.VLLM_MAX_TOKENS) || 500,
+    max_tokens: mode === "name_journey" ? 32 : Number(process.env.VLLM_MAX_TOKENS) || 450,
     repetition_penalty: Number(process.env.VLLM_REPETITION_PENALTY) || 1.12,
     presence_penalty: Number(process.env.VLLM_PRESENCE_PENALTY) || 0.25,
     frequency_penalty: Number(process.env.VLLM_FREQUENCY_PENALTY) || 0.15,
@@ -200,6 +245,7 @@ module.exports = {
   trimExemplars,
   trimMessagesForContext,
   trimSystemContent,
+  truncateToTokenBudget,
   isContextLengthError,
   parseLlmErrorMessage,
   buildSamplingParams,

@@ -209,4 +209,27 @@
   .no-scrollbar::-webkit-scrollbar {
     display: none;
   }
+  /* ChatGPT / Gemini-style thinking dots while waiting for the LLM */
+  .thinking-dot {
+    animation: thinking-bounce 1.2s ease-in-out infinite;
+    opacity: 0.35;
+  }
+  .thinking-dot-delay-1 {
+    animation-delay: 0.2s;
+  }
+  .thinking-dot-delay-2 {
+    animation-delay: 0.4s;
+  }
+  @keyframes thinking-bounce {
+    0%,
+    80%,
+    100% {
+      opacity: 0.35;
+      transform: translateY(0);
+    }
+    40% {
+      opacity: 1;
+      transform: translateY(-3px);
+    }
+  }
 }

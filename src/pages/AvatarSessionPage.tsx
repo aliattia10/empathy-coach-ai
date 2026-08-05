@@ -2,7 +2,6 @@ import { useState, useRef, useEffect, useMemo } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import ChatTranscript from "@/components/avatar/ChatTranscript";
 import ChatInput from "@/components/chat/ChatInput";
-import CoachWarmingIndicator from "@/components/avatar/CoachWarmingIndicator";
 import { detectCrisis } from "@/components/safety/CrisisDetector";
 import { useAuth } from "@/hooks/useAuth";
 import { useSpeechSynthesis } from "@/hooks/useSpeechSynthesis";
@@ -843,12 +842,14 @@ export default function AvatarSessionPage() {
   const displayTitle = journeyTitle(journeySession);
   const userTurns = messages.filter((message) => message.role === "user").length;
   const statusLabel = isCoachWarming
-    ? "Getting ready…"
+    ? "Getting ready"
     : isAiResponding
-      ? "Thinking..."
+      ? "Thinking"
       : isSpeaking
-        ? "Speaking..."
+        ? "Speaking"
         : "Ready";
+
+  const showThinkingStatus = isAiResponding || isCoachWarming;
 
   const persistPath = async (items: SustainabilityPathItem[]) => {
     if (!sessionId) return;
@@ -918,7 +919,14 @@ export default function AvatarSessionPage() {
                     <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-primary" />
                   </span>
                 )}
-                {statusLabel}
+                <span>{statusLabel}</span>
+                {showThinkingStatus ? (
+                  <span className="inline-flex items-center gap-0.5" aria-hidden>
+                    <span className="thinking-dot h-1 w-1 rounded-full bg-primary" />
+                    <span className="thinking-dot thinking-dot-delay-1 h-1 w-1 rounded-full bg-primary" />
+                    <span className="thinking-dot thinking-dot-delay-2 h-1 w-1 rounded-full bg-primary" />
+                  </span>
+                ) : null}
               </div>
               <Button
                 type="button"
@@ -992,9 +1000,10 @@ export default function AvatarSessionPage() {
               onToggleAdminQualityStar={isAdmin ? handleToggleAdminQualityStar : undefined}
               isSubmittingFeedback={isSubmittingFeedback}
               isRegenerating={isRegenerating}
+              isThinking={isAiResponding || isRegenerating}
+              isWarming={isCoachWarming}
             />
             <div className="mt-3">
-              {isCoachWarming ? <CoachWarmingIndicator /> : null}
               {chatError ? (
                 <p className="mb-2 text-sm text-destructive" role="alert">
                   {chatError}

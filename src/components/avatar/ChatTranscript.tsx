@@ -6,6 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Star } from "lucide-react";
+import ThinkingIndicator from "@/components/chat/ThinkingIndicator";
 import type { ChatFeedback } from "@/hooks/useChatSession";
 
 export interface TranscriptMessage {
@@ -55,6 +56,10 @@ interface ChatTranscriptProps {
   onToggleAdminQualityStar?: (messageId: string, nextStarred: boolean) => void;
   isSubmittingFeedback?: boolean;
   isRegenerating?: boolean;
+  /** Show ChatGPT-style Thinking… bubble while waiting for the coach. */
+  isThinking?: boolean;
+  /** RunPod cold-start — softens the thinking copy. */
+  isWarming?: boolean;
 }
 
 const FEEDBACK_TAGS = ["tone", "clarity", "empathy", "relevance", "safety", "too_long", "too_short", "other"];
@@ -78,6 +83,8 @@ export default function ChatTranscript({
   onToggleAdminQualityStar,
   isSubmittingFeedback,
   isRegenerating,
+  isThinking = false,
+  isWarming = false,
 }: ChatTranscriptProps) {
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -89,7 +96,7 @@ export default function ChatTranscript({
       top: container.scrollHeight,
       behavior: "smooth",
     });
-  }, [messages]);
+  }, [messages, isThinking, isWarming]);
 
   return (
     <div
@@ -413,6 +420,7 @@ export default function ChatTranscript({
             </div>
           ))
         )}
+        {isThinking ? <ThinkingIndicator isWarming={isWarming} /> : null}
       </div>
     </div>
   );

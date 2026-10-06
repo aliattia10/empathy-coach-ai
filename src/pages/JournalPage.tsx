@@ -26,7 +26,7 @@ export default function JournalPage() {
       setEntries(await fetchJournalEntries());
     } catch (err) {
       console.error(err);
-      toast.error("Could not load journal. Apply the Phase 3 migration if needed.");
+      toast.error("Couldn't load your journal. Please try again.");
     }
   };
 

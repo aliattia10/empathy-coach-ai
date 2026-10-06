@@ -1,11 +1,5 @@
-import { Link } from "react-router-dom";
 import { Shield, ExternalLink } from "lucide-react";
-
-const supportLinks = [
-  { name: "NHS 24", href: "https://www.nhs24.scot/", desc: "24/7 health advice" },
-  { name: "Mind", href: "https://www.mind.org.uk/", desc: "Mental health support" },
-  { name: "Samaritans", href: "https://www.samaritans.org/", desc: "116 123 · 24/7" },
-];
+import { CRISIS_RESOURCES } from "@/lib/crisisResources";
 
 export default function AppFooter() {
   return (
@@ -19,17 +13,17 @@ export default function AppFooter() {
             </span>
           </div>
           <div className="flex flex-wrap items-center gap-x-6 gap-y-1 text-sm">
-            {supportLinks.map((link) => (
+            {CRISIS_RESOURCES.map((link) => (
               <a
                 key={link.name}
                 href={link.href}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1"
+                aria-label={`${link.name} — ${link.desc} (opens in new tab)`}
               >
                 {link.name}
-                <span className="sr-only">({link.desc})</span>
-                <ExternalLink className="w-3 h-3" />
+                <ExternalLink className="w-3 h-3" aria-hidden />
               </a>
             ))}
           </div>

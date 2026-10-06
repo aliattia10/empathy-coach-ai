@@ -235,12 +235,6 @@ export default function ProfileDashboardPage() {
         <ButtonLink to="/testing/settings" label="Password & settings" />
       </section>
 
-      <section className="rounded-2xl border border-dashed border-border bg-muted/20 p-5">
-        <h2 className="font-display font-semibold text-foreground">Billing</h2>
-        <p className="text-sm text-muted-foreground mt-1">
-          Subscription type: placeholder only — no payment integration in this release.
-        </p>
-      </section>
     </div>
   );
 }
@@ -249,7 +243,7 @@ function ButtonLink({ to, label }: { to: string; label: string }) {
   return (
     <Link
       to={to}
-      className="inline-flex mt-3 text-sm font-medium text-[#7c4db8] hover:underline"
+      className="inline-flex mt-3 text-sm font-medium text-[#6b3fa8] hover:underline underline-offset-2"
     >
       {label} →
     </Link>

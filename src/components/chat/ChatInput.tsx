@@ -1,4 +1,4 @@
-import { useRef, useState, KeyboardEvent } from "react";
+import { useEffect, useRef, useState, KeyboardEvent } from "react";
 import { Loader2, Mic, Paperclip, Send, Square, Volume2, VolumeX } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { readUploadedConversationFile, UPLOAD_ACCEPT } from "@/lib/readUploadedConversationFile";
@@ -23,6 +23,15 @@ export default function ChatInput({
   allowFileUpload = true,
 }: Props) {
   const [value, setValue] = useState("");
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 767px)");
+    const update = () => setIsMobile(mq.matches);
+    update();
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
+  }, []);
   const [isRecording, setIsRecording] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -136,7 +145,7 @@ export default function ChatInput({
         value={value}
         onChange={(e) => setValue(e.target.value)}
         onKeyDown={handleKeyDown}
-        placeholder="Describe the situation, or attach a PDF / transcript…"
+        placeholder={isMobile ? "What's on your mind?" : "Describe the situation, or attach a PDF / transcript…"}
         rows={1}
         className="flex-1 resize-none bg-transparent text-sm px-2 py-2 outline-none text-foreground placeholder:text-muted-foreground"
         disabled={busy}

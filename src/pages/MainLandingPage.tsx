@@ -78,7 +78,7 @@ export default function MainLandingPage() {
       <footer className="border-t border-border bg-card/50 py-6 px-4 text-center text-sm text-muted-foreground">
         <p>ShiftED AI — Empathy training for managers. Not a substitute for professional support.</p>
         <p className="mt-1">
-          <a href="https://www.nhs24.com" className="underline">NHS 24</a> · <a href="https://www.mind.org.uk" className="underline">Mind</a> · <a href="https://www.samaritans.org" className="underline">Samaritans</a>
+          <a href="https://www.nhs.uk/nhs-services/urgent-and-emergency-care-services/when-to-use-111/" className="underline">NHS 111</a> · <a href="https://www.nhs24.scot/" className="underline">NHS 24 (Scotland)</a> · <a href="https://www.mind.org.uk" className="underline">Mind</a> · <a href="https://www.samaritans.org" className="underline">Samaritans</a>
         </p>
       </footer>
     </div>

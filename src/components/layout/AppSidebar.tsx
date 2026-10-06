@@ -59,7 +59,7 @@ export default function AppSidebar() {
           <span className="text-xs font-medium">This is not therapy</span>
         </div>
         <p className="text-[10px] text-primary-foreground/50 mt-1">
-          For crisis support: Samaritans 116 123 · NHS 111
+          For crisis support: Samaritans 116 123 · NHS 111 (England & Wales) · NHS 24 on 111 (Scotland)
         </p>
       </div>
     </aside>

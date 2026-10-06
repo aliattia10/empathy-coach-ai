@@ -191,7 +191,7 @@ export default function JourneysDashboardPage() {
             </div>
           </div>
           <Button
-            className="mt-6 rounded-xl"
+            className="mt-6 rounded-xl relative z-10"
             onClick={handleCreateJourney}
             disabled={creating || loading}
           >

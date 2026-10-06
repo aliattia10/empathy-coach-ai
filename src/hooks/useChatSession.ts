@@ -61,6 +61,12 @@ export class NotSavedError extends Error {
   }
 }
 
+async function requireUserId(): Promise<string> {
+  const { data, error } = await supabase.auth.getUser();
+  if (error || !data.user) throw new Error("Sign in required.");
+  return data.user.id;
+}
+
 export async function createChatSession(
   userId: string,
   scenario = COACHING_JOURNEY_SCENARIO,
@@ -143,17 +149,24 @@ export async function fetchUserJourneys(userId: string): Promise<ChatSession[]> 
 }
 
 export async function renameChatSession(sessionId: string, sessionName: string) {
+  const userId = await requireUserId();
   const { data, error } = await supabase
     .from("chat_sessions")
     .update({ session_name: sessionName })
     .eq("id", sessionId)
+    .eq("user_id", userId)
     .select("id");
   if (error) throw error;
   if (!data?.length) throw new NotSavedError();
 }
 
 export async function deleteChatSession(sessionId: string) {
-  const { error } = await supabase.from("chat_sessions").delete().eq("id", sessionId);
+  const userId = await requireUserId();
+  const { error } = await supabase
+    .from("chat_sessions")
+    .delete()
+    .eq("id", sessionId)
+    .eq("user_id", userId);
   if (error) throw error;
 }
 
@@ -210,10 +223,12 @@ export async function setChatMessageAdminStar(messageId: string, starred: boolea
 }
 
 export async function setSessionActiveMessage(sessionId: string, messageId: string | null) {
+  const userId = await requireUserId();
   const { data, error } = await supabase
     .from("chat_sessions")
     .update({ active_message_id: messageId })
     .eq("id", sessionId)
+    .eq("user_id", userId)
     .select("id");
   if (error) throw error;
   if (!data?.length) throw new NotSavedError();
@@ -221,10 +236,12 @@ export async function setSessionActiveMessage(sessionId: string, messageId: stri
 
 export async function updateJourneyState(sessionId: string, updates: Partial<JourneyState>) {
   if (Object.keys(updates).length === 0) return;
+  const userId = await requireUserId();
   const { data, error } = await supabase
     .from("chat_sessions")
     .update(updates)
     .eq("id", sessionId)
+    .eq("user_id", userId)
     .select("id");
   if (error) {
     // Column may not exist yet (sustainability_path migration); allow callers to fall back.

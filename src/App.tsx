@@ -1,11 +1,11 @@
-import { useState } from "react";
+import { useEffect } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Navigate, Route, Routes, useLocation, useSearchParams } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { toast } from "sonner";
 import AppLayout from "@/components/layout/AppLayout";
-import GDPRConsentModal from "@/components/safety/GDPRConsentModal";
 import RequireAuth from "@/components/auth/RequireAuth";
 import MainLandingPage from "./pages/MainLandingPage";
 import NotFound from "./pages/NotFound";
@@ -14,6 +14,7 @@ import SessionWorkspacePage from "./pages/SessionWorkspacePage";
 import JourneysDashboardPage from "./pages/JourneysDashboardPage";
 import AdminChatPage from "./pages/AdminChatPage";
 import LoginPage from "./pages/LoginPage";
+import ResetPasswordPage from "./pages/ResetPasswordPage";
 import SkillsLibraryPage from "./pages/SkillsLibraryPage";
 import WorkbookDetailPage from "./pages/WorkbookDetailPage";
 import ProfileDashboardPage from "./pages/ProfileDashboardPage";
@@ -23,24 +24,34 @@ import SettingsPage from "./pages/SettingsPage";
 
 const queryClient = new QueryClient();
 
+function EmailConfirmedToast() {
+  const [params, setParams] = useSearchParams();
+  const location = useLocation();
+
+  useEffect(() => {
+    if (params.get("confirmed") !== "1") return;
+    toast.success("Email confirmed — welcome to ShiftED AI");
+    const next = new URLSearchParams(params);
+    next.delete("confirmed");
+    const qs = next.toString();
+    window.history.replaceState({}, "", `${location.pathname}${qs ? `?${qs}` : ""}`);
+  }, [params, location.pathname, setParams]);
+
+  return null;
+}
+
 const App = () => {
-  const [consented, setConsented] = useState(() => localStorage.getItem("shifted_consent") === "true");
-
-  const handleConsent = () => {
-    localStorage.setItem("shifted_consent", "true");
-    setConsented(true);
-  };
-
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <Toaster />
         <Sonner />
-        <GDPRConsentModal open={!consented} onConsent={handleConsent} />
         <BrowserRouter>
+          <EmailConfirmedToast />
           <Routes>
             <Route path="/" element={<MainLandingPage />} />
             <Route path="/testing/login" element={<LoginPage />} />
+            <Route path="/testing/reset-password" element={<ResetPasswordPage />} />
             <Route path="/adminchat" element={<AppLayout />}>
               <Route index element={<AdminChatPage />} />
             </Route>

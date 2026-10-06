@@ -98,8 +98,8 @@ export default function WorkbookDetailPage() {
       </p>
 
       <div className="mt-6 rounded-2xl border border-dashed border-border bg-muted/30 p-4 text-sm text-muted-foreground">
-        TODO(content): Full workbook body/steps will be supplied later. Use this space to practice the skill
-        briefly, then mark complete with a self-rating.
+        Full workbook steps are coming soon. Use this space to practice the skill briefly, then mark complete
+        with a self-rating.
       </div>
 
       <div className="flex flex-wrap gap-2 mt-6">
@@ -108,7 +108,7 @@ export default function WorkbookDetailPage() {
             Start workbook
           </Button>
         ) : null}
-        {row?.status !== "completed" ? (
+        {!row ? (
           <Button
             type="button"
             variant="outline"
@@ -118,10 +118,14 @@ export default function WorkbookDetailPage() {
               upsertUserWorkbook({ workbookId: workbook.id, status: "added", source: "library" })
                 .then(setRow)
                 .then(() => toast.success("Saved to profile."))
-                .catch(() => toast.error("Could not save."))
+                .catch(() => toast.error("Couldn't save. Please try again."))
             }
           >
             Save to profile
+          </Button>
+        ) : row.status === "added" ? (
+          <Button type="button" variant="outline" className="rounded-xl" disabled>
+            Saved ✓
           </Button>
         ) : null}
       </div>

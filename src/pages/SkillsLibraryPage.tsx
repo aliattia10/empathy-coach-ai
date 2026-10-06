@@ -26,7 +26,7 @@ export default function SkillsLibraryPage() {
       toast.success("Workbook added to your profile.");
     } catch (err) {
       console.error(err);
-      toast.error("Could not add workbook. Apply the Phase 3 migration if this is a new table.");
+      toast.error("Couldn't add this workbook. Please try again.");
     } finally {
       setBusyId(null);
     }

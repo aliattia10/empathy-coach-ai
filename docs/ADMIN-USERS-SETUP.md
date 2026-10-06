@@ -107,21 +107,14 @@ This migration:
 - removes `admin` role from Kara/Simon/Louise if present
 - grants `admin` role in `public.user_roles` only to `josh@admin.com`
 
-## Step 3 - Admin chat page password
+## Step 3 - Admin chat monitor
 
 - Route: `/adminchat`
-- Set Netlify env var:
-
-```env
-VITE_ADMIN_CHAT_PASSWORD=your-strong-password
-```
+- Access is gated by Supabase Auth plus the `admin` role in `public.user_roles` (no client-side password env vars).
+- See `docs/ADMIN-LOGIN-CREDENTIALS.md` for the current onboarding process.
 
 ## Notes
 
-- `/adminchat` requires:
-  1. logged-in user
-  2. email = `josh@admin.com`
-  3. `admin` role in `user_roles`
-  3. correct admin page password
-- Admins can monitor all stored AI chat conversations.
+- `/adminchat` requires a logged-in user with the `admin` role in `user_roles`.
+- Admins can monitor all stored AI chat conversations (RLS allows cross-user reads for admins).
 

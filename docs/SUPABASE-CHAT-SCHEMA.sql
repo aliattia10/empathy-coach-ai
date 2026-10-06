@@ -40,7 +40,25 @@ do $$ begin
       on public.chat_sessions for insert
       with check (auth.uid() = user_id);
   end if;
+
+  if not exists (
+    select 1 from pg_policies where schemaname='public' and tablename='chat_sessions' and policyname='Users can update own sessions'
+  ) then
+    create policy "Users can update own sessions"
+      on public.chat_sessions for update to authenticated
+      using (auth.uid() = user_id) with check (auth.uid() = user_id);
+  end if;
+
+  if not exists (
+    select 1 from pg_policies where schemaname='public' and tablename='chat_sessions' and policyname='Users can delete own sessions'
+  ) then
+    create policy "Users can delete own sessions"
+      on public.chat_sessions for delete to authenticated
+      using (auth.uid() = user_id);
+  end if;
 end $$;
+
+grant update, delete on public.chat_sessions to authenticated;
 
 -- RLS: messages allowed only via session ownership
 do $$ begin

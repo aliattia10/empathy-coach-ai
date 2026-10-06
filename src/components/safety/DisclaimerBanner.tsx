@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Shield, X } from "lucide-react";
+import { CRISIS_LINES_SHORT } from "@/lib/crisisResources";
 
 export default function DisclaimerBanner() {
   const [visible, setVisible] = useState(true);
@@ -12,11 +13,14 @@ export default function DisclaimerBanner() {
         <span className="font-medium">
           This AI is a training simulation and not therapy.
         </span>
-        <span className="hidden sm:inline text-white/70">
-          Samaritans 116 123 · NHS 111 · Mind 0300 123 3393
-        </span>
+        <span className="hidden sm:inline text-white/70">{CRISIS_LINES_SHORT}</span>
       </div>
-      <button onClick={() => setVisible(false)} className="text-white/70 hover:text-white p-1">
+      <button
+        type="button"
+        onClick={() => setVisible(false)}
+        className="text-white/70 hover:text-white p-1"
+        aria-label="Dismiss"
+      >
         <X className="w-3.5 h-3.5" />
       </button>
     </div>

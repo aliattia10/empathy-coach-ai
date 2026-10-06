@@ -107,6 +107,28 @@ async function pollRunPodJob(endpointId, apiKey, jobId, timeoutMs = 20000) {
   return data;
 }
 
+async function cancelRunPodJob(endpointId, apiKey, jobId, timeoutMs = 15000) {
+  if (!endpointId || !apiKey?.trim() || !jobId) return false;
+  const url = `${runPodApiBase(endpointId)}/cancel/${jobId}`;
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${apiKey.trim()}` },
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+    return res.ok;
+  } catch (err) {
+    console.warn("RunPod cancel failed:", err.message);
+    return false;
+  }
+}
+
+/** Terminal failure statuses from RunPod (plus unknown after client timeout). */
+function isRunPodTerminalFailure(status) {
+  const s = String(status || "").toUpperCase();
+  return s === "FAILED" || s === "CANCELLED" || s === "CANCELED" || s === "TIMED_OUT" || s === "TIMEOUT";
+}
+
 function useRunPodAsync(vllmApiUrl) {
   if (process.env.RUNPOD_ASYNC === "false") return false;
   return String(vllmApiUrl || "").includes("runpod.ai");
@@ -119,5 +141,7 @@ module.exports = {
   extractReplyFromRunPodOutput,
   submitRunPodJob,
   pollRunPodJob,
+  cancelRunPodJob,
+  isRunPodTerminalFailure,
   useRunPodAsync,
 };

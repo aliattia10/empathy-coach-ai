@@ -40,6 +40,10 @@ const {
   buildRegenerationUserPrompt,
   buildRegenerationSystemContent,
 } = require("../skills/regenerationHelpers.cjs");
+const {
+  normalizeChatHistory,
+  buildConversationMemoryBlock,
+} = require("../skills/conversationMemory.cjs");
 
 const NAME_JOURNEY_SYSTEM_PROMPT = {
   role: "system",
@@ -147,6 +151,7 @@ async function buildChatSystemContent(possibleCrisisLanguage, journeyContext, hi
   return content;
 }
 
+app.post("/api/chat", async (req, res) => {
   const {
     userMessage,
     chatHistory,

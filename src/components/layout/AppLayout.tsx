@@ -14,15 +14,15 @@ export default function AppLayout() {
     /^\/testing\/journeys\/[^/]+$/.test(pathname);
 
   return (
-    <div className="flex min-h-screen flex-col">
+    <div className="flex min-h-screen flex-col overflow-x-hidden">
       <TopNav />
       <DisclaimerBanner />
       <main
         className={cn(
-          "flex-1 pb-20 md:pb-8 overflow-hidden bg-[#f8f6f6]/98 backdrop-blur-md border border-white/30 shadow-xl w-full",
+          "flex-1 pb-20 md:pb-8 overflow-x-hidden bg-[#f8f6f6]/98 backdrop-blur-md border border-white/30 shadow-xl",
           fullBleed
             ? "md:mx-2 md:mb-2 md:rounded-2xl max-w-none"
-            : "md:mx-4 md:mb-4 md:rounded-3xl max-w-6xl md:mx-auto",
+            : "md:mx-4 md:mb-4 md:rounded-3xl max-w-6xl md:mx-auto w-full",
         )}
       >
         <Outlet />

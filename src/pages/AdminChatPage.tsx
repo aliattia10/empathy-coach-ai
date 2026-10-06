@@ -76,8 +76,6 @@ const DEFAULT_ADMIN_EMAIL = "josh@admin.com";
 
 export default function AdminChatPage() {
   const { user, loading } = useAuth();
-  const [gatePass, setGatePass] = useState("");
-  const [unlocked, setUnlocked] = useState(false);
   const [email, setEmail] = useState(DEFAULT_ADMIN_EMAIL);
   const [password, setPassword] = useState("");
   const [loginLoading, setLoginLoading] = useState(false);
@@ -106,11 +104,6 @@ export default function AdminChatPage() {
   const [translations, setTranslations] = useState<Record<string, string>>({});
   const [translatingId, setTranslatingId] = useState<string | null>(null);
 
-  const expectedPassword = useMemo(
-    () => import.meta.env.VITE_ADMIN_CHAT_PASSWORD || "",
-    []
-  );
-
   useEffect(() => {
     const checkRole = async () => {
       if (!user || !isTrainerAdminEmail(user.email)) {
@@ -134,7 +127,7 @@ export default function AdminChatPage() {
   }, [user]);
 
   useEffect(() => {
-    if (!unlocked || !hasAdminRole) return;
+    if (!hasAdminRole) return;
 
     const loadSessions = async () => {
       setLoadingSessions(true);
@@ -149,10 +142,10 @@ export default function AdminChatPage() {
     };
 
     loadSessions();
-  }, [unlocked, hasAdminRole]);
+  }, [hasAdminRole]);
 
   useEffect(() => {
-    if (!unlocked || !hasAdminRole || sessions.length === 0) {
+    if (!hasAdminRole || sessions.length === 0) {
       setProfileNames({});
       setUserEmails({});
       return;
@@ -196,10 +189,10 @@ export default function AdminChatPage() {
     return () => {
       cancelled = true;
     };
-  }, [unlocked, hasAdminRole, sessions]);
+  }, [hasAdminRole, sessions]);
 
   useEffect(() => {
-    if (!unlocked || !selectedSessionId || !hasAdminRole) return;
+    if (!selectedSessionId || !hasAdminRole) return;
 
     setTranslations({});
 
@@ -216,10 +209,10 @@ export default function AdminChatPage() {
     };
 
     loadMessages();
-  }, [unlocked, selectedSessionId, hasAdminRole]);
+  }, [selectedSessionId, hasAdminRole]);
 
   useEffect(() => {
-    if (!unlocked || !hasAdminRole) {
+    if (!hasAdminRole) {
       setAnalytics({
         feedbackTotal: 0,
         regenerateTotal: 0,
@@ -314,7 +307,7 @@ export default function AdminChatPage() {
     return () => {
       cancelled = true;
     };
-  }, [unlocked, hasAdminRole]);
+  }, [hasAdminRole]);
 
   const handleAdminLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -547,14 +540,6 @@ export default function AdminChatPage() {
     setTranslations((prev) => ({ ...prev, [messageId]: result.translation }));
   };
 
-  const onUnlock = () => {
-    if (!expectedPassword) {
-      alert("Admin chat password is not configured. Set VITE_ADMIN_CHAT_PASSWORD.");
-      return;
-    }
-    if (gatePass === expectedPassword) setUnlocked(true);
-  };
-
   if (loading) {
     return (
       <div className="max-w-md mx-auto px-4 py-10">
@@ -635,32 +620,6 @@ export default function AdminChatPage() {
             Run `supabase/sql/ADMIN_CHAT_SETUP.sql` in Supabase SQL Editor.
           </p>
           <Button variant="outline" onClick={handleSignOut}>Sign out</Button>
-        </div>
-      </div>
-    );
-  }
-
-  if (!unlocked) {
-    return (
-      <div className="max-w-md mx-auto px-4 py-10">
-        <div className="rounded-2xl border border-border bg-card p-5 space-y-4">
-          <h1 className="text-lg font-semibold">Admin chat access</h1>
-          <p className="text-sm text-muted-foreground">
-            Enter admin page password to view all AI chat conversations.
-            Set `VITE_ADMIN_CHAT_PASSWORD` in environment variables.
-          </p>
-          <Input
-            type="password"
-            value={gatePass}
-            onChange={(e) => setGatePass(e.target.value)}
-            placeholder="Enter password"
-          />
-          <Button onClick={onUnlock} className="w-full">
-            Unlock
-          </Button>
-          <Button variant="ghost" onClick={handleSignOut} className="w-full">
-            Sign out
-          </Button>
         </div>
       </div>
     );

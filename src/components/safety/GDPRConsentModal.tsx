@@ -2,20 +2,46 @@ import { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Shield } from "lucide-react";
+import { Loader2, Shield, X } from "lucide-react";
 
 interface Props {
   open: boolean;
-  onConsent: () => void;
+  onConsent: () => void | Promise<void>;
+  onDismiss?: () => void;
+  allowClose?: boolean;
+  saving?: boolean;
 }
 
-export default function GDPRConsentModal({ open, onConsent }: Props) {
+export default function GDPRConsentModal({ open, onConsent, onDismiss, allowClose = false, saving = false }: Props) {
   const [dataConsent, setDataConsent] = useState(false);
   const [ageConsent, setAgeConsent] = useState(false);
 
   return (
-    <Dialog open={open}>
-      <DialogContent className="sm:max-w-md" onInteractOutside={(e) => e.preventDefault()}>
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (!next && allowClose) onDismiss?.();
+      }}
+    >
+      <DialogContent
+        className="sm:max-w-md"
+        onInteractOutside={(e) => {
+          if (!allowClose) e.preventDefault();
+        }}
+        onEscapeKeyDown={(e) => {
+          if (!allowClose) e.preventDefault();
+        }}
+      >
+        {allowClose ? (
+          <button
+            type="button"
+            onClick={() => onDismiss?.()}
+            className="absolute right-4 top-4 rounded-sm opacity-70 hover:opacity-100"
+            aria-label="Dismiss"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        ) : null}
         <DialogHeader>
           <div className="mx-auto w-12 h-12 rounded-full bg-coral-light flex items-center justify-center mb-2">
             <Shield className="w-6 h-6 text-secondary" />
@@ -42,11 +68,18 @@ export default function GDPRConsentModal({ open, onConsent }: Props) {
         </div>
 
         <Button
-          onClick={onConsent}
-          disabled={!dataConsent || !ageConsent}
+          onClick={() => void onConsent()}
+          disabled={!dataConsent || !ageConsent || saving}
           className="w-full bg-secondary text-secondary-foreground hover:bg-secondary/90"
         >
-          I Agree — Let's Begin
+          {saving ? (
+            <>
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" aria-hidden />
+              Saving…
+            </>
+          ) : (
+            "I Agree — Let's Begin"
+          )}
         </Button>
       </DialogContent>
     </Dialog>

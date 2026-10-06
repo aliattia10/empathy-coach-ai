@@ -42,14 +42,15 @@ Add these so the **live site** works:
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| **LLM_PROVIDER** | No | LLM backend provider. Use `openrouter` (default) or `groq`. |
-| **LLM_API_KEY** | Yes (for chat) | OpenRouter API key (or other open-source LLM provider). Used by the serverless `/api/chat` function. |
-| **VLLM_API_URL** | No (has default) | Chat API URL. Default: `https://openrouter.ai/api/v1/chat/completions`. |
-| **VLLM_MODEL** | No (has default) | Model id, e.g. `meta-llama/llama-3.2-3b-instruct:free`. |
-| **GROQ_API_KEY** | Only if `LLM_PROVIDER=groq` | Groq API key. Used by the serverless `/api/chat` function when using Groq. |
-| **GROQ_MODEL** | Only if `LLM_PROVIDER=groq` | Groq model id. Default: `llama-3.1-8b-instant`. |
-| **VITE_ADMIN_CHAT_PASSWORD** | Required for `/adminchat` | Password required by `/adminchat` page. Must be set in Netlify/Supabase environment variables. |
-| **VITE_SUPABASE_URL** | Yes | Supabase project URL, e.g. `https://YOUR_PROJECT_REF.supabase.co`. Needed for auth, survey, chat storage. |
+| **LLM_API_KEY** | Yes (for RunPod chat) | RunPod API key for `/api/chat` (primary coach). |
+| **VLLM_API_URL** | Yes (for RunPod) | RunPod OpenAI-compatible URL, e.g. `https://api.runpod.ai/v2/<endpoint-id>/openai/v1/chat/completions`. |
+| **VLLM_MODEL** | No (has default) | Served model name on RunPod (e.g. `empathy-coach-qwen`). |
+| **FALLBACK_LLM_API_KEY** | Recommended | OpenAI-compatible API key used when RunPod is queued/failed. Falls back to `GROQ_API_KEY` if set. |
+| **FALLBACK_LLM_API_URL** | No | Default `https://api.groq.com/openai/v1/chat/completions` when `GROQ_API_KEY` is set. |
+| **FALLBACK_LLM_MODEL** | No | Default `llama-3.1-8b-instant`. |
+| **RUNPOD_FALLBACK_AFTER_MS** | No | Wait this long on `IN_QUEUE` before switching to fallback (default `75000`). |
+| **GROQ_API_KEY** | Optional | Used for voice transcription and as fallback chat key when `FALLBACK_LLM_API_KEY` is unset. |
+| **VITE_SUPABASE_URL** | Yes | Supabase project URL, e.g. `https://wxxwxvauseqftyorhkkp.supabase.co`. Needed for auth, survey, chat storage. |
 | **VITE_SUPABASE_PUBLISHABLE_KEY** | Yes | Supabase anon/public key. Needed for auth and Supabase client in the browser. |
 
 Optional (for the chat function):
@@ -59,6 +60,7 @@ Optional (for the chat function):
 | VLLM_TEMPERATURE | e.g. `0.7` |
 | VLLM_MAX_TOKENS | e.g. `500` |
 | VLLM_TIMEOUT_MS | e.g. `60000` |
+| RUNPOD_ASYNC | Set `false` to disable async RunPod submit/poll |
 
 **Important:** `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` are **baked into the frontend at build time**. If they’re missing in Netlify, the deployed app won’t be able to reach Supabase (login, survey, saving chats). Add them in Netlify with the same values as in your local `.env`.
 
@@ -81,15 +83,17 @@ VITE_SUPABASE_PUBLISHABLE_KEY=your-anon-key
 ### `server/.env` (local backend / LLM)
 
 ```env
-LLM_PROVIDER=openrouter
-VLLM_API_URL=https://openrouter.ai/api/v1/chat/completions
-LLM_API_KEY=your-openrouter-api-key
-VLLM_MODEL=meta-llama/llama-3.2-3b-instruct:free
+# Primary: RunPod (async)
+VLLM_API_URL=https://api.runpod.ai/v2/YOUR_ENDPOINT/openai/v1/chat/completions
+LLM_API_KEY=your-runpod-api-key
+VLLM_MODEL=empathy-coach-qwen
 
-# If using Groq instead of OpenRouter:
-# LLM_PROVIDER=groq
+# Fallback when RunPod is cold / queued (OpenAI-compatible, e.g. Groq)
+# FALLBACK_LLM_API_KEY=your-fallback-key
+# FALLBACK_LLM_API_URL=https://api.groq.com/openai/v1/chat/completions
+# FALLBACK_LLM_MODEL=llama-3.1-8b-instant
+# RUNPOD_FALLBACK_AFTER_MS=75000
 # GROQ_API_KEY=your-groq-api-key
-# GROQ_MODEL=llama-3.1-8b-instant
 ```
 
 ### Scripts (generate data, export Supabase)

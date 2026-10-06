@@ -1,23 +1,25 @@
-# Admin Login Credentials
+# Admin access (ShiftED AI)
 
-> Security note: do not store real passwords in git.
+Admin features are **not** gated by passwords compiled into the frontend. Access is controlled by Supabase Auth plus a row in `public.user_roles`.
 
-## Admin users
+## How admins are created
 
-- `kara@admin.com`
-- `josh@admin.com`
-- `simon@admin.com`
-- `louise@admin.com`
-- `nikki@admin.com`
-- Passwords must be generated and managed in Supabase/Auth (or your secret manager), not in source code.
+1. Create or identify the user in **Supabase → Authentication → Users** (typically an `@admin.com` trainer address).
+2. Run the admin setup SQL in **Supabase → SQL Editor** (see `supabase/sql/ADMIN_CHAT_SETUP.sql` in this repo) to insert an `admin` role for that user's UUID into `user_roles`.
+3. Confirm the user can sign in at `/testing/login` and open `/adminchat` (Admin Chat Monitor).
 
-## /Adminchat    page to see all the conversations
+## What admins can do
 
-- Route: `/adminchat`
-- Page password comes from env var `VITE_ADMIN_CHAT_PASSWORD`
+- View all users' chat sessions in `/adminchat` (RLS allows admins to read cross-user data; the UI still requires the `admin` role).
+- Star messages and leave trainer feedback when signed in as admin.
 
-## Access policy note
+## Security notes
 
-- `/adminchat` is open to any **trainer admin** account ending in `@admin.com` with the `admin` role in `user_roles` (kara, josh, simon, louise, nikki).
-- **Translation** defaults to **English**; admins can also translate to French, Spanish, German, Arabic, or Icelandic (see `docs/SUPER-PROMPT-ADMIN-PANEL.md`).
+- Do **not** store admin passwords or PINs in `VITE_*` environment variables — they are shipped to every browser.
+- Rotate compromised credentials in Supabase Auth directly; update this doc if the onboarding process changes.
+- Optional extra PIN verification, if required later, must be checked in a Netlify Function using a **non-`VITE_`** secret.
 
+## Related files
+
+- `supabase/sql/ADMIN_CHAT_SETUP.sql` — role grants and admin RLS helpers
+- `src/pages/AdminChatPage.tsx` — admin chat monitor UI

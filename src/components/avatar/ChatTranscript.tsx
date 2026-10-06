@@ -60,6 +60,9 @@ interface ChatTranscriptProps {
   isThinking?: boolean;
   /** RunPod cold-start — softens the thinking copy. */
   isWarming?: boolean;
+  thinkingElapsedMs?: number;
+  onThinkingRetry?: () => void;
+  onThinkingCancel?: () => void;
   /** Phase 3 workbook recommendation cards keyed by assistant message id. */
   recommendationSlotByMessageId?: Record<string, ReactNode>;
 }
@@ -87,6 +90,9 @@ export default function ChatTranscript({
   isRegenerating,
   isThinking = false,
   isWarming = false,
+  thinkingElapsedMs,
+  onThinkingRetry,
+  onThinkingCancel,
   recommendationSlotByMessageId = {},
 }: ChatTranscriptProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -426,7 +432,14 @@ export default function ChatTranscript({
             </div>
           ))
         )}
-        {isThinking ? <ThinkingIndicator isWarming={isWarming} /> : null}
+        {isThinking ? (
+          <ThinkingIndicator
+            isWarming={isWarming}
+            elapsedMs={thinkingElapsedMs}
+            onRetry={onThinkingRetry}
+            onCancel={onThinkingCancel}
+          />
+        ) : null}
       </div>
     </div>
   );

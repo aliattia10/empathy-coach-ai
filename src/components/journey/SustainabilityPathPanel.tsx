@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { BookOpen, Brain, Check, ChevronDown, ChevronUp, GripVertical, Heart, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { JourneyState } from "@/types/journey";
@@ -54,6 +55,8 @@ type Props = {
   onReorder?: (items: SustainabilityPathItem[]) => void;
   onToggleComplete?: (id: string, completed: boolean) => void;
   busy?: boolean;
+  /** When set, Self-Reflection opens the journal with this session linked. */
+  journeyId?: string | null;
 };
 
 /**
@@ -66,6 +69,7 @@ export default function SustainabilityPathPanel({
   onReorder,
   onToggleComplete,
   busy,
+  journeyId,
 }: Props) {
   const steps = useMemo(
     () => normalizeSustainabilityPath(journey.sustainability_path),
@@ -254,6 +258,19 @@ export default function SustainabilityPathPanel({
                     {SUMMARIES[openStep.id as SustainabilityPathStepId]?.when}
                   </span>
                 </DialogDescription>
+                {openStep.id === "self_reflection" ? (
+                  <Button asChild className="mt-2 rounded-xl w-full">
+                    <Link
+                      to={
+                        journeyId
+                          ? `/testing/journal?session=${encodeURIComponent(journeyId)}`
+                          : "/testing/journal"
+                      }
+                    >
+                      Open journal
+                    </Link>
+                  </Button>
+                ) : null}
               </DialogHeader>
             </>
           )}

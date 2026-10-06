@@ -1,5 +1,5 @@
-import { useState, useRef, useEffect, useMemo } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { useState, useRef, useEffect, useMemo, type ReactNode } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 import ChatTranscript from "@/components/avatar/ChatTranscript";
 import ChatInput from "@/components/chat/ChatInput";
 import { detectCrisis } from "@/components/safety/CrisisDetector";
@@ -36,8 +36,21 @@ import type { TranscriptMessage } from "@/components/avatar/ChatTranscript";
 import PhaseStepper from "@/components/avatar/PhaseStepper";
 import GuidanceLadderWidget from "@/components/journey/GuidanceLadderWidget";
 import SustainabilityPathPanel from "@/components/journey/SustainabilityPathPanel";
+import WorkbookRecommendationCard from "@/components/phase3/WorkbookRecommendationCard";
+import ReflectionMomentModal from "@/components/phase3/ReflectionMomentModal";
 import { inferJourneyUpdates } from "@/lib/journeyInference";
 import { extractProgressUpdates, extractLatestProgressFromHistory, sanitizeAssistantDisplayContent } from "@/lib/goalExtraction";
+import { parseWorkbookRecommendation } from "@/lib/workbookRecommendation";
+import { WORKBOOK_BY_ID } from "@/lib/workbooks";
+import {
+  decideWorkbookRecommendation,
+  fetchPendingRecommendations,
+  fetchPracticeStateForPrompt,
+  saveReflection,
+  saveWorkbookRecommendation,
+  upsertUserWorkbook,
+  type WorkbookRecommendationRow,
+} from "@/lib/phase3Api";
 import { autoCompleteMatchingGoal } from "@/lib/dashboardGoals";
 import { syncSessionTasks } from "@/lib/coachTaskSync";
 import { syncPhaseChecklist } from "@/lib/phaseChecklist";
@@ -128,6 +141,12 @@ export default function AvatarSessionPage() {
   const [isAiResponding, setIsAiResponding] = useState(false);
   const [chatError, setChatError] = useState<string | null>(null);
   const [isCoachWarming, setIsCoachWarming] = useState(false);
+  const [pendingRecs, setPendingRecs] = useState<
+    Record<string, { recommendationId: string; workbookId: string; reason?: string }>
+  >({});
+  const [recBusy, setRecBusy] = useState(false);
+  const [reflectionOpen, setReflectionOpen] = useState(false);
+  const [pendingLeaveTo, setPendingLeaveTo] = useState<string | null>(null);
   const handleSendRef = useRef<(text: string) => void>(() => {});
   const pendingSpeakTimeoutRef = useRef<number | null>(null);
   const { speak, stop, isSpeaking } = useSpeechSynthesis();
@@ -341,6 +360,23 @@ export default function AvatarSessionPage() {
         );
         await loadFeedbackForMessages(restored);
 
+        try {
+          const pending = await fetchPendingRecommendations(journey.id);
+          if (isMounted && pending.length) {
+            const map: Record<string, { recommendationId: string; workbookId: string; reason?: string }> = {};
+            for (const row of pending as WorkbookRecommendationRow[]) {
+              if (!row.message_id) continue;
+              map[row.message_id] = {
+                recommendationId: row.id,
+                workbookId: row.workbook_id,
+              };
+            }
+            setPendingRecs(map);
+          }
+        } catch {
+          // Phase 3 tables may not be migrated yet
+        }
+
         if (restored.length === 0) {
           const welcome = starterMessage(journey);
           const initial = await saveChatMessage(journey.id, "assistant", welcome.content);
@@ -516,6 +552,7 @@ export default function AvatarSessionPage() {
     }));
     const assistantTexts = chatHistory.filter((m) => m.role === "assistant").map((m) => m.content);
     const askedPhaseOne = detectAskedPhaseOneElements(assistantTexts);
+    const practiceState = await fetchPracticeStateForPrompt();
     const journeyContext = toJourneyContextPayload(journeyState, chatHistory.length, {
       phaseOneNextElement:
         journeyState.phase_one_step === 2 && !journeyState.phase_one_confirmed
@@ -523,6 +560,7 @@ export default function AvatarSessionPage() {
           : null,
       askedPhaseOneElements:
         askedPhaseOne.size > 0 ? [...askedPhaseOne].join(", ") : null,
+      practiceState,
     });
 
     try {
@@ -546,6 +584,7 @@ export default function AvatarSessionPage() {
 
       const content = result.reply;
       setIsCoachWarming(false);
+      const workbookRec = parseWorkbookRecommendation(content || "");
       const { displayContent } = extractProgressUpdates(content || "", journeyState);
       const reply: TranscriptMessage = {
         id: (Date.now() + 1).toString(),
@@ -555,6 +594,26 @@ export default function AvatarSessionPage() {
       const savedReply = await saveChatMessage(sessionId, "assistant", reply.content, {
         parentMessageId: persistedUser.id,
       });
+      if (workbookRec && sessionId) {
+        try {
+          const savedRec = await saveWorkbookRecommendation({
+            chatSessionId: sessionId,
+            messageId: savedReply.id,
+            workbookId: workbookRec.id,
+            decision: "pending",
+          });
+          setPendingRecs((prev) => ({
+            ...prev,
+            [savedReply.id]: {
+              recommendationId: savedRec.id,
+              workbookId: workbookRec.id,
+              reason: workbookRec.reason,
+            },
+          }));
+        } catch (err) {
+          console.warn("Workbook recommendation persist failed.", err);
+        }
+      }
       const nextRaw = [
         ...persistedRawMessages,
         {
@@ -851,6 +910,96 @@ export default function AvatarSessionPage() {
 
   const showThinkingStatus = isAiResponding || isCoachWarming;
 
+  const requestLeave = (to: string) => {
+    if (userTurns > 0) {
+      setPendingLeaveTo(to);
+      setReflectionOpen(true);
+      return;
+    }
+    navigate(to);
+  };
+
+  const finishReflection = async (opts: { answer?: string; skipped: boolean }) => {
+    try {
+      if (sessionId) {
+        await saveReflection({
+          chatSessionId: sessionId,
+          answer: opts.answer ?? null,
+          skipped: opts.skipped,
+        });
+      }
+    } catch (err) {
+      console.warn("Reflection save failed (migration may be pending).", err);
+    }
+    setReflectionOpen(false);
+    const to = pendingLeaveTo || "/testing/journeys";
+    setPendingLeaveTo(null);
+    navigate(to);
+  };
+
+  const handleRecDecision = async (
+    messageId: string,
+    decision: "added" | "skipped" | "started",
+  ) => {
+    const rec = pendingRecs[messageId];
+    if (!rec) return;
+    setRecBusy(true);
+    try {
+      await decideWorkbookRecommendation(rec.recommendationId, decision);
+      if (decision === "added") {
+        await upsertUserWorkbook({
+          workbookId: rec.workbookId,
+          status: "added",
+          source: "recommendation",
+          chatSessionId: sessionId,
+        });
+        toast.success("Workbook added to your profile.");
+      } else if (decision === "started") {
+        await upsertUserWorkbook({
+          workbookId: rec.workbookId,
+          status: "in_progress",
+          source: "recommendation",
+          chatSessionId: sessionId,
+        });
+        toast.success("Workbook started.");
+        navigate(`/testing/library/${rec.workbookId}`);
+      } else {
+        toast.message("Skipped for now.");
+      }
+      setPendingRecs((prev) => {
+        const next = { ...prev };
+        delete next[messageId];
+        return next;
+      });
+    } catch (err) {
+      console.error(err);
+      toast.error("Could not save your choice. Apply the Phase 3 migration if needed.");
+    } finally {
+      setRecBusy(false);
+    }
+  };
+
+  const recommendationSlotByMessageId = useMemo(() => {
+    const slots: Record<string, ReactNode> = {};
+    for (const [messageId, rec] of Object.entries(pendingRecs)) {
+      const workbook = WORKBOOK_BY_ID[rec.workbookId];
+      if (!workbook) continue;
+      slots[messageId] = (
+        <WorkbookRecommendationCard
+          workbook={workbook}
+          reason={rec.reason}
+          busy={recBusy}
+          onAdd={() => void handleRecDecision(messageId, "added")}
+          onSkip={() => void handleRecDecision(messageId, "skipped")}
+          onStart={() => void handleRecDecision(messageId, "started")}
+        />
+      );
+    }
+    return slots;
+    // handleRecDecision closes over latest sessionId/pendingRecs via render
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingRecs, recBusy, sessionId]);
+
   const persistPath = async (items: SustainabilityPathItem[]) => {
     if (!sessionId) return;
     savePathToLocal(sessionId, items);
@@ -878,17 +1027,27 @@ export default function AvatarSessionPage() {
           <div className="flex items-center justify-between gap-3 flex-wrap">
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2 mb-3">
-                <Button variant="outline" size="sm" className="rounded-xl" asChild>
-                  <Link to="/testing/journeys">
-                    <ArrowLeft className="w-4 h-4 mr-1.5" />
-                    Back to journeys
-                  </Link>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="rounded-xl"
+                  type="button"
+                  onClick={() => requestLeave("/testing/journeys")}
+                >
+                  <ArrowLeft className="w-4 h-4 mr-1.5" />
+                  Back to journeys
                 </Button>
-                <Button variant="ghost" size="sm" className="rounded-xl" asChild>
-                  <Link to={journeyId ? `/testing/journeys/${journeyId}` : "/testing/journeys"}>
-                    <ListTodo className="w-4 h-4 mr-1.5" />
-                    Tasks
-                  </Link>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="rounded-xl"
+                  type="button"
+                  onClick={() =>
+                    requestLeave(journeyId ? `/testing/journeys/${journeyId}` : "/testing/journeys")
+                  }
+                >
+                  <ListTodo className="w-4 h-4 mr-1.5" />
+                  Tasks
                 </Button>
               </div>
               <p className="text-xs uppercase tracking-wider text-muted-foreground mb-1">ShiftED AI</p>
@@ -1002,6 +1161,7 @@ export default function AvatarSessionPage() {
               isRegenerating={isRegenerating}
               isThinking={isAiResponding || isRegenerating}
               isWarming={isCoachWarming}
+              recommendationSlotByMessageId={recommendationSlotByMessageId}
             />
             <div className="mt-3">
               {chatError ? (
@@ -1023,17 +1183,27 @@ export default function AvatarSessionPage() {
         <SustainabilityPathPanel
           className="hidden lg:flex lg:sticky lg:top-4 max-h-[calc(100vh-6rem)] overflow-y-auto"
           journey={journey}
+          journeyId={journeyId}
           onReorder={handleReorderPath}
           onToggleComplete={handleTogglePathComplete}
         />
         <div className="lg:hidden">
           <SustainabilityPathPanel
             journey={journey}
+            journeyId={journeyId}
             onReorder={handleReorderPath}
             onToggleComplete={handleTogglePathComplete}
           />
         </div>
       </div>
+
+      <ReflectionMomentModal
+        open={reflectionOpen}
+        coachLabel="ShiftED AI"
+        journeyTitle={displayTitle}
+        onSkip={() => void finishReflection({ skipped: true })}
+        onNext={(answer) => void finishReflection({ answer, skipped: false })}
+      />
     </div>
   );
 }

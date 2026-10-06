@@ -8,6 +8,10 @@ const { formatSkillsForPrompt } = require("./skillsLibrary.cjs");
 const { formatLlmEnginePhasesForPrompt } = require("./llmEnginePhases.cjs");
 const { formatJourneyContextForPrompt } = require("./journeyContext.cjs");
 const { formatProgressDashboardForPrompt } = require("./progressDashboard.cjs");
+const {
+  formatWorkbooksForPrompt,
+  formatUserWorkbookStateForPrompt,
+} = require("./workbooksLibrary.cjs");
 
 function sessionRowToJourneyContext(sessionRow, messageCount = 0) {
   if (!sessionRow) return null;
@@ -60,9 +64,14 @@ function buildProductionSystemPrompt(opts = {}) {
 
   content += `\n\n${formatSkillsForPrompt({ condensed })}\n`;
   content += `\n\n${formatProgressDashboardForPrompt({ condensed })}\n`;
+  content += `\n\n${formatWorkbooksForPrompt({ condensed })}\n`;
+
+  const practiceBlock = formatUserWorkbookStateForPrompt(opts.journeyContext?.practiceState);
+  if (practiceBlock) content += `\n\n${practiceBlock}\n`;
 
   if (condensed) {
     content += `\n\n${INFERENCE_DIRECTIVES}\n`;
+    content += `\n8b. **[[WORKBOOK]] is invisible.** When recommending a Development Skills workbook, close with \`[[WORKBOOK]]{"id":"<catalogue_id>","reason":"…"}[[/WORKBOOK]]\` using only catalogue ids. At most one per reply. After [[PROGRESS]] if both appear.\n`;
   }
 
   if (opts.conversationMemory?.trim()) {

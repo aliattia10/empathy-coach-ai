@@ -97,10 +97,27 @@ export default function WorkbookDetailPage() {
         {row ? ` · Status: ${row.status}` : ""}
       </p>
 
-      <div className="mt-6 rounded-2xl border border-dashed border-border bg-muted/30 p-4 text-sm text-muted-foreground">
-        Full workbook steps are coming soon. Use this space to practice the skill briefly, then mark complete
-        with a self-rating.
-      </div>
+      {workbook.image ? (
+        <figure className="mt-6 overflow-hidden rounded-2xl border border-border bg-muted/20">
+          <img
+            src={workbook.image}
+            alt=""
+            className="w-full h-auto object-contain max-h-[420px] mx-auto"
+            loading="lazy"
+          />
+        </figure>
+      ) : null}
+
+      {workbook.body ? (
+        <div className="mt-6 rounded-2xl border border-border bg-card p-4 text-sm text-foreground whitespace-pre-wrap leading-relaxed">
+          {workbook.body}
+        </div>
+      ) : (
+        <div className="mt-6 rounded-2xl border border-dashed border-border bg-muted/30 p-4 text-sm text-muted-foreground">
+          Full workbook steps are coming soon. Use this space to practice the skill briefly, then mark complete with a
+          self-rating.
+        </div>
+      )}
 
       <div className="flex flex-wrap gap-2 mt-6">
         {row?.status !== "in_progress" && row?.status !== "completed" ? (

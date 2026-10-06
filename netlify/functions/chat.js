@@ -137,7 +137,13 @@ async function fetchStarredAssistantExemplars(limit = 8, truncateMax = 480) {
   }
 }
 
-async function buildChatSystemContent(possibleCrisisLanguage, journeyContext, history, forInference = true) {
+async function buildChatSystemContent(
+  possibleCrisisLanguage,
+  journeyContext,
+  history,
+  forInference = true,
+  latestUserMessage = "",
+) {
   const [rawTrainerRules, rawExemplars] = await Promise.all([
     fetchTrainerGlobalInstructions(forInference ? INFERENCE_TRAINER_LIMIT : TRAINER_FEEDBACK_LIMIT),
     fetchStarredAssistantExemplars(forInference ? INFERENCE_EXEMPLAR_LIMIT : 8, forInference ? 280 : 480),
@@ -151,6 +157,7 @@ async function buildChatSystemContent(possibleCrisisLanguage, journeyContext, hi
     journeyContext,
     conversationMemory,
     forInference,
+    latestUserMessage,
   });
   if (possibleCrisisLanguage) {
     content += `\n# Context for this turn\nThe user's latest message may mention suicide, dying, or self-harm (sometimes as a figure of speech). Follow the crisis language protocol above with extra care.\n`;
@@ -317,6 +324,7 @@ exports.handler = async (event) => {
       body?.journeyContext,
       history,
       true,
+      userMessage,
     );
     messages = [{ role: "system", content: systemContent }, ...history, { role: "user", content: userMessage }];
     messages = trimMessagesForContext(messages, { reserveOutputTokens: 450 });

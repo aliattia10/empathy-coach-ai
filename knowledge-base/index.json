@@ -1,0 +1,2059 @@
+{
+  "generatedAt": "2026-10-06T19:36:43.948Z",
+  "count": 89,
+  "docs": [
+    {
+      "id": "protocol-crisis-response",
+      "path": "knowledge-base/protocols/crisis-response.md",
+      "layer": "protocol",
+      "category": "safety",
+      "docType": "protocol",
+      "title": "Crisis response protocol",
+      "summary": "Mandatory crisis triage: clarify intent, assess risk across turns, signpost UK resources. Never run clinical safety planning.",
+      "intentTriggers": [
+        "suicide",
+        "kill myself",
+        "self-harm",
+        "want to die",
+        "end it all",
+        "no reason to live"
+      ],
+      "emotionTriggers": [
+        "hopelessness",
+        "despair",
+        "acute distress"
+      ],
+      "skillDependencies": [],
+      "skillIds": [],
+      "source": "11-suicide-prevention (PAPYRUS HOPEBOX; Stanley-Brown Safety Planning quick guide); NHS CNTW Self Harm; existing SUPER-PROMPT-CRISIS-TRIAGE"
+    },
+    {
+      "id": "protocol-scope-limits",
+      "path": "knowledge-base/protocols/scope-limits.md",
+      "layer": "protocol",
+      "category": "safety",
+      "docType": "protocol",
+      "title": "Scope limits",
+      "summary": "ShiftED coaches empathy and critical thinking for managers — not therapy, diagnosis, or clinical treatment.",
+      "intentTriggers": [
+        "are you a therapist",
+        "diagnose me",
+        "treat my",
+        "medication",
+        "trauma therapy"
+      ],
+      "emotionTriggers": [],
+      "skillDependencies": [],
+      "skillIds": [],
+      "source": "00-root/Skills and Knowledge Base.docx; product framing"
+    },
+    {
+      "id": "protocol-safeguarding",
+      "path": "knowledge-base/protocols/safeguarding.md",
+      "layer": "protocol",
+      "category": "safety",
+      "docType": "protocol",
+      "title": "Safeguarding",
+      "summary": "If a child or vulnerable adult may be at risk, stop coaching practice and signpost to appropriate UK safeguarding / emergency channels.",
+      "intentTriggers": [
+        "child at risk",
+        "hurt a child",
+        "vulnerable adult",
+        "abuse"
+      ],
+      "emotionTriggers": [],
+      "skillDependencies": [],
+      "skillIds": [],
+      "source": "00-root/Skills and Knowledge Base.docx"
+    },
+    {
+      "id": "protocol-escalation-paths",
+      "path": "knowledge-base/protocols/escalation-paths.md",
+      "layer": "protocol",
+      "category": "safety",
+      "docType": "protocol",
+      "title": "Escalation paths",
+      "summary": "When and how to hand off from coaching practice to human services.",
+      "intentTriggers": [
+        "need real help",
+        "emergency",
+        "can't cope"
+      ],
+      "emotionTriggers": [
+        "panic",
+        "crisis"
+      ],
+      "skillDependencies": [
+        "protocol-crisis-response"
+      ],
+      "skillIds": [],
+      "source": "11-suicide-prevention; ResourcesPage UK lines"
+    },
+    {
+      "id": "fw-cbt-overview",
+      "path": "knowledge-base/frameworks/CBT/overview.md",
+      "layer": "framework",
+      "category": "CBT",
+      "docType": "framework",
+      "title": "CBT links thoughts, feelings, and behaviours in reciprocal c",
+      "summary": "CBT links thoughts, feelings, and behaviours in reciprocal cycles — coaching helps interrupt unhelpful loops.",
+      "intentTriggers": [
+        "thoughts feelings behaviour",
+        "cbt",
+        "thinking patterns"
+      ],
+      "emotionTriggers": [
+        "anxiety",
+        "low mood"
+      ],
+      "skillDependencies": [
+        "hcpr_thought_challenge",
+        "dtr",
+        "behavioral_activation"
+      ],
+      "skillIds": [],
+      "source": "02-anxiety-info-sheets; 03-depression-back-from-the-bluez; 04-depression-info-sheets (adapted)"
+    },
+    {
+      "id": "fw-cbt-cognitive-distortions",
+      "path": "knowledge-base/frameworks/CBT/cognitive-distortions.md",
+      "layer": "framework",
+      "category": "CBT",
+      "docType": "framework",
+      "title": "Common unhelpful thinking habits (all-or-nothing, catastroph",
+      "summary": "Common unhelpful thinking habits (all-or-nothing, catastrophising, mind-reading) — notice without lecturing.",
+      "intentTriggers": [
+        "always",
+        "never",
+        "catastrophising",
+        "mind reading",
+        "black and white",
+        "thinking error"
+      ],
+      "emotionTriggers": [
+        "anxiety",
+        "shame",
+        "guilt"
+      ],
+      "skillDependencies": [
+        "thinking_error_tracking",
+        "hcpr_thought_challenge"
+      ],
+      "skillIds": [],
+      "source": "Anxiety Info 04; Bluez 05; Depression Info 11; Cog Distortions.pdf (adapted)"
+    },
+    {
+      "id": "fw-cbt-thought-challenging",
+      "path": "knowledge-base/frameworks/CBT/thought-challenging.md",
+      "layer": "framework",
+      "category": "CBT",
+      "docType": "framework",
+      "title": "Structured ways to examine a hot thought: HCPR criteria, evi",
+      "summary": "Structured ways to examine a hot thought: HCPR criteria, evidence for/against, ABC(D) disputation.",
+      "intentTriggers": [
+        "challenge this thought",
+        "is this true",
+        "hot thought"
+      ],
+      "emotionTriggers": [
+        "anxiety",
+        "shame"
+      ],
+      "skillDependencies": [
+        "hcpr_thought_challenge",
+        "dtr",
+        "abcd_model"
+      ],
+      "skillIds": [],
+      "source": "HCPR Tool Kit; Anxiety Info 03; Bluez 03/06; Depression thought sheets (adapted)"
+    },
+    {
+      "id": "fw-cbt-behavioural-activation",
+      "path": "knowledge-base/frameworks/CBT/behavioural-activation.md",
+      "layer": "framework",
+      "category": "CBT",
+      "docType": "framework",
+      "title": "Activity scheduling and pleasure vs mastery restore momentum",
+      "summary": "Activity scheduling and pleasure vs mastery restore momentum when avoidance and low mood reinforce each other.",
+      "intentTriggers": [
+        "no motivation",
+        "avoiding",
+        "scrolling instead",
+        "pleasure mastery",
+        "activity schedule"
+      ],
+      "emotionTriggers": [
+        "low mood",
+        "lethargy",
+        "boredom"
+      ],
+      "skillDependencies": [
+        "behavioral_activation",
+        "micro_goals"
+      ],
+      "skillIds": [],
+      "source": "Depression Info 05-06; Pleasure Vs Mastery; Bluez 02; For Josh / Tim cases (adapted)"
+    },
+    {
+      "id": "fw-cbt-core-beliefs",
+      "path": "knowledge-base/frameworks/CBT/core-beliefs.md",
+      "layer": "framework",
+      "category": "CBT",
+      "docType": "framework",
+      "title": "Deeper rules about self/others/world that fuel recurring NAT",
+      "summary": "Deeper rules about self/others/world that fuel recurring NATs — explore lightly in coaching; do not dig clinically.",
+      "intentTriggers": [
+        "deep down I believe",
+        "I'm a failure",
+        "core belief"
+      ],
+      "emotionTriggers": [
+        "shame",
+        "hopelessness"
+      ],
+      "skillDependencies": [
+        "hcpr_thought_challenge",
+        "dtr"
+      ],
+      "skillIds": [],
+      "source": "Bluez 08; Depression Info 12; Core Beliefs Worksheet (adapted summary)"
+    },
+    {
+      "id": "fw-anxiety-and-worry",
+      "path": "knowledge-base/frameworks/anxiety/anxiety-and-worry.md",
+      "layer": "framework",
+      "category": "anxiety",
+      "docType": "framework",
+      "title": "Anxiety is a threat response; worry maintains it via what-if",
+      "summary": "Anxiety is a threat response; worry maintains it via what-if chains. Coaching uses grounding, worry-time, and thought checks.",
+      "intentTriggers": [
+        "worried",
+        "anxious",
+        "what if",
+        "can't stop worrying",
+        "GAD"
+      ],
+      "emotionTriggers": [
+        "anxiety",
+        "fear",
+        "unease"
+      ],
+      "skillDependencies": [
+        "worry_time",
+        "grounding_and_breathing",
+        "hcpr_thought_challenge"
+      ],
+      "skillIds": [],
+      "source": "Anxiety Info 01/15; 12-worry; Your Anxiety Self-Help Toolkit (adapted)"
+    },
+    {
+      "id": "fw-anxiety-vicious-cycle",
+      "path": "knowledge-base/frameworks/anxiety/vicious-cycle-and-safety-behaviours.md",
+      "layer": "framework",
+      "category": "anxiety",
+      "docType": "framework",
+      "title": "Avoidance and safety behaviours reduce anxiety short-term an",
+      "summary": "Avoidance and safety behaviours reduce anxiety short-term and maintain it long-term.",
+      "intentTriggers": [
+        "safety behaviour",
+        "avoidance",
+        "checking",
+        "reassurance"
+      ],
+      "emotionTriggers": [
+        "anxiety"
+      ],
+      "skillDependencies": [
+        "behavioural_experiment",
+        "stress_regulation"
+      ],
+      "skillIds": [],
+      "source": "Anxiety Info 02, 06, 07 (adapted)"
+    },
+    {
+      "id": "fw-depression-cycle",
+      "path": "knowledge-base/frameworks/depression/cycle-of-depression.md",
+      "layer": "framework",
+      "category": "depression",
+      "docType": "framework",
+      "title": "Low mood reduces activity; reduced activity worsens mood — b",
+      "summary": "Low mood reduces activity; reduced activity worsens mood — break with small activation steps.",
+      "intentTriggers": [
+        "low mood",
+        "depressed",
+        "nothing helps",
+        "stuck in bed"
+      ],
+      "emotionTriggers": [
+        "sadness",
+        "numbness",
+        "hopelessness"
+      ],
+      "skillDependencies": [
+        "behavioral_activation",
+        "micro_goals",
+        "resilience_reframing"
+      ],
+      "skillIds": [],
+      "source": "Depression Info 01-04; The Cycle of Depression; Your Depression Self-Help Toolkit; Bluez 01 (adapted)"
+    },
+    {
+      "id": "fw-stress-response",
+      "path": "knowledge-base/frameworks/stress-response/brain-and-stress.md",
+      "layer": "framework",
+      "category": "stress-response",
+      "docType": "framework",
+      "title": "Fight/flight/freeze is adaptive; chronic activation fuels bu",
+      "summary": "Fight/flight/freeze is adaptive; chronic activation fuels burnout. Window of tolerance frames usable coaching range.",
+      "intentTriggers": [
+        "fight or flight",
+        "stressed",
+        "overwhelmed body",
+        "adrenaline"
+      ],
+      "emotionTriggers": [
+        "stress",
+        "panic",
+        "overwhelm"
+      ],
+      "skillDependencies": [
+        "grounding_and_breathing",
+        "stress_regulation",
+        "circles_of_control"
+      ],
+      "skillIds": [],
+      "source": "01-resources-root BASIC BRAIN FUNCTION; Anxiety Info 10-11; Burnout toolkit (adapted)"
+    },
+    {
+      "id": "fw-positive-psychology",
+      "path": "knowledge-base/frameworks/positive-psychology/overview.md",
+      "layer": "framework",
+      "category": "positive-psychology",
+      "docType": "framework",
+      "title": "Build on strengths, positive emotion, and meaning alongside ",
+      "summary": "Build on strengths, positive emotion, and meaning alongside addressing problems — adapted summaries only.",
+      "intentTriggers": [
+        "strengths",
+        "gratitude",
+        "flourish",
+        "positive psychology"
+      ],
+      "emotionTriggers": [
+        "hope",
+        "curiosity"
+      ],
+      "skillDependencies": [
+        "strengths_spotting",
+        "gratitude_and_savouring",
+        "resilience_reframing"
+      ],
+      "skillIds": [],
+      "source": "10-positive-psychology packs + coaching manuals (adapted; copyrighted originals not reproduced)"
+    },
+    {
+      "id": "fw-act-values",
+      "path": "knowledge-base/frameworks/ACT/values-and-committed-action.md",
+      "layer": "framework",
+      "category": "ACT",
+      "docType": "framework",
+      "title": "Values are directions, not goals; committed action moves tow",
+      "summary": "Values are directions, not goals; committed action moves toward what matters even when feelings pull away.",
+      "intentTriggers": [
+        "what matters",
+        "values",
+        "purpose",
+        "towards away"
+      ],
+      "emotionTriggers": [
+        "emptiness",
+        "confusion"
+      ],
+      "skillDependencies": [
+        "values_clarification",
+        "micro_goals"
+      ],
+      "skillIds": [],
+      "source": "10-positive-psychology/meaning-valued-living (adapted); My Well-Being Toolkit"
+    },
+    {
+      "id": "fw-grief",
+      "path": "knowledge-base/frameworks/grief/grief-and-bereavement.md",
+      "layer": "framework",
+      "category": "grief",
+      "docType": "framework",
+      "title": "Grief is varied and non-linear; coaching offers support and ",
+      "summary": "Grief is varied and non-linear; coaching offers support and signposting, not bereavement therapy.",
+      "intentTriggers": [
+        "grief",
+        "bereavement",
+        "lost someone",
+        "mourning"
+      ],
+      "emotionTriggers": [
+        "grief",
+        "sadness",
+        "longing"
+      ],
+      "skillDependencies": [
+        "grief_and_loss",
+        "self_compassion"
+      ],
+      "skillIds": [],
+      "source": "Depression Info 15; NHS CNTW Bereavement; grief-bereavement pack (adapted summaries)"
+    },
+    {
+      "id": "fw-worry-gad",
+      "path": "knowledge-base/frameworks/worry-GAD/what-is-worry.md",
+      "layer": "framework",
+      "category": "worry-GAD",
+      "docType": "framework",
+      "title": "Worry is repetitive what-if thinking; scheduled worry-time a",
+      "summary": "Worry is repetitive what-if thinking; scheduled worry-time and grounding reduce all-day rumination.",
+      "intentTriggers": [
+        "worry all the time",
+        "generalised anxiety",
+        "what if chains"
+      ],
+      "emotionTriggers": [
+        "anxiety",
+        "unease"
+      ],
+      "skillDependencies": [
+        "worry_time",
+        "grounding_and_breathing"
+      ],
+      "skillIds": [],
+      "source": "12-worry (adapted)"
+    },
+    {
+      "id": "skill-grounding",
+      "path": "knowledge-base/skills/grounding-and-breathing/SKILL.md",
+      "layer": "skill",
+      "category": "Grounding & breathing",
+      "docType": "skill",
+      "title": "Grounding & breathing",
+      "summary": "In-the-moment regulation: sensory grounding, breath retraining, Dropping Anchor, S.O.B.E.R., PMR, brief imagery.",
+      "intentTriggers": [
+        "can't breathe",
+        "panicky",
+        "5-4-3-2-1",
+        "ground me",
+        "overwhelmed right now",
+        "racing heart"
+      ],
+      "emotionTriggers": [
+        "panic",
+        "overwhelm",
+        "anxiety"
+      ],
+      "skillDependencies": [],
+      "skillIds": [
+        "grounding_and_breathing"
+      ],
+      "source": "Anxiety Info 08-09; stress-burnout scripts (5-4-3-2-1, Dropping Anchor, SOBER, PMR, diaphragmatic); trauma toolkit stabilisation (adapted)"
+    },
+    {
+      "id": "skill-grounding-techniques",
+      "path": "knowledge-base/skills/grounding-and-breathing/techniques.md",
+      "layer": "skill",
+      "category": "Grounding & breathing",
+      "docType": "skill",
+      "title": "Grounding & breathing techniques",
+      "summary": "Techniques for Grounding & breathing",
+      "intentTriggers": [
+        "can't breathe",
+        "panicky",
+        "5-4-3-2-1",
+        "ground me",
+        "overwhelmed right now",
+        "racing heart"
+      ],
+      "emotionTriggers": [
+        "panic",
+        "overwhelm",
+        "anxiety"
+      ],
+      "skillDependencies": [],
+      "skillIds": [
+        "grounding_and_breathing"
+      ],
+      "source": "Anxiety Info 08-09; stress-burnout scripts (5-4-3-2-1, Dropping Anchor, SOBER, PMR, diaphragmatic); trauma toolkit stabilisation (adapted)"
+    },
+    {
+      "id": "skill-grounding-examples",
+      "path": "knowledge-base/skills/grounding-and-breathing/examples.md",
+      "layer": "skill",
+      "category": "Grounding & breathing",
+      "docType": "skill",
+      "title": "Grounding & breathing examples",
+      "summary": "Example language for Grounding & breathing",
+      "intentTriggers": [
+        "can't breathe",
+        "panicky",
+        "5-4-3-2-1",
+        "ground me",
+        "overwhelmed right now",
+        "racing heart"
+      ],
+      "emotionTriggers": [
+        "panic",
+        "overwhelm",
+        "anxiety"
+      ],
+      "skillDependencies": [],
+      "skillIds": [
+        "grounding_and_breathing"
+      ],
+      "source": "Anxiety Info 08-09; stress-burnout scripts (5-4-3-2-1, Dropping Anchor, SOBER, PMR, diaphragmatic); trauma toolkit stabilisation (adapted)"
+    },
+    {
+      "id": "skill-hcpr",
+      "path": "knowledge-base/skills/hcpr-thought-challenge/SKILL.md",
+      "layer": "skill",
+      "category": "HCPR thought challenge",
+      "docType": "skill",
+      "title": "HCPR thought challenge",
+      "summary": "Check a hot thought against **H**elpful, **C**onstructive, **P**ositive, **R**eal criteria.",
+      "intentTriggers": [
+        "negative thought",
+        "catastrophising",
+        "i'm useless",
+        "stuck on one thought"
+      ],
+      "emotionTriggers": [
+        "anxiety",
+        "shame",
+        "anger"
+      ],
+      "skillDependencies": [],
+      "skillIds": [
+        "hcpr_thought_challenge"
+      ],
+      "source": "06-mind-cognitive-process/HCPR Tool Kit (source of truth, adapted)"
+    },
+    {
+      "id": "skill-hcpr-techniques",
+      "path": "knowledge-base/skills/hcpr-thought-challenge/techniques.md",
+      "layer": "skill",
+      "category": "HCPR thought challenge",
+      "docType": "skill",
+      "title": "HCPR thought challenge techniques",
+      "summary": "Techniques for HCPR thought challenge",
+      "intentTriggers": [
+        "negative thought",
+        "catastrophising",
+        "i'm useless",
+        "stuck on one thought"
+      ],
+      "emotionTriggers": [
+        "anxiety",
+        "shame",
+        "anger"
+      ],
+      "skillDependencies": [],
+      "skillIds": [
+        "hcpr_thought_challenge"
+      ],
+      "source": "06-mind-cognitive-process/HCPR Tool Kit (source of truth, adapted)"
+    },
+    {
+      "id": "skill-hcpr-examples",
+      "path": "knowledge-base/skills/hcpr-thought-challenge/examples.md",
+      "layer": "skill",
+      "category": "HCPR thought challenge",
+      "docType": "skill",
+      "title": "HCPR thought challenge examples",
+      "summary": "Example language for HCPR thought challenge",
+      "intentTriggers": [
+        "negative thought",
+        "catastrophising",
+        "i'm useless",
+        "stuck on one thought"
+      ],
+      "emotionTriggers": [
+        "anxiety",
+        "shame",
+        "anger"
+      ],
+      "skillDependencies": [],
+      "skillIds": [
+        "hcpr_thought_challenge"
+      ],
+      "source": "06-mind-cognitive-process/HCPR Tool Kit (source of truth, adapted)"
+    },
+    {
+      "id": "skill-ba",
+      "path": "knowledge-base/skills/behavioral-activation/SKILL.md",
+      "layer": "skill",
+      "category": "Behavioural activation",
+      "docType": "skill",
+      "title": "Behavioural activation",
+      "summary": "Plan small approach behaviours that restore pleasure and mastery; treat scrolling/avoidance as the target behaviour when relevant.",
+      "intentTriggers": [
+        "scrolling",
+        "procrastinating",
+        "no motivation",
+        "avoiding the task",
+        "3:30pm"
+      ],
+      "emotionTriggers": [
+        "low mood",
+        "boredom",
+        "guilt"
+      ],
+      "skillDependencies": [],
+      "skillIds": [
+        "behavioral_activation"
+      ],
+      "source": "Depression BA sheets; Pleasure Vs Mastery; For Josh / Tim / Jordan cases (adapted)"
+    },
+    {
+      "id": "skill-ba-techniques",
+      "path": "knowledge-base/skills/behavioral-activation/techniques.md",
+      "layer": "skill",
+      "category": "Behavioural activation",
+      "docType": "skill",
+      "title": "Behavioural activation techniques",
+      "summary": "Techniques for Behavioural activation",
+      "intentTriggers": [
+        "scrolling",
+        "procrastinating",
+        "no motivation",
+        "avoiding the task",
+        "3:30pm"
+      ],
+      "emotionTriggers": [
+        "low mood",
+        "boredom",
+        "guilt"
+      ],
+      "skillDependencies": [],
+      "skillIds": [
+        "behavioral_activation"
+      ],
+      "source": "Depression BA sheets; Pleasure Vs Mastery; For Josh / Tim / Jordan cases (adapted)"
+    },
+    {
+      "id": "skill-ba-examples",
+      "path": "knowledge-base/skills/behavioral-activation/examples.md",
+      "layer": "skill",
+      "category": "Behavioural activation",
+      "docType": "skill",
+      "title": "Behavioural activation examples",
+      "summary": "Example language for Behavioural activation",
+      "intentTriggers": [
+        "scrolling",
+        "procrastinating",
+        "no motivation",
+        "avoiding the task",
+        "3:30pm"
+      ],
+      "emotionTriggers": [
+        "low mood",
+        "boredom",
+        "guilt"
+      ],
+      "skillDependencies": [],
+      "skillIds": [
+        "behavioral_activation"
+      ],
+      "source": "Depression BA sheets; Pleasure Vs Mastery; For Josh / Tim / Jordan cases (adapted)"
+    },
+    {
+      "id": "skill-stress-reg",
+      "path": "knowledge-base/skills/stress-regulation/SKILL.md",
+      "layer": "skill",
+      "category": "Stress regulation / window of tolerance",
+      "docType": "skill",
+      "title": "Stress regulation / window of tolerance",
+      "summary": "Widen usable range under load: notice hyper/hypo arousal, reduce controllables strain, build recovery habits. Links to sustainability_path and circles_of_control.",
+      "intentTriggers": [
+        "burnout",
+        "too stressed",
+        "window of tolerance",
+        "can't cope with load"
+      ],
+      "emotionTriggers": [
+        "stress",
+        "irritability",
+        "exhaustion"
+      ],
+      "skillDependencies": [],
+      "skillIds": [
+        "stress_regulation"
+      ],
+      "source": "Window of Tolerance; Stress Diary; Burnout toolkit; Anxiety Info 10-11 (adapted)"
+    },
+    {
+      "id": "skill-stress-reg-techniques",
+      "path": "knowledge-base/skills/stress-regulation/techniques.md",
+      "layer": "skill",
+      "category": "Stress regulation / window of tolerance",
+      "docType": "skill",
+      "title": "Stress regulation / window of tolerance techniques",
+      "summary": "Techniques for Stress regulation / window of tolerance",
+      "intentTriggers": [
+        "burnout",
+        "too stressed",
+        "window of tolerance",
+        "can't cope with load"
+      ],
+      "emotionTriggers": [
+        "stress",
+        "irritability",
+        "exhaustion"
+      ],
+      "skillDependencies": [],
+      "skillIds": [
+        "stress_regulation"
+      ],
+      "source": "Window of Tolerance; Stress Diary; Burnout toolkit; Anxiety Info 10-11 (adapted)"
+    },
+    {
+      "id": "skill-stress-reg-examples",
+      "path": "knowledge-base/skills/stress-regulation/examples.md",
+      "layer": "skill",
+      "category": "Stress regulation / window of tolerance",
+      "docType": "skill",
+      "title": "Stress regulation / window of tolerance examples",
+      "summary": "Example language for Stress regulation / window of tolerance",
+      "intentTriggers": [
+        "burnout",
+        "too stressed",
+        "window of tolerance",
+        "can't cope with load"
+      ],
+      "emotionTriggers": [
+        "stress",
+        "irritability",
+        "exhaustion"
+      ],
+      "skillDependencies": [],
+      "skillIds": [
+        "stress_regulation"
+      ],
+      "source": "Window of Tolerance; Stress Diary; Burnout toolkit; Anxiety Info 10-11 (adapted)"
+    },
+    {
+      "id": "skill-worry-time",
+      "path": "knowledge-base/skills/worry-time/SKILL.md",
+      "layer": "skill",
+      "category": "Worry time",
+      "docType": "skill",
+      "title": "Worry time",
+      "summary": "Contain free-floating worry to a short daily slot; park daytime what-ifs for that slot; problem-solve only actionable items.",
+      "intentTriggers": [
+        "can't stop worrying",
+        "what if all day",
+        "worry spiral"
+      ],
+      "emotionTriggers": [
+        "anxiety"
+      ],
+      "skillDependencies": [],
+      "skillIds": [
+        "worry_time"
+      ],
+      "source": "12-worry; Anxiety Info 01/15 (adapted)"
+    },
+    {
+      "id": "skill-worry-time-techniques",
+      "path": "knowledge-base/skills/worry-time/techniques.md",
+      "layer": "skill",
+      "category": "Worry time",
+      "docType": "skill",
+      "title": "Worry time techniques",
+      "summary": "Techniques for Worry time",
+      "intentTriggers": [
+        "can't stop worrying",
+        "what if all day",
+        "worry spiral"
+      ],
+      "emotionTriggers": [
+        "anxiety"
+      ],
+      "skillDependencies": [],
+      "skillIds": [
+        "worry_time"
+      ],
+      "source": "12-worry; Anxiety Info 01/15 (adapted)"
+    },
+    {
+      "id": "skill-worry-time-examples",
+      "path": "knowledge-base/skills/worry-time/examples.md",
+      "layer": "skill",
+      "category": "Worry time",
+      "docType": "skill",
+      "title": "Worry time examples",
+      "summary": "Example language for Worry time",
+      "intentTriggers": [
+        "can't stop worrying",
+        "what if all day",
+        "worry spiral"
+      ],
+      "emotionTriggers": [
+        "anxiety"
+      ],
+      "skillDependencies": [],
+      "skillIds": [
+        "worry_time"
+      ],
+      "source": "12-worry; Anxiety Info 01/15 (adapted)"
+    },
+    {
+      "id": "skill-values",
+      "path": "knowledge-base/skills/values-clarification/SKILL.md",
+      "layer": "skill",
+      "category": "Values clarification",
+      "docType": "skill",
+      "title": "Values clarification",
+      "summary": "Identify directions that matter (people, principles, contribution) and align micro-actions.",
+      "intentTriggers": [
+        "what matters",
+        "lost purpose",
+        "values",
+        "ikigai"
+      ],
+      "emotionTriggers": [
+        "emptiness",
+        "confusion"
+      ],
+      "skillDependencies": [],
+      "skillIds": [
+        "values_clarification"
+      ],
+      "source": "meaning-valued-living pack; Ikigai infographic; My Well-Being Toolkit (adapted)"
+    },
+    {
+      "id": "skill-values-techniques",
+      "path": "knowledge-base/skills/values-clarification/techniques.md",
+      "layer": "skill",
+      "category": "Values clarification",
+      "docType": "skill",
+      "title": "Values clarification techniques",
+      "summary": "Techniques for Values clarification",
+      "intentTriggers": [
+        "what matters",
+        "lost purpose",
+        "values",
+        "ikigai"
+      ],
+      "emotionTriggers": [
+        "emptiness",
+        "confusion"
+      ],
+      "skillDependencies": [],
+      "skillIds": [
+        "values_clarification"
+      ],
+      "source": "meaning-valued-living pack; Ikigai infographic; My Well-Being Toolkit (adapted)"
+    },
+    {
+      "id": "skill-values-examples",
+      "path": "knowledge-base/skills/values-clarification/examples.md",
+      "layer": "skill",
+      "category": "Values clarification",
+      "docType": "skill",
+      "title": "Values clarification examples",
+      "summary": "Example language for Values clarification",
+      "intentTriggers": [
+        "what matters",
+        "lost purpose",
+        "values",
+        "ikigai"
+      ],
+      "emotionTriggers": [
+        "emptiness",
+        "confusion"
+      ],
+      "skillDependencies": [],
+      "skillIds": [
+        "values_clarification"
+      ],
+      "source": "meaning-valued-living pack; Ikigai infographic; My Well-Being Toolkit (adapted)"
+    },
+    {
+      "id": "skill-strengths",
+      "path": "knowledge-base/skills/strengths-spotting/SKILL.md",
+      "layer": "skill",
+      "category": "Strengths spotting",
+      "docType": "skill",
+      "title": "Strengths spotting",
+      "summary": "Notice character strengths in self and others; use them under stress instead of only fixing deficits.",
+      "intentTriggers": [
+        "my strengths",
+        "what I'm good at",
+        "signature strengths"
+      ],
+      "emotionTriggers": [
+        "pride",
+        "curiosity",
+        "shame"
+      ],
+      "skillDependencies": [],
+      "skillIds": [
+        "strengths_spotting"
+      ],
+      "source": "strength-finding pack; character strengths wheel (adapted)"
+    },
+    {
+      "id": "skill-strengths-techniques",
+      "path": "knowledge-base/skills/strengths-spotting/techniques.md",
+      "layer": "skill",
+      "category": "Strengths spotting",
+      "docType": "skill",
+      "title": "Strengths spotting techniques",
+      "summary": "Techniques for Strengths spotting",
+      "intentTriggers": [
+        "my strengths",
+        "what I'm good at",
+        "signature strengths"
+      ],
+      "emotionTriggers": [
+        "pride",
+        "curiosity",
+        "shame"
+      ],
+      "skillDependencies": [],
+      "skillIds": [
+        "strengths_spotting"
+      ],
+      "source": "strength-finding pack; character strengths wheel (adapted)"
+    },
+    {
+      "id": "skill-strengths-examples",
+      "path": "knowledge-base/skills/strengths-spotting/examples.md",
+      "layer": "skill",
+      "category": "Strengths spotting",
+      "docType": "skill",
+      "title": "Strengths spotting examples",
+      "summary": "Example language for Strengths spotting",
+      "intentTriggers": [
+        "my strengths",
+        "what I'm good at",
+        "signature strengths"
+      ],
+      "emotionTriggers": [
+        "pride",
+        "curiosity",
+        "shame"
+      ],
+      "skillDependencies": [],
+      "skillIds": [
+        "strengths_spotting"
+      ],
+      "source": "strength-finding pack; character strengths wheel (adapted)"
+    },
+    {
+      "id": "skill-grief",
+      "path": "knowledge-base/skills/grief-and-loss/SKILL.md",
+      "layer": "skill",
+      "category": "Grief & loss",
+      "docType": "skill",
+      "title": "Grief & loss",
+      "summary": "Supportive coaching around loss and transition — not bereavement therapy. Signpost NHS/specialist support.",
+      "intentTriggers": [
+        "bereaved",
+        "lost my",
+        "grieving",
+        "anniversary of"
+      ],
+      "emotionTriggers": [
+        "grief",
+        "sadness",
+        "longing"
+      ],
+      "skillDependencies": [],
+      "skillIds": [
+        "grief_and_loss"
+      ],
+      "source": "grief-bereavement pack; Depression Info 15; NHS Bereavement (adapted; audio Reconnecting With the Deceased — URL TODO)"
+    },
+    {
+      "id": "skill-grief-techniques",
+      "path": "knowledge-base/skills/grief-and-loss/techniques.md",
+      "layer": "skill",
+      "category": "Grief & loss",
+      "docType": "skill",
+      "title": "Grief & loss techniques",
+      "summary": "Techniques for Grief & loss",
+      "intentTriggers": [
+        "bereaved",
+        "lost my",
+        "grieving",
+        "anniversary of"
+      ],
+      "emotionTriggers": [
+        "grief",
+        "sadness",
+        "longing"
+      ],
+      "skillDependencies": [],
+      "skillIds": [
+        "grief_and_loss"
+      ],
+      "source": "grief-bereavement pack; Depression Info 15; NHS Bereavement (adapted; audio Reconnecting With the Deceased — URL TODO)"
+    },
+    {
+      "id": "skill-grief-examples",
+      "path": "knowledge-base/skills/grief-and-loss/examples.md",
+      "layer": "skill",
+      "category": "Grief & loss",
+      "docType": "skill",
+      "title": "Grief & loss examples",
+      "summary": "Example language for Grief & loss",
+      "intentTriggers": [
+        "bereaved",
+        "lost my",
+        "grieving",
+        "anniversary of"
+      ],
+      "emotionTriggers": [
+        "grief",
+        "sadness",
+        "longing"
+      ],
+      "skillDependencies": [],
+      "skillIds": [
+        "grief_and_loss"
+      ],
+      "source": "grief-bereavement pack; Depression Info 15; NHS Bereavement (adapted; audio Reconnecting With the Deceased — URL TODO)"
+    },
+    {
+      "id": "skill-self-compassion",
+      "path": "knowledge-base/skills/self-compassion/SKILL.md",
+      "layer": "skill",
+      "category": "Self-compassion",
+      "docType": "skill",
+      "title": "Self-compassion",
+      "summary": "Replace harsh self-attack with the tone you'd use with a colleague you respect.",
+      "intentTriggers": [
+        "I'm so hard on myself",
+        "self-criticism",
+        "I don't deserve"
+      ],
+      "emotionTriggers": [
+        "shame",
+        "guilt"
+      ],
+      "skillDependencies": [],
+      "skillIds": [
+        "self_compassion"
+      ],
+      "source": "bonus worksheets; Self-Forgiveness Letter (adapted)"
+    },
+    {
+      "id": "skill-self-compassion-techniques",
+      "path": "knowledge-base/skills/self-compassion/techniques.md",
+      "layer": "skill",
+      "category": "Self-compassion",
+      "docType": "skill",
+      "title": "Self-compassion techniques",
+      "summary": "Techniques for Self-compassion",
+      "intentTriggers": [
+        "I'm so hard on myself",
+        "self-criticism",
+        "I don't deserve"
+      ],
+      "emotionTriggers": [
+        "shame",
+        "guilt"
+      ],
+      "skillDependencies": [],
+      "skillIds": [
+        "self_compassion"
+      ],
+      "source": "bonus worksheets; Self-Forgiveness Letter (adapted)"
+    },
+    {
+      "id": "skill-self-compassion-examples",
+      "path": "knowledge-base/skills/self-compassion/examples.md",
+      "layer": "skill",
+      "category": "Self-compassion",
+      "docType": "skill",
+      "title": "Self-compassion examples",
+      "summary": "Example language for Self-compassion",
+      "intentTriggers": [
+        "I'm so hard on myself",
+        "self-criticism",
+        "I don't deserve"
+      ],
+      "emotionTriggers": [
+        "shame",
+        "guilt"
+      ],
+      "skillDependencies": [],
+      "skillIds": [
+        "self_compassion"
+      ],
+      "source": "bonus worksheets; Self-Forgiveness Letter (adapted)"
+    },
+    {
+      "id": "skill-growth",
+      "path": "knowledge-base/skills/growth-mindset/SKILL.md",
+      "layer": "skill",
+      "category": "Growth mindset",
+      "docType": "skill",
+      "title": "Growth mindset",
+      "summary": "Treat ability as improvable with practice; use criticism as data for critical thinking.",
+      "intentTriggers": [
+        "feedback hurts",
+        "I'm just not good at",
+        "fixed about"
+      ],
+      "emotionTriggers": [
+        "shame",
+        "defensiveness"
+      ],
+      "skillDependencies": [],
+      "skillIds": [
+        "growth_mindset"
+      ],
+      "source": "Adopting a Growth Mindset; Entering your growth zone (adapted)"
+    },
+    {
+      "id": "skill-growth-techniques",
+      "path": "knowledge-base/skills/growth-mindset/techniques.md",
+      "layer": "skill",
+      "category": "Growth mindset",
+      "docType": "skill",
+      "title": "Growth mindset techniques",
+      "summary": "Techniques for Growth mindset",
+      "intentTriggers": [
+        "feedback hurts",
+        "I'm just not good at",
+        "fixed about"
+      ],
+      "emotionTriggers": [
+        "shame",
+        "defensiveness"
+      ],
+      "skillDependencies": [],
+      "skillIds": [
+        "growth_mindset"
+      ],
+      "source": "Adopting a Growth Mindset; Entering your growth zone (adapted)"
+    },
+    {
+      "id": "skill-growth-examples",
+      "path": "knowledge-base/skills/growth-mindset/examples.md",
+      "layer": "skill",
+      "category": "Growth mindset",
+      "docType": "skill",
+      "title": "Growth mindset examples",
+      "summary": "Example language for Growth mindset",
+      "intentTriggers": [
+        "feedback hurts",
+        "I'm just not good at",
+        "fixed about"
+      ],
+      "emotionTriggers": [
+        "shame",
+        "defensiveness"
+      ],
+      "skillDependencies": [],
+      "skillIds": [
+        "growth_mindset"
+      ],
+      "source": "Adopting a Growth Mindset; Entering your growth zone (adapted)"
+    },
+    {
+      "id": "skill-resilience",
+      "path": "knowledge-base/skills/resilience-reframing/SKILL.md",
+      "layer": "skill",
+      "category": "Resilience reframing",
+      "docType": "skill",
+      "title": "Resilience reframing",
+      "summary": "Positive-CBT style: find workable alternative thoughts and past coping evidence without toxic positivity.",
+      "intentTriggers": [
+        "can't bounce back",
+        "always goes wrong",
+        "silver lining"
+      ],
+      "emotionTriggers": [
+        "discouragement",
+        "frustration"
+      ],
+      "skillDependencies": [],
+      "skillIds": [
+        "resilience_reframing"
+      ],
+      "source": "positive-cbt + resilience-coping packs (adapted)"
+    },
+    {
+      "id": "skill-resilience-techniques",
+      "path": "knowledge-base/skills/resilience-reframing/techniques.md",
+      "layer": "skill",
+      "category": "Resilience reframing",
+      "docType": "skill",
+      "title": "Resilience reframing techniques",
+      "summary": "Techniques for Resilience reframing",
+      "intentTriggers": [
+        "can't bounce back",
+        "always goes wrong",
+        "silver lining"
+      ],
+      "emotionTriggers": [
+        "discouragement",
+        "frustration"
+      ],
+      "skillDependencies": [],
+      "skillIds": [
+        "resilience_reframing"
+      ],
+      "source": "positive-cbt + resilience-coping packs (adapted)"
+    },
+    {
+      "id": "skill-resilience-examples",
+      "path": "knowledge-base/skills/resilience-reframing/examples.md",
+      "layer": "skill",
+      "category": "Resilience reframing",
+      "docType": "skill",
+      "title": "Resilience reframing examples",
+      "summary": "Example language for Resilience reframing",
+      "intentTriggers": [
+        "can't bounce back",
+        "always goes wrong",
+        "silver lining"
+      ],
+      "emotionTriggers": [
+        "discouragement",
+        "frustration"
+      ],
+      "skillDependencies": [],
+      "skillIds": [
+        "resilience_reframing"
+      ],
+      "source": "positive-cbt + resilience-coping packs (adapted)"
+    },
+    {
+      "id": "skill-gratitude",
+      "path": "knowledge-base/skills/gratitude-and-savouring/SKILL.md",
+      "layer": "skill",
+      "category": "Gratitude & savouring",
+      "docType": "skill",
+      "title": "Gratitude & savouring",
+      "summary": "Deliberately notice and linger on positive moments, kindness, awe, and flow — small doses.",
+      "intentTriggers": [
+        "grateful",
+        "savour",
+        "nothing good happens",
+        "flow"
+      ],
+      "emotionTriggers": [
+        "numbness",
+        "flat"
+      ],
+      "skillDependencies": [],
+      "skillIds": [
+        "gratitude_and_savouring"
+      ],
+      "source": "positive-psychology-exercises; Reflecting on happiness; flow state (adapted)"
+    },
+    {
+      "id": "skill-gratitude-techniques",
+      "path": "knowledge-base/skills/gratitude-and-savouring/techniques.md",
+      "layer": "skill",
+      "category": "Gratitude & savouring",
+      "docType": "skill",
+      "title": "Gratitude & savouring techniques",
+      "summary": "Techniques for Gratitude & savouring",
+      "intentTriggers": [
+        "grateful",
+        "savour",
+        "nothing good happens",
+        "flow"
+      ],
+      "emotionTriggers": [
+        "numbness",
+        "flat"
+      ],
+      "skillDependencies": [],
+      "skillIds": [
+        "gratitude_and_savouring"
+      ],
+      "source": "positive-psychology-exercises; Reflecting on happiness; flow state (adapted)"
+    },
+    {
+      "id": "skill-gratitude-examples",
+      "path": "knowledge-base/skills/gratitude-and-savouring/examples.md",
+      "layer": "skill",
+      "category": "Gratitude & savouring",
+      "docType": "skill",
+      "title": "Gratitude & savouring examples",
+      "summary": "Example language for Gratitude & savouring",
+      "intentTriggers": [
+        "grateful",
+        "savour",
+        "nothing good happens",
+        "flow"
+      ],
+      "emotionTriggers": [
+        "numbness",
+        "flat"
+      ],
+      "skillDependencies": [],
+      "skillIds": [
+        "gratitude_and_savouring"
+      ],
+      "source": "positive-psychology-exercises; Reflecting on happiness; flow state (adapted)"
+    },
+    {
+      "id": "skill-abcd",
+      "path": "knowledge-base/skills/abcd-model/SKILL.md",
+      "layer": "skill",
+      "category": "ABCD model",
+      "docType": "skill",
+      "title": "ABCD model",
+      "summary": "Activating event → Beliefs → Consequences → Disputation. Complements HCPR when users need a fuller map.",
+      "intentTriggers": [
+        "activating event",
+        "beliefs consequences",
+        "ABC"
+      ],
+      "emotionTriggers": [
+        "anxiety",
+        "anger"
+      ],
+      "skillDependencies": [],
+      "skillIds": [
+        "abcd_model"
+      ],
+      "source": "Bluez 04; ABCD Model.pdf (adapted)"
+    },
+    {
+      "id": "skill-abcd-techniques",
+      "path": "knowledge-base/skills/abcd-model/techniques.md",
+      "layer": "skill",
+      "category": "ABCD model",
+      "docType": "skill",
+      "title": "ABCD model techniques",
+      "summary": "Techniques for ABCD model",
+      "intentTriggers": [
+        "activating event",
+        "beliefs consequences",
+        "ABC"
+      ],
+      "emotionTriggers": [
+        "anxiety",
+        "anger"
+      ],
+      "skillDependencies": [],
+      "skillIds": [
+        "abcd_model"
+      ],
+      "source": "Bluez 04; ABCD Model.pdf (adapted)"
+    },
+    {
+      "id": "skill-abcd-examples",
+      "path": "knowledge-base/skills/abcd-model/examples.md",
+      "layer": "skill",
+      "category": "ABCD model",
+      "docType": "skill",
+      "title": "ABCD model examples",
+      "summary": "Example language for ABCD model",
+      "intentTriggers": [
+        "activating event",
+        "beliefs consequences",
+        "ABC"
+      ],
+      "emotionTriggers": [
+        "anxiety",
+        "anger"
+      ],
+      "skillDependencies": [],
+      "skillIds": [
+        "abcd_model"
+      ],
+      "source": "Bluez 04; ABCD Model.pdf (adapted)"
+    },
+    {
+      "id": "skill-behav-exp",
+      "path": "knowledge-base/skills/behavioural-experiment/SKILL.md",
+      "layer": "skill",
+      "category": "Behavioural experiment",
+      "docType": "skill",
+      "title": "Behavioural experiment",
+      "summary": "Design a small real-world test of a negative prediction; compare expected vs actual outcome.",
+      "intentTriggers": [
+        "test my prediction",
+        "what if I'm wrong",
+        "experiment"
+      ],
+      "emotionTriggers": [
+        "anxiety",
+        "avoidance"
+      ],
+      "skillDependencies": [],
+      "skillIds": [
+        "behavioural_experiment"
+      ],
+      "source": "Anxiety Info 05-07; Behavioral-experiment.pdf (adapted)"
+    },
+    {
+      "id": "skill-behav-exp-techniques",
+      "path": "knowledge-base/skills/behavioural-experiment/techniques.md",
+      "layer": "skill",
+      "category": "Behavioural experiment",
+      "docType": "skill",
+      "title": "Behavioural experiment techniques",
+      "summary": "Techniques for Behavioural experiment",
+      "intentTriggers": [
+        "test my prediction",
+        "what if I'm wrong",
+        "experiment"
+      ],
+      "emotionTriggers": [
+        "anxiety",
+        "avoidance"
+      ],
+      "skillDependencies": [],
+      "skillIds": [
+        "behavioural_experiment"
+      ],
+      "source": "Anxiety Info 05-07; Behavioral-experiment.pdf (adapted)"
+    },
+    {
+      "id": "skill-behav-exp-examples",
+      "path": "knowledge-base/skills/behavioural-experiment/examples.md",
+      "layer": "skill",
+      "category": "Behavioural experiment",
+      "docType": "skill",
+      "title": "Behavioural experiment examples",
+      "summary": "Example language for Behavioural experiment",
+      "intentTriggers": [
+        "test my prediction",
+        "what if I'm wrong",
+        "experiment"
+      ],
+      "emotionTriggers": [
+        "anxiety",
+        "avoidance"
+      ],
+      "skillDependencies": [],
+      "skillIds": [
+        "behavioural_experiment"
+      ],
+      "source": "Anxiety Info 05-07; Behavioral-experiment.pdf (adapted)"
+    },
+    {
+      "id": "skill-sps",
+      "path": "knowledge-base/skills/structured-problem-solving/SKILL.md",
+      "layer": "skill",
+      "category": "Structured problem solving",
+      "docType": "skill",
+      "title": "Structured problem solving",
+      "summary": "Define problem → brainstorm options → weigh → pick → plan → review.",
+      "intentTriggers": [
+        "don't know what to do",
+        "problem solve",
+        "options"
+      ],
+      "emotionTriggers": [
+        "overwhelm",
+        "confusion"
+      ],
+      "skillDependencies": [],
+      "skillIds": [
+        "structured_problem_solving"
+      ],
+      "source": "Depression Info 13; Structured Problem-Solving.pdf (adapted)"
+    },
+    {
+      "id": "skill-sps-techniques",
+      "path": "knowledge-base/skills/structured-problem-solving/techniques.md",
+      "layer": "skill",
+      "category": "Structured problem solving",
+      "docType": "skill",
+      "title": "Structured problem solving techniques",
+      "summary": "Techniques for Structured problem solving",
+      "intentTriggers": [
+        "don't know what to do",
+        "problem solve",
+        "options"
+      ],
+      "emotionTriggers": [
+        "overwhelm",
+        "confusion"
+      ],
+      "skillDependencies": [],
+      "skillIds": [
+        "structured_problem_solving"
+      ],
+      "source": "Depression Info 13; Structured Problem-Solving.pdf (adapted)"
+    },
+    {
+      "id": "skill-sps-examples",
+      "path": "knowledge-base/skills/structured-problem-solving/examples.md",
+      "layer": "skill",
+      "category": "Structured problem solving",
+      "docType": "skill",
+      "title": "Structured problem solving examples",
+      "summary": "Example language for Structured problem solving",
+      "intentTriggers": [
+        "don't know what to do",
+        "problem solve",
+        "options"
+      ],
+      "emotionTriggers": [
+        "overwhelm",
+        "confusion"
+      ],
+      "skillDependencies": [],
+      "skillIds": [
+        "structured_problem_solving"
+      ],
+      "source": "Depression Info 13; Structured Problem-Solving.pdf (adapted)"
+    },
+    {
+      "id": "skill-boundaries",
+      "path": "knowledge-base/skills/boundary-communication/SKILL.md",
+      "layer": "skill",
+      "category": "Boundary communication",
+      "docType": "skill",
+      "title": "Boundary communication",
+      "summary": "Clear workplace/personal limits: what to say, when, which need it protects.",
+      "intentTriggers": [
+        "can't say no",
+        "always available",
+        "set a boundary"
+      ],
+      "emotionTriggers": [
+        "resentment",
+        "fear"
+      ],
+      "skillDependencies": [],
+      "skillIds": [
+        "boundary_communication"
+      ],
+      "source": "7 Types of boundaries; Learning to Say No; assertiveness worksheets (adapted)"
+    },
+    {
+      "id": "skill-boundaries-techniques",
+      "path": "knowledge-base/skills/boundary-communication/techniques.md",
+      "layer": "skill",
+      "category": "Boundary communication",
+      "docType": "skill",
+      "title": "Boundary communication techniques",
+      "summary": "Techniques for Boundary communication",
+      "intentTriggers": [
+        "can't say no",
+        "always available",
+        "set a boundary"
+      ],
+      "emotionTriggers": [
+        "resentment",
+        "fear"
+      ],
+      "skillDependencies": [],
+      "skillIds": [
+        "boundary_communication"
+      ],
+      "source": "7 Types of boundaries; Learning to Say No; assertiveness worksheets (adapted)"
+    },
+    {
+      "id": "skill-boundaries-examples",
+      "path": "knowledge-base/skills/boundary-communication/examples.md",
+      "layer": "skill",
+      "category": "Boundary communication",
+      "docType": "skill",
+      "title": "Boundary communication examples",
+      "summary": "Example language for Boundary communication",
+      "intentTriggers": [
+        "can't say no",
+        "always available",
+        "set a boundary"
+      ],
+      "emotionTriggers": [
+        "resentment",
+        "fear"
+      ],
+      "skillDependencies": [],
+      "skillIds": [
+        "boundary_communication"
+      ],
+      "source": "7 Types of boundaries; Learning to Say No; assertiveness worksheets (adapted)"
+    },
+    {
+      "id": "skill-problem-list",
+      "path": "knowledge-base/skills/problem-list-conceptualisation/SKILL.md",
+      "layer": "skill",
+      "category": "Problem list & conceptualisation",
+      "docType": "skill",
+      "title": "Problem list & conceptualisation",
+      "summary": "Opening-phase skill: build a plain problem list and map thoughts/feelings/behaviours for the priority item — fuels Phase 1.",
+      "intentTriggers": [
+        "where do I start",
+        "so many problems",
+        "opening phase"
+      ],
+      "emotionTriggers": [
+        "overwhelm"
+      ],
+      "skillDependencies": [],
+      "skillIds": [
+        "problem_list_conceptualisation"
+      ],
+      "source": "Opening Phase - Problem identification and Conceptualisation.docx (adapted)"
+    },
+    {
+      "id": "skill-problem-list-techniques",
+      "path": "knowledge-base/skills/problem-list-conceptualisation/techniques.md",
+      "layer": "skill",
+      "category": "Problem list & conceptualisation",
+      "docType": "skill",
+      "title": "Problem list & conceptualisation techniques",
+      "summary": "Techniques for Problem list & conceptualisation",
+      "intentTriggers": [
+        "where do I start",
+        "so many problems",
+        "opening phase"
+      ],
+      "emotionTriggers": [
+        "overwhelm"
+      ],
+      "skillDependencies": [],
+      "skillIds": [
+        "problem_list_conceptualisation"
+      ],
+      "source": "Opening Phase - Problem identification and Conceptualisation.docx (adapted)"
+    },
+    {
+      "id": "skill-problem-list-examples",
+      "path": "knowledge-base/skills/problem-list-conceptualisation/examples.md",
+      "layer": "skill",
+      "category": "Problem list & conceptualisation",
+      "docType": "skill",
+      "title": "Problem list & conceptualisation examples",
+      "summary": "Example language for Problem list & conceptualisation",
+      "intentTriggers": [
+        "where do I start",
+        "so many problems",
+        "opening phase"
+      ],
+      "emotionTriggers": [
+        "overwhelm"
+      ],
+      "skillDependencies": [],
+      "skillIds": [
+        "problem_list_conceptualisation"
+      ],
+      "source": "Opening Phase - Problem identification and Conceptualisation.docx (adapted)"
+    },
+    {
+      "id": "skill-active-listening",
+      "path": "knowledge-base/skills/active-listening/SKILL.md",
+      "layer": "skill",
+      "category": "Active listening",
+      "docType": "skill",
+      "title": "Active listening",
+      "summary": "Reflect, validate, explore before advising — foundation for empathy workbooks and feedback conversations.",
+      "intentTriggers": [
+        "they're not hearing me",
+        "need to listen better"
+      ],
+      "emotionTriggers": [
+        "frustration"
+      ],
+      "skillDependencies": [],
+      "skillIds": [
+        "feedback_conversation"
+      ],
+      "source": "communication-skills pack; wb_active_listening (adapted)"
+    },
+    {
+      "id": "skill-active-listening-techniques",
+      "path": "knowledge-base/skills/active-listening/techniques.md",
+      "layer": "skill",
+      "category": "Active listening",
+      "docType": "skill",
+      "title": "Active listening techniques",
+      "summary": "Techniques for Active listening",
+      "intentTriggers": [
+        "they're not hearing me",
+        "need to listen better"
+      ],
+      "emotionTriggers": [
+        "frustration"
+      ],
+      "skillDependencies": [],
+      "skillIds": [
+        "feedback_conversation"
+      ],
+      "source": "communication-skills pack; wb_active_listening (adapted)"
+    },
+    {
+      "id": "skill-active-listening-examples",
+      "path": "knowledge-base/skills/active-listening/examples.md",
+      "layer": "skill",
+      "category": "Active listening",
+      "docType": "skill",
+      "title": "Active listening examples",
+      "summary": "Example language for Active listening",
+      "intentTriggers": [
+        "they're not hearing me",
+        "need to listen better"
+      ],
+      "emotionTriggers": [
+        "frustration"
+      ],
+      "skillDependencies": [],
+      "skillIds": [
+        "feedback_conversation"
+      ],
+      "source": "communication-skills pack; wb_active_listening (adapted)"
+    },
+    {
+      "id": "wb-kb-problem-solving",
+      "path": "knowledge-base/workbooks/problem-solving.md",
+      "layer": "workbook",
+      "category": "practice",
+      "docType": "workbook",
+      "title": "Structured problem-solving practice",
+      "summary": "Structured problem-solving practice",
+      "intentTriggers": [
+        "stuck",
+        "options"
+      ],
+      "emotionTriggers": [],
+      "skillDependencies": [],
+      "skillIds": [
+        "structured_problem_solving"
+      ],
+      "source": "ShiftedAI Resources adapted workbooks"
+    },
+    {
+      "id": "wb-kb-empathy",
+      "path": "knowledge-base/workbooks/empathy-practise.md",
+      "layer": "workbook",
+      "category": "practice",
+      "docType": "workbook",
+      "title": "Empathy practice prompts",
+      "summary": "Empathy practice prompts",
+      "intentTriggers": [
+        "empathy",
+        "perspective"
+      ],
+      "emotionTriggers": [],
+      "skillDependencies": [],
+      "skillIds": [
+        "wb_perspective_taking"
+      ],
+      "source": "ShiftedAI Resources adapted workbooks"
+    },
+    {
+      "id": "wb-kb-communication",
+      "path": "knowledge-base/workbooks/effective-communication.md",
+      "layer": "workbook",
+      "category": "practice",
+      "docType": "workbook",
+      "title": "Effective communication practice",
+      "summary": "Effective communication practice",
+      "intentTriggers": [
+        "communication",
+        "i-statement"
+      ],
+      "emotionTriggers": [],
+      "skillDependencies": [],
+      "skillIds": [
+        "wb_active_listening"
+      ],
+      "source": "ShiftedAI Resources adapted workbooks"
+    },
+    {
+      "id": "wb-kb-critical-thinking",
+      "path": "knowledge-base/workbooks/critical-thinking.md",
+      "layer": "workbook",
+      "category": "practice",
+      "docType": "workbook",
+      "title": "Critical thinking about thoughts",
+      "summary": "Critical thinking about thoughts",
+      "intentTriggers": [
+        "challenge thought"
+      ],
+      "emotionTriggers": [],
+      "skillDependencies": [],
+      "skillIds": [
+        "hcpr_thought_challenge"
+      ],
+      "source": "ShiftedAI Resources adapted workbooks"
+    },
+    {
+      "id": "wb-kb-conflict",
+      "path": "knowledge-base/workbooks/conflict-resolution.md",
+      "layer": "workbook",
+      "category": "practice",
+      "docType": "workbook",
+      "title": "Conflict navigation practice",
+      "summary": "Conflict navigation practice",
+      "intentTriggers": [
+        "conflict",
+        "hard conversation"
+      ],
+      "emotionTriggers": [],
+      "skillDependencies": [],
+      "skillIds": [
+        "wb_conflict_navigation"
+      ],
+      "source": "ShiftedAI Resources adapted workbooks"
+    },
+    {
+      "id": "wb-kb-wellbeing",
+      "path": "knowledge-base/workbooks/wellbeing-self-reflection.md",
+      "layer": "workbook",
+      "category": "practice",
+      "docType": "workbook",
+      "title": "Personal wellbeing vocabulary",
+      "summary": "Personal wellbeing vocabulary",
+      "intentTriggers": [
+        "wellbeing",
+        "self-care"
+      ],
+      "emotionTriggers": [],
+      "skillDependencies": [],
+      "skillIds": [
+        "values_clarification"
+      ],
+      "source": "ShiftedAI Resources adapted workbooks"
+    },
+    {
+      "id": "wb-kb-pleasure-mastery",
+      "path": "knowledge-base/workbooks/pleasure-mastery-schedule.md",
+      "layer": "workbook",
+      "category": "practice",
+      "docType": "workbook",
+      "title": "Pleasure vs mastery activity plan",
+      "summary": "Pleasure vs mastery activity plan",
+      "intentTriggers": [
+        "schedule",
+        "activation"
+      ],
+      "emotionTriggers": [],
+      "skillDependencies": [],
+      "skillIds": [
+        "behavioral_activation"
+      ],
+      "source": "ShiftedAI Resources adapted workbooks"
+    },
+    {
+      "id": "wb-kb-sustainability",
+      "path": "knowledge-base/workbooks/sustainability-coping-plan.md",
+      "layer": "workbook",
+      "category": "practice",
+      "docType": "workbook",
+      "title": "Sustainability coping plan",
+      "summary": "Sustainability coping plan",
+      "intentTriggers": [
+        "relapse",
+        "maintain"
+      ],
+      "emotionTriggers": [],
+      "skillDependencies": [],
+      "skillIds": [
+        "sustainability_path"
+      ],
+      "source": "ShiftedAI Resources adapted workbooks"
+    },
+    {
+      "id": "res-crisis-uk",
+      "path": "knowledge-base/resources/crisis-lines-UK.md",
+      "layer": "resource",
+      "category": "resources",
+      "docType": "resource",
+      "title": "Crisis lines UK",
+      "summary": "UK crisis and support numbers for signposting.",
+      "intentTriggers": [
+        "helpline",
+        "crisis line",
+        "need number"
+      ],
+      "emotionTriggers": [
+        "despair"
+      ],
+      "skillDependencies": [],
+      "skillIds": [],
+      "source": "ResourcesPage; PAPYRUS HOPEBOX"
+    },
+    {
+      "id": "res-nhs-cntw",
+      "path": "knowledge-base/resources/nhs-cntw-self-help.md",
+      "layer": "resource",
+      "category": "resources",
+      "docType": "resource",
+      "title": "NHS CNTW self-help guides",
+      "summary": "NHS CNTW self-help guides — titles and public link for ResourcesPage.",
+      "intentTriggers": [
+        "self-help guide",
+        "nhs booklet",
+        "reading"
+      ],
+      "emotionTriggers": [],
+      "skillDependencies": [],
+      "skillIds": [],
+      "source": "09-nhs-resources (9 CNTW booklets) — signpost public NHS page, do not host PDFs"
+    },
+    {
+      "id": "res-clinical-oos",
+      "path": "knowledge-base/resources/clinical-out-of-scope.md",
+      "layer": "resource",
+      "category": "resources",
+      "docType": "resource",
+      "title": "Clinical topics (signpost only)",
+      "summary": "Clinical-only topics kept as signposting, not coaching skills.",
+      "intentTriggers": [
+        "needle phobia",
+        "trauma writing",
+        "exposure therapy"
+      ],
+      "emotionTriggers": [],
+      "skillDependencies": [],
+      "skillIds": [],
+      "source": "Anxiety Info 13-14; Healing From Trauma Through Writing — resource library only"
+    },
+    {
+      "id": "res-audio-todo",
+      "path": "knowledge-base/resources/guided-audio-todo.md",
+      "layer": "resource",
+      "category": "resources",
+      "docType": "resource",
+      "title": "Guided audio TODO",
+      "summary": "Audio titles with null audioUrl slots pending hosting.",
+      "intentTriggers": [
+        "guided audio",
+        "meditation track"
+      ],
+      "emotionTriggers": [],
+      "skillDependencies": [],
+      "skillIds": [],
+      "source": "07-mindfulness-guided-audio (MP3s not committed)"
+    },
+    {
+      "id": "persona-default",
+      "path": "knowledge-base/personas/default-persona.md",
+      "layer": "persona",
+      "category": "personas",
+      "docType": "persona",
+      "title": "Default persona",
+      "summary": "Warm, non-directive, plain-language coaching persona for managers.",
+      "intentTriggers": [],
+      "emotionTriggers": [],
+      "skillDependencies": [],
+      "skillIds": [],
+      "source": "Skills and Knowledge Base.docx Layer 1"
+    },
+    {
+      "id": "persona-workplace",
+      "path": "knowledge-base/personas/workplace-wellbeing.md",
+      "layer": "persona",
+      "category": "personas",
+      "docType": "persona",
+      "title": "Workplace wellbeing persona notes",
+      "summary": "Workplace wellbeing framing for managers practising EI.",
+      "intentTriggers": [
+        "at work",
+        "manager",
+        "colleague",
+        "team"
+      ],
+      "emotionTriggers": [],
+      "skillDependencies": [],
+      "skillIds": [],
+      "source": "Product framing; Trainer case studies"
+    },
+    {
+      "id": "culture-stigma",
+      "path": "knowledge-base/cultural-context/stigma-and-help-seeking.md",
+      "layer": "cultural-context",
+      "category": "cultural",
+      "docType": "cultural-context",
+      "title": "Stigma and help-seeking",
+      "summary": "Help-seeking and emotional expression vary; stay curious, avoid assumptions.",
+      "intentTriggers": [
+        "can't talk about feelings",
+        "stigma"
+      ],
+      "emotionTriggers": [
+        "shame"
+      ],
+      "skillDependencies": [],
+      "skillIds": [],
+      "source": "Skills and Knowledge Base.docx Layer 5"
+    },
+    {
+      "id": "ex-tim-scrolling",
+      "path": "knowledge-base/examples/tim-scrolling-afternoon.md",
+      "layer": "example",
+      "category": "examples",
+      "docType": "example",
+      "title": "Example: Tim scrolling loop",
+      "summary": "Tim: afternoon cognitive fatigue → phone scrolling → comparison spiral → unfinished reports.",
+      "intentTriggers": [
+        "scrolling",
+        "3:30",
+        "reports",
+        "phone break"
+      ],
+      "emotionTriggers": [
+        "shame",
+        "fatigue"
+      ],
+      "skillDependencies": [],
+      "skillIds": [
+        "behavioral_activation",
+        "micro_goals",
+        "thinking_error_tracking"
+      ],
+      "source": "00-root/For Josh.docx; Trainer Case Study Tim"
+    },
+    {
+      "id": "ex-jordan",
+      "path": "knowledge-base/examples/jordan-internship-avoidance.md",
+      "layer": "example",
+      "category": "examples",
+      "docType": "example",
+      "title": "Example: Jordan internship avoidance",
+      "summary": "Jordan: social media avoidance of 'menial' internship task; discounting the present.",
+      "intentTriggers": [
+        "internship",
+        "menial",
+        "instagram",
+        "comparison"
+      ],
+      "emotionTriggers": [
+        "envy",
+        "inadequacy"
+      ],
+      "skillDependencies": [],
+      "skillIds": [
+        "behavioral_activation",
+        "thinking_error_tracking",
+        "hcpr_thought_challenge"
+      ],
+      "source": "Trainer Case Study - Jordan"
+    },
+    {
+      "id": "ex-panic-grounding",
+      "path": "knowledge-base/examples/panic-grounding.md",
+      "layer": "example",
+      "category": "examples",
+      "docType": "example",
+      "title": "Example: panic → grounding",
+      "summary": "Flooded user → grounding before problem-solving.",
+      "intentTriggers": [
+        "panicky",
+        "overwhelmed",
+        "can't think"
+      ],
+      "emotionTriggers": [
+        "panic",
+        "overwhelm"
+      ],
+      "skillDependencies": [],
+      "skillIds": [
+        "grounding_and_breathing",
+        "distancing"
+      ],
+      "source": "Synthetic eval fixture aligned with inventory grounding materials"
+    }
+  ]
+}

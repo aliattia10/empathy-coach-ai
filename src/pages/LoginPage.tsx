@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const RESEND_COOLDOWN_SEC = 60;
 
 function isAdminDomainEmail(value: string) {
   return value.trim().toLowerCase().endsWith("@admin.com");
@@ -40,12 +41,38 @@ function loginErrorMessage(err: unknown, email: string): string {
 export default function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
+  const [searchParams] = useSearchParams();
   const [isSignUp, setIsSignUp] = useState(false);
   const [isReset, setIsReset] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [checkInboxEmail, setCheckInboxEmail] = useState<string | null>(null);
+  const [resendCooldown, setResendCooldown] = useState(0);
   const redirectTo = (location.state as { from?: string } | null)?.from || "/testing/journeys";
+  const emailRedirectTo = `${window.location.origin}/testing/journeys?confirmed=1`;
+
+  useEffect(() => {
+    if (searchParams.get("confirmed") === "1") {
+      void supabase.auth.getSession().then(({ data: { session } }) => {
+        if (session) {
+          toast.success("Email confirmed — welcome to ShiftED AI");
+          navigate("/testing/journeys", { replace: true });
+        } else {
+          toast.message("Email confirmed — please sign in.");
+        }
+      });
+    }
+  }, [searchParams, navigate]);
+
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const id = window.setInterval(() => {
+      setResendCooldown((s) => (s <= 1 ? 0 : s - 1));
+    }, 1000);
+    return () => window.clearInterval(id);
+  }, [resendCooldown]);
 
   const handleReset = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -56,9 +83,8 @@ export default function LoginPage() {
     setLoading(true);
     const normalizedEmail = email.trim().toLowerCase();
     try {
-      // Always show the same success message whether or not the email exists.
       await supabase.auth.resetPasswordForEmail(normalizedEmail, {
-        redirectTo: `${window.location.origin}/testing/settings`,
+        redirectTo: `${window.location.origin}/testing/reset-password`,
       });
     } catch {
       // Swallow — generic message only
@@ -66,6 +92,21 @@ export default function LoginPage() {
       toast.success("Check your inbox");
       setLoading(false);
       setIsReset(false);
+    }
+  };
+
+  const handleResend = async () => {
+    if (!checkInboxEmail || resendCooldown > 0) return;
+    try {
+      await supabase.auth.resend({
+        type: "signup",
+        email: checkInboxEmail,
+        options: { emailRedirectTo },
+      });
+      toast.success("Confirmation email resent.");
+      setResendCooldown(RESEND_COOLDOWN_SEC);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not resend email.");
     }
   };
 
@@ -79,6 +120,14 @@ export default function LoginPage() {
       toast.error("Please enter your password.");
       return;
     }
+    if (isSignUp && password.length < 8) {
+      toast.error("Use at least 8 characters.");
+      return;
+    }
+    if (isSignUp && password !== confirmPassword) {
+      toast.error("Passwords do not match.");
+      return;
+    }
     setLoading(true);
     const normalizedEmail = email.trim().toLowerCase();
     try {
@@ -89,10 +138,19 @@ export default function LoginPage() {
           );
           return;
         }
-        const { error } = await supabase.auth.signUp({ email: normalizedEmail, password });
+        const { data, error } = await supabase.auth.signUp({
+          email: normalizedEmail,
+          password,
+          options: { emailRedirectTo },
+        });
         if (error) throw error;
-        toast.success("Check your email to confirm your account.");
-        navigate(redirectTo);
+        if (data.session) {
+          toast.success("Email confirmed — welcome to ShiftED AI");
+          navigate(redirectTo);
+          return;
+        }
+        setCheckInboxEmail(normalizedEmail);
+        setResendCooldown(RESEND_COOLDOWN_SEC);
       } else {
         const { error } = await supabase.auth.signInWithPassword({
           email: normalizedEmail,
@@ -109,15 +167,48 @@ export default function LoginPage() {
     }
   };
 
+  if (checkInboxEmail) {
+    return (
+      <div className="container max-w-sm mx-auto px-4 py-12">
+        <div className="rounded-2xl border border-border bg-card p-6 shadow-soft space-y-4">
+          <h1 className="font-display font-semibold text-lg text-foreground">Check your inbox</h1>
+          <p className="text-sm text-muted-foreground">
+            We sent a confirmation link to <strong className="text-foreground">{checkInboxEmail}</strong>.
+            Open it to activate your account, then sign in.
+          </p>
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full rounded-xl"
+            disabled={resendCooldown > 0}
+            onClick={() => void handleResend()}
+          >
+            {resendCooldown > 0 ? `Resend email (${resendCooldown}s)` : "Resend email"}
+          </Button>
+          <button
+            type="button"
+            className="w-full text-sm text-muted-foreground hover:text-foreground"
+            onClick={() => {
+              setCheckInboxEmail(null);
+              setIsSignUp(false);
+            }}
+          >
+            Back to sign in
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="container max-w-sm mx-auto px-4 py-12">
       <div className="rounded-2xl border border-border bg-card p-6 shadow-soft">
-        <h2 className="font-display font-semibold text-lg text-foreground mb-1">
+        <h1 className="font-display font-semibold text-lg text-foreground mb-1">
           {isReset ? "Reset password" : isSignUp ? "Create account" : "Sign in"}
-        </h2>
+        </h1>
         <p className="text-sm text-muted-foreground mb-6">
           {isReset
-            ? "We’ll email a secure link if an account exists for that address."
+            ? "We'll email a secure link if an account exists for that address."
             : isSignUp
               ? "Sign up to save your progress and survey responses."
               : "Sign in to access your saved data."}
@@ -139,20 +230,40 @@ export default function LoginPage() {
             />
           </div>
           {!isReset ? (
-            <div>
-              <Label htmlFor="password" className="text-foreground">
-                Password
-              </Label>
-              <Input
-                id="password"
-                type="password"
-                autoComplete={isSignUp ? "new-password" : "current-password"}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="mt-1.5"
-                placeholder="••••••••"
-              />
-            </div>
+            <>
+              <div>
+                <Label htmlFor="password" className="text-foreground">
+                  Password
+                </Label>
+                <Input
+                  id="password"
+                  type="password"
+                  autoComplete={isSignUp ? "new-password" : "current-password"}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="mt-1.5"
+                  placeholder="Your password"
+                  minLength={isSignUp ? 8 : undefined}
+                />
+              </div>
+              {isSignUp ? (
+                <div>
+                  <Label htmlFor="confirm-password" className="text-foreground">
+                    Confirm password
+                  </Label>
+                  <Input
+                    id="confirm-password"
+                    type="password"
+                    autoComplete="new-password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    className="mt-1.5"
+                    placeholder="Your password"
+                    minLength={8}
+                  />
+                </div>
+              ) : null}
+            </>
           ) : null}
           <Button type="submit" className="w-full rounded-xl" disabled={loading}>
             {loading

@@ -107,19 +107,20 @@ export function computeJourneyProgressPercent(
 
 
 export function goalsCompletionRatio(goals: JourneyState["user_goals"]): {
-
   done: number;
-
   total: number;
-
 } {
-
-  const total = goals.length;
-
-  const done = goals.filter((g) => g.completed).length;
-
+  const list = goals ?? [];
+  const total = list.length;
+  const done = list.filter((g) => g.completed).length;
   return { done, total };
+}
 
+/** Task completion as 0–100; 1/1 tasks = 100%. */
+export function tasksCompletionPercent(goals: JourneyState["user_goals"]): number {
+  const { done, total } = goalsCompletionRatio(goals);
+  if (total === 0) return 0;
+  return Math.round((done / total) * 100);
 }
 
 

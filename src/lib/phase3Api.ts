@@ -2,6 +2,10 @@ import { supabase } from "@/integrations/supabase/client";
 import type { PracticeStateForPrompt } from "@/types/journey";
 import type { UserWorkbookStatus } from "@/lib/workbooks";
 import { WORKBOOK_BY_ID } from "@/lib/workbooks";
+import { NotSavedError } from "@/hooks/useChatSession";
+
+const CONSENT_VERSION = "1";
+const ACTIVITY_IDLE_MS = 5 * 60 * 1000;
 
 export type UserWorkbookRow = {
   id: string;
@@ -57,9 +61,11 @@ async function requireUserId(): Promise<string> {
 }
 
 export async function fetchUserWorkbooks(): Promise<UserWorkbookRow[]> {
+  const userId = await requireUserId();
   const { data, error } = await supabase
     .from("user_workbooks")
     .select("*")
+    .eq("user_id", userId)
     .order("updated_at", { ascending: false });
   if (error) throw error;
   return (data ?? []) as UserWorkbookRow[];
@@ -129,11 +135,13 @@ export async function decideWorkbookRecommendation(
   recommendationId: string,
   decision: "added" | "skipped" | "started",
 ): Promise<void> {
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from("workbook_recommendations")
     .update({ decision, decided_at: new Date().toISOString() })
-    .eq("id", recommendationId);
+    .eq("id", recommendationId)
+    .select("id");
   if (error) throw error;
+  if (!data?.length) throw new NotSavedError();
 }
 
 export async function fetchPendingRecommendations(
@@ -170,9 +178,11 @@ export async function fetchPracticeStateForPrompt(): Promise<PracticeStateForPro
         completion_description: w.completion_description,
       }));
 
+    const userId = await requireUserId();
     const { data: reflections } = await supabase
       .from("reflections")
       .select("answer, skipped")
+      .eq("user_id", userId)
       .order("created_at", { ascending: false })
       .limit(3);
 
@@ -209,18 +219,22 @@ export async function saveReflection(opts: {
 }
 
 export async function fetchReflections(): Promise<ReflectionRow[]> {
+  const userId = await requireUserId();
   const { data, error } = await supabase
     .from("reflections")
     .select("*")
+    .eq("user_id", userId)
     .order("created_at", { ascending: false });
   if (error) throw error;
   return (data ?? []) as ReflectionRow[];
 }
 
 export async function fetchJournalEntries(): Promise<JournalEntryRow[]> {
+  const userId = await requireUserId();
   const { data, error } = await supabase
     .from("journal_entries")
     .select("*")
+    .eq("user_id", userId)
     .order("updated_at", { ascending: false });
   if (error) throw error;
   return (data ?? []) as JournalEntryRow[];
@@ -246,9 +260,11 @@ export async function upsertJournalEntry(opts: {
         updated_at: now,
       })
       .eq("id", opts.id)
+      .eq("user_id", userId)
       .select("*")
       .single();
     if (error) throw error;
+    if (!data) throw new NotSavedError();
     return data as JournalEntryRow;
   }
   const { data, error } = await supabase
@@ -271,26 +287,56 @@ export async function deleteJournalEntry(id: string): Promise<void> {
   if (error) throw error;
 }
 
+export async function closeOpenActivity(userId?: string): Promise<void> {
+  try {
+    const uid = userId ?? (await requireUserId());
+    const { data: open } = await supabase
+      .from("user_activity")
+      .select("id, last_heartbeat_at")
+      .eq("user_id", uid)
+      .is("ended_at", null)
+      .order("started_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (!open?.id) return;
+    const endedAt = open.last_heartbeat_at ?? new Date().toISOString();
+    await supabase.from("user_activity").update({ ended_at: endedAt }).eq("id", open.id);
+  } catch {
+    // best-effort
+  }
+}
+
 export async function heartbeatActivity(path?: string): Promise<void> {
   try {
     const userId = await requireUserId();
     const now = new Date().toISOString();
+    const nowMs = Date.now();
     const { data: open } = await supabase
       .from("user_activity")
-      .select("id")
+      .select("id, last_heartbeat_at")
       .eq("user_id", userId)
       .is("ended_at", null)
       .order("started_at", { ascending: false })
       .limit(1)
       .maybeSingle();
 
-    if (open?.id) {
-      await supabase
-        .from("user_activity")
-        .update({ last_heartbeat_at: now, path: path ?? null })
-        .eq("id", open.id);
-      return;
+    if (open?.id && open.last_heartbeat_at) {
+      const idleMs = nowMs - new Date(open.last_heartbeat_at).getTime();
+      if (idleMs > ACTIVITY_IDLE_MS) {
+        await supabase
+          .from("user_activity")
+          .update({ ended_at: open.last_heartbeat_at })
+          .eq("id", open.id);
+      } else {
+        const { data } = await supabase
+          .from("user_activity")
+          .update({ last_heartbeat_at: now, path: path ?? null })
+          .eq("id", open.id)
+          .select("id");
+        if (data?.length) return;
+      }
     }
+
     await supabase.from("user_activity").insert({
       user_id: userId,
       started_at: now,
@@ -303,9 +349,11 @@ export async function heartbeatActivity(path?: string): Promise<void> {
 }
 
 export async function fetchActivityMinutes(): Promise<number> {
+  const userId = await requireUserId();
   const { data, error } = await supabase
     .from("user_activity")
-    .select("started_at, ended_at, last_heartbeat_at");
+    .select("started_at, ended_at, last_heartbeat_at")
+    .eq("user_id", userId);
   if (error || !data) return 0;
   let ms = 0;
   for (const row of data) {
@@ -319,9 +367,11 @@ export async function fetchActivityMinutes(): Promise<number> {
 export async function fetchGoalsAcrossJourneys(): Promise<
   Array<{ sessionId: string; sessionName: string | null; goals: unknown }>
 > {
+  const userId = await requireUserId();
   const { data, error } = await supabase
     .from("chat_sessions")
     .select("id, session_name, user_goals")
+    .eq("user_id", userId)
     .order("updated_at", { ascending: false });
   if (error) throw error;
   return (data ?? []).map((s) => ({
@@ -329,4 +379,39 @@ export async function fetchGoalsAcrossJourneys(): Promise<
     sessionName: s.session_name,
     goals: s.user_goals,
   }));
+}
+
+export async function fetchUserConsent(userId: string): Promise<boolean> {
+  try {
+    const { data, error } = await supabase
+      .from("user_consents")
+      .select("id")
+      .eq("user_id", userId)
+      .eq("version", CONSENT_VERSION)
+      .maybeSingle();
+    if (error) {
+      if (error.code === "PGRST205" || error.message?.includes("does not exist")) return false;
+      return false;
+    }
+    return !!data;
+  } catch {
+    return false;
+  }
+}
+
+export async function saveUserConsent(userId: string): Promise<void> {
+  const { data, error } = await supabase
+    .from("user_consents")
+    .upsert(
+      { user_id: userId, version: CONSENT_VERSION, consented_at: new Date().toISOString() },
+      { onConflict: "user_id,version" },
+    )
+    .select("id");
+  if (error) {
+    if (error.code === "PGRST205" || error.message?.includes("does not exist")) {
+      throw new Error("Consent storage is not available yet.");
+    }
+    throw error;
+  }
+  if (!data?.length) throw new NotSavedError();
 }

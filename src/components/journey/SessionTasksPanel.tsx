@@ -11,7 +11,7 @@ import {
   type JourneyState,
   type UserGoal,
 } from "@/types/journey";
-import { computeJourneyProgressPercent, goalsCompletionRatio } from "@/lib/journeyProgress";
+import { goalsCompletionRatio, tasksCompletionPercent } from "@/lib/journeyProgress";
 import GuidanceLadderWidget from "@/components/journey/GuidanceLadderWidget";
 import SustainabilityPathPanel from "@/components/journey/SustainabilityPathPanel";
 import type { SustainabilityPathItem } from "@/lib/sustainabilityPath";
@@ -49,8 +49,8 @@ export default function SessionTasksPanel({
 }: SessionTasksPanelProps) {
   const [draft, setDraft] = useState("");
   const [dragId, setDragId] = useState<string | null>(null);
-  const progressPercent = computeJourneyProgressPercent(journey, 0);
   const { done, total } = goalsCompletionRatio(journey.user_goals);
+  const taskPercent = tasksCompletionPercent(journey.user_goals);
   const tasks = sortGoalsByStep(pruneOrphanCoachGoals(journey.user_goals));
 
   const handleAdd = () => {
@@ -77,15 +77,16 @@ export default function SessionTasksPanel({
 
         <div>
           <div className="flex items-center justify-between text-sm mb-2">
-            <span className="text-muted-foreground">Your progress</span>
-            <span className="font-medium">{progressPercent}%</span>
+            <span className="text-muted-foreground">Tasks</span>
+            {total > 0 ? (
+              <span className="font-medium">
+                {done} of {total} tasks done ({taskPercent}%)
+              </span>
+            ) : (
+              <span className="font-medium text-muted-foreground">No tasks yet</span>
+            )}
           </div>
-          <Progress value={progressPercent} className="h-2" />
-          {total > 0 && (
-            <p className="text-xs text-muted-foreground mt-2">
-              {done} of {total} tasks completed
-            </p>
-          )}
+          {total > 0 ? <Progress value={taskPercent} className="h-2" /> : null}
         </div>
       </div>
 

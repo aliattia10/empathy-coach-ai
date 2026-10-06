@@ -53,6 +53,14 @@ export const COACHING_JOURNEY_SCENARIO = "coaching_journey";
 export const COACHING_JOURNEY_NAME = "Your coaching journey";
 export const DEFAULT_JOURNEY_NAME = "New journey";
 
+/** Thrown when an update matched zero rows (often missing RLS UPDATE policy). */
+export class NotSavedError extends Error {
+  constructor(message = "Changes were not saved.") {
+    super(message);
+    this.name = "NotSavedError";
+  }
+}
+
 export async function createChatSession(
   userId: string,
   scenario = COACHING_JOURNEY_SCENARIO,
@@ -135,11 +143,13 @@ export async function fetchUserJourneys(userId: string): Promise<ChatSession[]> 
 }
 
 export async function renameChatSession(sessionId: string, sessionName: string) {
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from("chat_sessions")
     .update({ session_name: sessionName })
-    .eq("id", sessionId);
+    .eq("id", sessionId)
+    .select("id");
   if (error) throw error;
+  if (!data?.length) throw new NotSavedError();
 }
 
 export async function deleteChatSession(sessionId: string) {
@@ -200,20 +210,27 @@ export async function setChatMessageAdminStar(messageId: string, starred: boolea
 }
 
 export async function setSessionActiveMessage(sessionId: string, messageId: string | null) {
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from("chat_sessions")
     .update({ active_message_id: messageId })
-    .eq("id", sessionId);
+    .eq("id", sessionId)
+    .select("id");
   if (error) throw error;
+  if (!data?.length) throw new NotSavedError();
 }
 
 export async function updateJourneyState(sessionId: string, updates: Partial<JourneyState>) {
   if (Object.keys(updates).length === 0) return;
-  const { error } = await supabase.from("chat_sessions").update(updates).eq("id", sessionId);
+  const { data, error } = await supabase
+    .from("chat_sessions")
+    .update(updates)
+    .eq("id", sessionId)
+    .select("id");
   if (error) {
     // Column may not exist yet (sustainability_path migration); allow callers to fall back.
     throw error;
   }
+  if (!data?.length) throw new NotSavedError();
 }
 
 export async function updateProgressDashboard(

@@ -25,8 +25,15 @@ const {
   extractReplyFromRunPodOutput,
   submitRunPodJob,
   pollRunPodJob,
+  cancelRunPodJob,
+  isRunPodTerminalFailure,
   useRunPodAsync,
 } = require("../../skills/runpodAsync.cjs");
+const {
+  fallbackConfigured,
+  fallbackConfig,
+  callFallbackChat,
+} = require("../../skills/fallbackLlm.cjs");
 const {
   normalizeChatHistory,
   buildConversationMemoryBlock,
@@ -156,8 +163,25 @@ exports.handler = async (event) => {
   const url = process.env.VLLM_API_URL || DEFAULT_LLM_URL;
   const endpointId = parseRunPodEndpointId(url);
 
+  if (event.httpMethod === "DELETE") {
+    const jobId = event.queryStringParameters?.jobId;
+    if (!jobId) {
+      return { statusCode: 400, body: JSON.stringify({ error: "jobId query parameter is required." }) };
+    }
+    if (!apiKey?.trim() || !endpointId) {
+      return { statusCode: 503, body: JSON.stringify({ error: "RunPod cancel is not configured." }) };
+    }
+    const cancelled = await cancelRunPodJob(endpointId, apiKey, jobId);
+    return {
+      statusCode: 200,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ cancelled }),
+    };
+  }
+
   if (event.httpMethod === "GET") {
     const jobId = event.queryStringParameters?.jobId;
+    const waitedMs = Number(event.queryStringParameters?.waitedMs) || 0;
     if (!jobId) {
       return { statusCode: 400, body: JSON.stringify({ error: "jobId query parameter is required." }) };
     }
@@ -167,6 +191,7 @@ exports.handler = async (event) => {
         body: JSON.stringify({ error: "RunPod polling is not configured." }),
       };
     }
+    const { fallbackAfterMs } = fallbackConfig();
     try {
       const data = await pollRunPodJob(endpointId, apiKey, jobId);
       const status = data.status || "UNKNOWN";
@@ -175,17 +200,30 @@ exports.handler = async (event) => {
         return {
           statusCode: 200,
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ status, reply }),
+          body: JSON.stringify({ status, reply, provider: "runpod" }),
         };
       }
-      if (status === "FAILED" || status === "CANCELLED") {
+      if (isRunPodTerminalFailure(status)) {
         const err =
           typeof data.error === "string"
             ? parseLlmErrorMessage(data.error, 400)
-            : "The coach could not start. Check RunPod endpoint logs.";
+            : "The coach could not start. Please try again.";
+        const canFallback = fallbackConfigured();
         return {
-          statusCode: 502,
-          body: JSON.stringify({ status, error: err }),
+          statusCode: canFallback ? 200 : 502,
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            status,
+            error: err,
+            fallback: canFallback,
+          }),
+        };
+      }
+      if (waitedMs >= fallbackAfterMs && fallbackConfigured()) {
+        return {
+          statusCode: 200,
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status, warming: true, fallback: true }),
         };
       }
       return {
@@ -201,6 +239,7 @@ exports.handler = async (event) => {
           status: "FAILED",
           error: "Still connecting to the coach — keep waiting or try again shortly.",
           retryable: true,
+          fallback: fallbackConfigured(),
         }),
       };
     }
@@ -217,6 +256,19 @@ exports.handler = async (event) => {
     return { statusCode: 400, body: JSON.stringify({ error: "Invalid JSON" }) };
   }
 
+  if (body?.mode === "cancel" && body?.jobId) {
+    if (!apiKey?.trim() || !endpointId) {
+      return { statusCode: 503, body: JSON.stringify({ error: "RunPod cancel is not configured." }) };
+    }
+    const cancelled = await cancelRunPodJob(endpointId, apiKey, body.jobId);
+    return {
+      statusCode: 200,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ cancelled }),
+    };
+  }
+
+  const preferFallback = body?.provider === "fallback";
   const mode =
     body?.mode === "regenerate" ? "regenerate" : body?.mode === "name_journey" ? "name_journey" : "chat";
   const { userMessage, chatHistory, regenerationContext, conversationSnippet } = body;
@@ -272,8 +324,55 @@ exports.handler = async (event) => {
 
   const isRunPod = url.includes("runpod.ai");
   const timeoutMs = Number(process.env.VLLM_TIMEOUT_MS) || (isRunPod ? 180000 : 60000);
+  const sampling = buildSamplingParams(mode);
+
+  const runFallback = async (cancelJobId) => {
+    if (!fallbackConfigured()) {
+      return {
+        statusCode: 503,
+        body: JSON.stringify({
+          error: "The coach is unavailable right now. Please try again shortly.",
+          retryable: true,
+        }),
+      };
+    }
+    if (cancelJobId && endpointId && apiKey?.trim()) {
+      await cancelRunPodJob(endpointId, apiKey, cancelJobId);
+    }
+    try {
+      const reply = await callFallbackChat(messages, sampling);
+      console.log("Fallback LLM reply, mode=", mode, "chars=", reply.length);
+      return {
+        statusCode: 200,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reply, provider: "fallback" }),
+      };
+    } catch (err) {
+      console.error("Fallback LLM error:", err.message);
+      return {
+        statusCode: 502,
+        body: JSON.stringify({
+          error: "The coach is unavailable right now. Please try again.",
+          retryable: true,
+        }),
+      };
+    }
+  };
+
+  // Client re-POSTs with provider:"fallback" after poll signals fallback:true
+  if (preferFallback) {
+    return runFallback(typeof body?.cancelJobId === "string" ? body.cancelJobId : null);
+  }
+
+  // Journey titles: prefer fast fallback so cold GPUs don't block naming
+  if (mode === "name_journey" && fallbackConfigured()) {
+    return runFallback(null);
+  }
 
   if (!apiKey || apiKey.trim() === "") {
+    if (fallbackConfigured()) {
+      return runFallback(null);
+    }
     console.error(
       "LLM not connected: LLM_API_KEY is not set in Netlify environment variables (use your RunPod API key). Redeploy after saving.",
     );
@@ -284,7 +383,6 @@ exports.handler = async (event) => {
   }
 
   const model = process.env.VLLM_MODEL || (isRunPod ? "empathy-coach-qwen" : "meta-llama/llama-3.2-3b-instruct:free");
-  const sampling = buildSamplingParams(mode);
 
   if ((mode === "chat" || mode === "regenerate") && useRunPodAsync(url) && endpointId) {
     try {
@@ -304,10 +402,21 @@ exports.handler = async (event) => {
         body: JSON.stringify({
           warming: true,
           jobId,
+          provider: "runpod",
         }),
       };
     } catch (err) {
-      console.error("RunPod async submit failed, falling back to sync:", err.message);
+      console.error("RunPod async submit failed, using fallback if configured:", err.message);
+      if (fallbackConfigured()) {
+        return runFallback(null);
+      }
+      return {
+        statusCode: 502,
+        body: JSON.stringify({
+          error: "The coach could not start. Please try again.",
+          retryable: true,
+        }),
+      };
     }
   }
 
@@ -369,7 +478,7 @@ exports.handler = async (event) => {
           return {
             statusCode: 200,
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ reply }),
+            body: JSON.stringify({ reply, provider: isRunPod ? "runpod" : "direct" }),
           };
         }
         errText = await retryRes.text();
@@ -391,6 +500,9 @@ exports.handler = async (event) => {
         "body:",
         errText.slice(0, 1200),
       );
+      if (fallbackConfigured()) {
+        return runFallback(null);
+      }
       return {
         statusCode: res.status === 429 ? 429 : 502,
         body: JSON.stringify({
@@ -405,10 +517,13 @@ exports.handler = async (event) => {
     return {
       statusCode: 200,
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ reply }),
+      body: JSON.stringify({ reply, provider: isRunPod ? "runpod" : "direct" }),
     };
   } catch (err) {
     console.error("Error connecting to LLM:", err.message, "stack:", err.stack);
+    if (fallbackConfigured()) {
+      return runFallback(null);
+    }
     return {
       statusCode: 502,
       body: JSON.stringify({ error: "Avatar is currently unavailable. (Network or server error.)" }),

@@ -21,6 +21,19 @@ export function sanitizeJourneyTitle(raw: string): string {
   return cleaned || DEFAULT_JOURNEY_NAME;
 }
 
+/** Immediate title from the first user message (~6 words) while LLM naming is unavailable. */
+export function provisionalJourneyTitle(userMessage: string): string | null {
+  const words = userMessage
+    .replace(/\s+/g, " ")
+    .trim()
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 6);
+  if (words.length < 2) return null;
+  const title = sanitizeJourneyTitle(words.join(" "));
+  return isAutoNamedJourney(title) ? null : title;
+}
+
 export async function suggestJourneyTitle(userMessages: string[]): Promise<string | null> {
   const snippet = userMessages
     .map((m) => m.trim())

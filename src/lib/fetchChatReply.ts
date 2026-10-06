@@ -6,17 +6,37 @@ export type ChatApiPayload = {
   mode?: string;
   regenerationContext?: unknown;
   conversationSnippet?: string;
+  provider?: "fallback" | "runpod";
+  cancelJobId?: string;
 };
 
-function sleep(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+export type ChatReplyOk = { ok: true; reply: string; provider?: string };
+export type ChatReplyErr = { ok: false; error: string; retryable?: boolean };
+export type ChatReplyResult = ChatReplyOk | ChatReplyErr;
+
+function sleep(ms: number, signal?: AbortSignal) {
+  return new Promise<void>((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(new DOMException("Aborted", "AbortError"));
+      return;
+    }
+    const t = setTimeout(() => resolve(), ms);
+    signal?.addEventListener(
+      "abort",
+      () => {
+        clearTimeout(t);
+        reject(new DOMException("Aborted", "AbortError"));
+      },
+      { once: true },
+    );
+  });
 }
 
 function friendlyChatError(raw: string | undefined, status?: number): string {
   const text = String(raw || "").trim();
-  if (!text) return "Avatar is currently unavailable. Please try again.";
+  if (!text) return "The coach is unavailable right now. Please try again.";
   if (/maximum context length|context length is|input_tokens|too many tokens/i.test(text)) {
-    return "That message was too large for the coach model — please send it again (we’ll pack more tightly).";
+    return "That message was too large for the coach model — please try again.";
   }
   if (text.startsWith("{") || text.startsWith("{'")) {
     try {
@@ -29,45 +49,117 @@ function friendlyChatError(raw: string | undefined, status?: number): string {
             ? parsed.error
             : parsed.message;
       if (msg && /maximum context length|context length is/i.test(msg)) {
-        return "That message was too large for the coach model — please send it again (we’ll pack more tightly).";
+        return "That message was too large for the coach model — please try again.";
       }
     } catch {
       // fall through
     }
     return status === 400
       ? "The coach could not process that message — please try again."
-      : "Avatar is currently unavailable. Please try again.";
+      : "The coach is unavailable right now. Please try again.";
   }
-  return text.length < 220 ? text : "Avatar is currently unavailable. Please try again.";
+  return text.length < 220 ? text : "The coach is unavailable right now. Please try again.";
+}
+
+const TERMINAL_FAIL = new Set(["FAILED", "CANCELLED", "CANCELED", "TIMED_OUT", "TIMEOUT"]);
+
+export async function cancelChatJob(jobId: string): Promise<void> {
+  if (!jobId) return;
+  try {
+    await fetch(`/api/chat?jobId=${encodeURIComponent(jobId)}`, { method: "DELETE" });
+  } catch {
+    try {
+      await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode: "cancel", jobId }),
+      });
+    } catch {
+      // best-effort
+    }
+  }
+}
+
+async function requestFallback(
+  payload: ChatApiPayload,
+  cancelJobId: string | undefined,
+  signal?: AbortSignal,
+): Promise<ChatReplyResult> {
+  if (cancelJobId) await cancelChatJob(cancelJobId);
+  const response = await fetch("/api/chat", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ...payload, provider: "fallback", cancelJobId }),
+    signal,
+  });
+  let data: { reply?: string; error?: string; provider?: string };
+  try {
+    data = await response.json();
+  } catch {
+    return { ok: false, error: "The coach is unavailable right now. Please try again.", retryable: true };
+  }
+  if (!response.ok) {
+    return {
+      ok: false,
+      error: friendlyChatError(data.error, response.status),
+      retryable: true,
+    };
+  }
+  return { ok: true, reply: data.reply ?? "", provider: data.provider || "fallback" };
 }
 
 async function pollRunPodJob(
   jobId: string,
-): Promise<{ ok: true; reply: string } | { ok: false; error: string }> {
+  payload: ChatApiPayload,
+  opts?: {
+    onWarmingChange?: (warming: boolean) => void;
+    onElapsed?: (ms: number) => void;
+    signal?: AbortSignal;
+  },
+): Promise<ChatReplyResult> {
   const started = Date.now();
   const maxWaitMs = 300_000;
   const pollIntervalMs = 4_000;
+  let unknownStreak = 0;
 
   while (Date.now() - started < maxWaitMs) {
-    await sleep(pollIntervalMs);
+    if (opts?.signal?.aborted) {
+      await cancelChatJob(jobId);
+      throw new DOMException("Aborted", "AbortError");
+    }
+
+    await sleep(pollIntervalMs, opts?.signal);
+    const waitedMs = Date.now() - started;
+    opts?.onElapsed?.(waitedMs);
 
     try {
-      const pollRes = await fetch(`/api/chat?jobId=${encodeURIComponent(jobId)}`);
+      const pollRes = await fetch(
+        `/api/chat?jobId=${encodeURIComponent(jobId)}&waitedMs=${waitedMs}`,
+        { signal: opts?.signal },
+      );
       const pollData: {
         status?: string;
         reply?: string;
         error?: string;
         retryable?: boolean;
+        fallback?: boolean;
+        provider?: string;
       } = await pollRes.json();
 
       if (pollRes.ok && pollData.status === "COMPLETED") {
-        return { ok: true, reply: pollData.reply ?? "" };
+        return { ok: true, reply: pollData.reply ?? "", provider: pollData.provider || "runpod" };
       }
 
-      if (pollData.status === "FAILED" || pollData.status === "CANCELLED") {
+      const status = String(pollData.status || "").toUpperCase();
+      if (TERMINAL_FAIL.has(status) || pollData.fallback) {
+        if (pollData.fallback) {
+          opts?.onWarmingChange?.(false);
+          return requestFallback(payload, jobId, opts?.signal);
+        }
         return {
           ok: false,
           error: friendlyChatError(pollData.error, pollRes.status),
+          retryable: true,
         };
       }
 
@@ -75,31 +167,56 @@ async function pollRunPodJob(
         return {
           ok: false,
           error: friendlyChatError(pollData.error, pollRes.status),
+          retryable: true,
         };
       }
-    } catch {
+
+      if (!status || status === "UNKNOWN") {
+        unknownStreak += 1;
+        if (unknownStreak >= 8) {
+          return requestFallback(payload, jobId, opts?.signal).catch(() => ({
+            ok: false as const,
+            error: "The coach did not respond. Please try again.",
+            retryable: true,
+          }));
+        }
+      } else {
+        unknownStreak = 0;
+      }
+    } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") throw err;
       // Transient poll failure — keep waiting while RunPod may still be booting.
     }
   }
 
+  await cancelChatJob(jobId);
+  const fallbackAttempt = await requestFallback(payload, undefined, opts?.signal).catch(() => null);
+  if (fallbackAttempt?.ok) return fallbackAttempt;
+
   return {
     ok: false,
-    error: "The coach is still starting. Wait a moment, then send your message again.",
+    error: "The coach did not respond in time. Please try again.",
+    retryable: true,
   };
 }
 
 /**
- * Calls /api/chat. RunPod chat uses async submit + poll so Netlify never times out on cold start.
+ * Calls /api/chat. RunPod chat uses async submit + poll; falls back to OpenAI-compatible host when queued too long.
  */
 export async function fetchChatReply(
   payload: ChatApiPayload,
-  opts?: { onWarmingChange?: (warming: boolean) => void },
-): Promise<{ ok: true; reply: string } | { ok: false; error: string }> {
+  opts?: {
+    onWarmingChange?: (warming: boolean) => void;
+    onElapsed?: (ms: number) => void;
+    signal?: AbortSignal;
+  },
+): Promise<ChatReplyResult> {
   try {
     const response = await fetch("/api/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
+      signal: opts?.signal,
     });
 
     let data: {
@@ -107,21 +224,23 @@ export async function fetchChatReply(
       error?: string;
       retryable?: boolean;
       jobId?: string;
+      provider?: string;
+      fallback?: boolean;
     };
     try {
       data = await response.json();
     } catch {
       return {
         ok: false,
-        error:
-          "Connection lost — the coach may still be starting. Please send your message again in a minute.",
+        error: "Connection lost. Please try again.",
+        retryable: true,
       };
     }
 
     if (response.status === 202 && data.jobId) {
       opts?.onWarmingChange?.(true);
       try {
-        return await pollRunPodJob(data.jobId);
+        return await pollRunPodJob(data.jobId, payload, opts);
       } finally {
         opts?.onWarmingChange?.(false);
       }
@@ -131,15 +250,19 @@ export async function fetchChatReply(
       return {
         ok: false,
         error: friendlyChatError(data.error, response.status),
+        retryable: data.retryable !== false,
       };
     }
 
-    return { ok: true, reply: data.reply ?? "" };
-  } catch {
+    return { ok: true, reply: data.reply ?? "", provider: data.provider };
+  } catch (err) {
+    if (err instanceof DOMException && err.name === "AbortError") {
+      return { ok: false, error: "Cancelled.", retryable: false };
+    }
     return {
       ok: false,
-      error:
-        "Connection lost — the coach may still be starting. Please send your message again in a minute.",
+      error: "Connection lost. Please try again.",
+      retryable: true,
     };
   }
 }

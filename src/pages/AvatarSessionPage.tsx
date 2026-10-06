@@ -22,7 +22,7 @@ import {
   type FeedbackTag,
   type ChatSession,
 } from "@/hooks/useChatSession";
-import { isAutoNamedJourney, suggestJourneyTitle } from "@/lib/journeyNaming";
+import { isAutoNamedJourney, provisionalJourneyTitle, suggestJourneyTitle } from "@/lib/journeyNaming";
 import { stripMarkdownForSpeech } from "@/lib/speech";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -55,7 +55,7 @@ import { autoCompleteMatchingGoal } from "@/lib/dashboardGoals";
 import { syncSessionTasks } from "@/lib/coachTaskSync";
 import { syncPhaseChecklist } from "@/lib/phaseChecklist";
 import { buildWelcomeMessage } from "@/lib/journeyWelcome";
-import { fetchChatReply } from "@/lib/fetchChatReply";
+import { cancelChatJob, fetchChatReply } from "@/lib/fetchChatReply";
 import { detectAskedPhaseOneElements, nextPhaseOneElement } from "@/lib/phaseOneRouting";
 import {
   journeyStateFromSession,
@@ -69,6 +69,7 @@ import {
   togglePathItemComplete,
   type SustainabilityPathItem,
 } from "@/lib/sustainabilityPath";
+import { shouldOfferReflectionMoment } from "@/lib/reflectionGating";
 
 type StoredMessage = TranscriptMessage & {
   parent_message_id?: string | null;
@@ -140,15 +141,20 @@ export default function AvatarSessionPage() {
   const [voiceEnabled, setVoiceEnabled] = useState(true);
   const [isAiResponding, setIsAiResponding] = useState(false);
   const [chatError, setChatError] = useState<string | null>(null);
+  const [retryUserMessageId, setRetryUserMessageId] = useState<string | null>(null);
   const [isCoachWarming, setIsCoachWarming] = useState(false);
+  const [thinkElapsedMs, setThinkElapsedMs] = useState(0);
   const [pendingRecs, setPendingRecs] = useState<
     Record<string, { recommendationId: string; workbookId: string; reason?: string }>
   >({});
   const [recBusy, setRecBusy] = useState(false);
   const [reflectionOpen, setReflectionOpen] = useState(false);
   const [pendingLeaveTo, setPendingLeaveTo] = useState<string | null>(null);
+  const reflectionShownRef = useRef(false);
   const handleSendRef = useRef<(text: string) => void>(() => {});
   const pendingSpeakTimeoutRef = useRef<number | null>(null);
+  const chatAbortRef = useRef<AbortController | null>(null);
+  const activeJobIdRef = useRef<string | null>(null);
   const { speak, stop, isSpeaking } = useSpeechSynthesis();
 
   const buildDisplayMessages = (allMessages: StoredMessage[], activeMessageId: string | null) => {
@@ -406,9 +412,20 @@ export default function AvatarSessionPage() {
         window.clearTimeout(pendingSpeakTimeoutRef.current);
         pendingSpeakTimeoutRef.current = null;
       }
+      chatAbortRef.current?.abort();
+      const jobId = activeJobIdRef.current;
+      if (jobId) void cancelChatJob(jobId);
       stop();
     };
   }, [stop]);
+
+  useEffect(() => {
+    return () => {
+      chatAbortRef.current?.abort();
+      const jobId = activeJobIdRef.current;
+      if (jobId) void cancelChatJob(jobId);
+    };
+  }, [journeyId]);
 
   useEffect(() => {
     setMessages(buildDisplayMessages(rawMessages, activeAssistantId));
@@ -416,10 +433,14 @@ export default function AvatarSessionPage() {
 
   const applyJourneyUpdates = async (updates: Partial<JourneyState>) => {
     if (!sessionId || Object.keys(updates).length === 0) return;
-    await updateJourneyState(sessionId, updates);
-    setJourneySession((prev) =>
-      prev && prev.id === sessionId ? { ...prev, ...updates, updated_at: new Date().toISOString() } : prev,
-    );
+    try {
+      await updateJourneyState(sessionId, updates);
+      setJourneySession((prev) =>
+        prev && prev.id === sessionId ? { ...prev, ...updates, updated_at: new Date().toISOString() } : prev,
+      );
+    } catch {
+      toast.error("Couldn't save your progress — please try again");
+    }
   };
 
   const applyProgressDashboardUpdates = async (
@@ -488,20 +509,24 @@ export default function AvatarSessionPage() {
     }
 
     if (Object.keys(progressPatch).length > 0) {
-      await updateProgressDashboard(sessionId, {
-        goals: progressPatch.user_goals ?? nextGoals,
-        progressSummary: progressPatch.progress_summary ?? nextSummary,
-        phaseChecklist: progressPatch.phase_checklist ?? nextChecklist,
-      });
-      setJourneySession((prev) =>
-        prev && prev.id === sessionId
-          ? {
-              ...prev,
-              ...progressPatch,
-              updated_at: new Date().toISOString(),
-            }
-          : prev,
-      );
+      try {
+        await updateProgressDashboard(sessionId, {
+          goals: progressPatch.user_goals ?? nextGoals,
+          progressSummary: progressPatch.progress_summary ?? nextSummary,
+          phaseChecklist: progressPatch.phase_checklist ?? nextChecklist,
+        });
+        setJourneySession((prev) =>
+          prev && prev.id === sessionId
+            ? {
+                ...prev,
+                ...progressPatch,
+                updated_at: new Date().toISOString(),
+              }
+            : prev,
+        );
+      } catch {
+        toast.error("Couldn't save your progress — please try again");
+      }
     }
 
     return {
@@ -516,54 +541,63 @@ export default function AvatarSessionPage() {
     if (!sessionId || !journeySession || !isAutoNamedJourney(journeySession.session_name)) return;
     const title = await suggestJourneyTitle(userTexts);
     if (!title) return;
-    await renameChatSession(sessionId, title);
-    setJourneySession((prev) => (prev ? { ...prev, session_name: title } : prev));
+    try {
+      await renameChatSession(sessionId, title);
+      setJourneySession((prev) => (prev ? { ...prev, session_name: title } : prev));
+    } catch {
+      // NotSavedError or network — provisional title may already be set
+    }
   };
 
-  const handleSend = async (text: string) => {
-    if (isSessionLoading) return;
+  const applyProvisionalTitle = async (firstUserText: string) => {
+    if (!sessionId || !journeySession || !isAutoNamedJourney(journeySession.session_name)) return;
+    const title = provisionalJourneyTitle(firstUserText);
+    if (!title) return;
+    try {
+      await renameChatSession(sessionId, title);
+      setJourneySession((prev) => (prev ? { ...prev, session_name: title } : prev));
+    } catch {
+      // ignore — UI still usable
+    }
+  };
 
-    const localUserId = Date.now().toString();
-    const userMsg: StoredMessage = { id: localUserId, role: "user", content: text };
-    const nextRawWithLocalUser = [...rawMessages, userMsg];
-    setRawMessages(nextRawWithLocalUser);
-    setMessages(buildDisplayMessages(nextRawWithLocalUser, activeAssistantId));
-    if (!sessionId) return;
-
-    const journeyState = journeyStateFromSession(journeySession);
-    const previousAssistantContent =
-      [...rawMessages].reverse().find((m) => m.role === "assistant")?.content ?? "";
-
-    const persistedUser = await saveChatMessage(sessionId, "user", text, {
-      parentMessageId: activeAssistantId,
-    });
-    const persistedRawMessages = nextRawWithLocalUser.map((item) =>
-      item.id === localUserId ? { ...item, id: persistedUser.id, parent_message_id: activeAssistantId } : item,
-    );
-    setRawMessages(persistedRawMessages);
-    setMessages(buildDisplayMessages(persistedRawMessages, activeAssistantId));
+  const requestCoachReply = async (opts: {
+    text: string;
+    persistedUserId: string;
+    persistedRawMessages: StoredMessage[];
+    previousAssistantContent: string;
+  }) => {
+    const { text, persistedUserId, persistedRawMessages, previousAssistantContent } = opts;
+    chatAbortRef.current?.abort();
+    const abort = new AbortController();
+    chatAbortRef.current = abort;
+    activeJobIdRef.current = null;
 
     setIsAiResponding(true);
     setChatError(null);
+    setRetryUserMessageId(null);
     setIsCoachWarming(false);
-    const chatHistory = buildDisplayMessages(persistedRawMessages, activeAssistantId).map((m) => ({
-      role: m.role,
-      content: m.content,
-    }));
-    const assistantTexts = chatHistory.filter((m) => m.role === "assistant").map((m) => m.content);
-    const askedPhaseOne = detectAskedPhaseOneElements(assistantTexts);
-    const practiceState = await fetchPracticeStateForPrompt();
-    const journeyContext = toJourneyContextPayload(journeyState, chatHistory.length, {
-      phaseOneNextElement:
-        journeyState.phase_one_step === 2 && !journeyState.phase_one_confirmed
-          ? nextPhaseOneElement(assistantTexts)
-          : null,
-      askedPhaseOneElements:
-        askedPhaseOne.size > 0 ? [...askedPhaseOne].join(", ") : null,
-      practiceState,
-    });
+    setThinkElapsedMs(0);
 
     try {
+      const chatHistory = buildDisplayMessages(persistedRawMessages, activeAssistantId).map((m) => ({
+        role: m.role,
+        content: m.content,
+      }));
+      const assistantTexts = chatHistory.filter((m) => m.role === "assistant").map((m) => m.content);
+      const askedPhaseOne = detectAskedPhaseOneElements(assistantTexts);
+      const journeyState = journeyStateFromSession(journeySession);
+      const practiceState = await fetchPracticeStateForPrompt();
+      const journeyContext = toJourneyContextPayload(journeyState, chatHistory.length, {
+        phaseOneNextElement:
+          journeyState.phase_one_step === 2 && !journeyState.phase_one_confirmed
+            ? nextPhaseOneElement(assistantTexts)
+            : null,
+        askedPhaseOneElements:
+          askedPhaseOne.size > 0 ? [...askedPhaseOne].join(", ") : null,
+        practiceState,
+      });
+
       const result = await fetchChatReply(
         {
           userMessage: text,
@@ -571,13 +605,22 @@ export default function AvatarSessionPage() {
           possibleCrisisLanguage: detectCrisis(text),
           journeyContext,
         },
-        { onWarmingChange: setIsCoachWarming },
+        {
+          onWarmingChange: setIsCoachWarming,
+          onElapsed: setThinkElapsedMs,
+          signal: abort.signal,
+        },
       );
 
       if (!result.ok) {
+        if (result.error === "Cancelled.") {
+          setIsCoachWarming(false);
+          setIsAiResponding(false);
+          return;
+        }
         setIsCoachWarming(false);
         setChatError(result.error);
-        toast.error(result.error);
+        setRetryUserMessageId(persistedUserId);
         setIsAiResponding(false);
         return;
       }
@@ -591,8 +634,9 @@ export default function AvatarSessionPage() {
         role: "assistant",
         content: displayContent || "I didn't get a response. Please try again.",
       };
-      const savedReply = await saveChatMessage(sessionId, "assistant", reply.content, {
-        parentMessageId: persistedUser.id,
+      const savedReply = await saveChatMessage(sessionId!, "assistant", reply.content, {
+        parentMessageId: persistedUserId,
+        generationMetadata: { provider: result.provider || "runpod" },
       });
       if (workbookRec && sessionId) {
         try {
@@ -619,14 +663,18 @@ export default function AvatarSessionPage() {
         {
           ...reply,
           id: savedReply.id,
-          parent_message_id: persistedUser.id,
+          parent_message_id: persistedUserId,
           admin_quality_star: savedReply.admin_quality_star ?? false,
         },
       ];
       setRawMessages(nextRaw);
       setActiveAssistantId(savedReply.id);
       setMessages(buildDisplayMessages(nextRaw, savedReply.id));
-      await setSessionActiveMessage(sessionId, savedReply.id);
+      try {
+        await setSessionActiveMessage(sessionId!, savedReply.id);
+      } catch {
+        toast.error("Couldn't save your progress — please try again");
+      }
       const journeyUpdates = inferJourneyUpdates(text, previousAssistantContent, content, journeyState);
       await applyJourneyUpdates(journeyUpdates);
       const mergedState = { ...journeyState, ...journeyUpdates };
@@ -645,15 +693,78 @@ export default function AvatarSessionPage() {
           }, 300);
         }
       }
+      setRetryUserMessageId(null);
+      setChatError(null);
       setIsAiResponding(false);
-    } catch {
-      const errMsg =
-        "Connection lost — the coach may still be starting. Please send your message again in a minute.";
+    } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") {
+        setIsCoachWarming(false);
+        setIsAiResponding(false);
+        return;
+      }
+      const errMsg = "The coach is unavailable right now. Please try again.";
       setIsCoachWarming(false);
       setChatError(errMsg);
-      toast.error(errMsg);
+      setRetryUserMessageId(persistedUserId);
       setIsAiResponding(false);
+    } finally {
+      activeJobIdRef.current = null;
     }
+  };
+
+  const handleSend = async (text: string) => {
+    if (isSessionLoading) return;
+
+    const localUserId = Date.now().toString();
+    const userMsg: StoredMessage = { id: localUserId, role: "user", content: text };
+    const nextRawWithLocalUser = [...rawMessages, userMsg];
+    setRawMessages(nextRawWithLocalUser);
+    setMessages(buildDisplayMessages(nextRawWithLocalUser, activeAssistantId));
+    if (!sessionId) return;
+
+    const previousAssistantContent =
+      [...rawMessages].reverse().find((m) => m.role === "assistant")?.content ?? "";
+
+    const persistedUser = await saveChatMessage(sessionId, "user", text, {
+      parentMessageId: activeAssistantId,
+    });
+    const persistedRawMessages = nextRawWithLocalUser.map((item) =>
+      item.id === localUserId ? { ...item, id: persistedUser.id, parent_message_id: activeAssistantId } : item,
+    );
+    setRawMessages(persistedRawMessages);
+    setMessages(buildDisplayMessages(persistedRawMessages, activeAssistantId));
+
+    void applyProvisionalTitle(text);
+
+    await requestCoachReply({
+      text,
+      persistedUserId: persistedUser.id,
+      persistedRawMessages,
+      previousAssistantContent,
+    });
+  };
+
+  const handleRetryReply = async () => {
+    if (!retryUserMessageId || !sessionId || isAiResponding) return;
+    const userMsg = rawMessages.find((m) => m.id === retryUserMessageId && m.role === "user");
+    if (!userMsg) return;
+    const previousAssistantContent =
+      [...rawMessages].reverse().find((m) => m.role === "assistant")?.content ?? "";
+    await requestCoachReply({
+      text: userMsg.content,
+      persistedUserId: userMsg.id,
+      persistedRawMessages: rawMessages,
+      previousAssistantContent,
+    });
+  };
+
+  const handleCancelWait = () => {
+    chatAbortRef.current?.abort();
+    const jobId = activeJobIdRef.current;
+    if (jobId) void cancelChatJob(jobId);
+    setIsCoachWarming(false);
+    setIsAiResponding(false);
+    setChatError("Request cancelled.");
   };
   const handleToggleAdminQualityStar = async (messageId: string, nextStarred: boolean) => {
     if (!isAdmin) return;
@@ -664,7 +775,7 @@ export default function AvatarSessionPage() {
       );
     } catch (err) {
       console.error(err);
-      window.alert("Could not update the star. Apply the latest Supabase migration and ensure you are an admin.");
+      window.alert("Could not update the star. Please ensure you are signed in as an admin and try again.");
     }
   };
 
@@ -900,18 +1011,32 @@ export default function AvatarSessionPage() {
   const journey = journeyStateFromSession(journeySession);
   const displayTitle = journeyTitle(journeySession);
   const userTurns = messages.filter((message) => message.role === "user").length;
+  const lastIsUserWithoutReply =
+    messages.length > 0 &&
+    messages[messages.length - 1]?.role === "user" &&
+    !isAiResponding &&
+    !isCoachWarming;
   const statusLabel = isCoachWarming
     ? "Getting ready"
     : isAiResponding
       ? "Thinking"
       : isSpeaking
         ? "Speaking"
-        : "Ready";
+        : lastIsUserWithoutReply || retryUserMessageId
+          ? "No reply yet — Retry"
+          : "Ready";
 
   const showThinkingStatus = isAiResponding || isCoachWarming;
 
   const requestLeave = (to: string) => {
-    if (userTurns > 0) {
+    const offerReflection = shouldOfferReflectionMoment({
+      messages: rawMessages,
+      isAiResponding,
+      isCoachWarming,
+      alreadyShownThisVisit: reflectionShownRef.current,
+    });
+    if (offerReflection) {
+      reflectionShownRef.current = true;
       setPendingLeaveTo(to);
       setReflectionOpen(true);
       return;
@@ -973,7 +1098,7 @@ export default function AvatarSessionPage() {
       });
     } catch (err) {
       console.error(err);
-      toast.error("Could not save your choice. Apply the Phase 3 migration if needed.");
+      toast.error("Couldn't save your choice. Please try again.");
     } finally {
       setRecBusy(false);
     }
@@ -1043,7 +1168,7 @@ export default function AvatarSessionPage() {
                   className="rounded-xl"
                   type="button"
                   onClick={() =>
-                    requestLeave(journeyId ? `/testing/journeys/${journeyId}` : "/testing/journeys")
+                    navigate(journeyId ? `/testing/journeys/${journeyId}` : "/testing/journeys")
                   }
                 >
                   <ListTodo className="w-4 h-4 mr-1.5" />
@@ -1053,7 +1178,9 @@ export default function AvatarSessionPage() {
               <p className="text-xs uppercase tracking-wider text-muted-foreground mb-1">ShiftED AI</p>
               <h1 className="text-xl md:text-2xl font-semibold">{displayTitle}</h1>
               <p className="text-xs text-muted-foreground mt-1">
-                {userTurns > 0 ? "Pick up where you left off" : "Share what's on your mind to begin"}
+                {messages.some((m) => m.role === "assistant") && userTurns > 0
+                  ? "Pick up where you left off"
+                  : "Share what's on your mind to begin"}
               </p>
               <PhaseStepper
                 className="mt-3"
@@ -1161,13 +1288,21 @@ export default function AvatarSessionPage() {
               isRegenerating={isRegenerating}
               isThinking={isAiResponding || isRegenerating}
               isWarming={isCoachWarming}
+              thinkingElapsedMs={thinkElapsedMs}
+              onThinkingRetry={handleRetryReply}
+              onThinkingCancel={handleCancelWait}
               recommendationSlotByMessageId={recommendationSlotByMessageId}
             />
             <div className="mt-3">
               {chatError ? (
-                <p className="mb-2 text-sm text-destructive" role="alert">
-                  {chatError}
-                </p>
+                <div className="mb-2 flex flex-wrap items-center gap-2" role="alert">
+                  <p className="text-sm text-destructive">{chatError}</p>
+                  {retryUserMessageId ? (
+                    <Button type="button" size="sm" variant="secondary" onClick={() => void handleRetryReply()}>
+                      Retry
+                    </Button>
+                  ) : null}
+                </div>
               ) : null}
               <ChatInput
                 onSend={handleSend}

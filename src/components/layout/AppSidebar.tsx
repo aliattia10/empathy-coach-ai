@@ -1,12 +1,19 @@
 import { Link, useLocation } from "react-router-dom";
-import { MessageSquare, BarChart3, ClipboardList, Settings, Home, Shield } from "lucide-react";
+import {
+  BookOpen,
+  Bot,
+  HeartHandshake,
+  LayoutDashboard,
+  Settings,
+  Shield,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const navItems = [
-  { to: "/testing", icon: Home, label: "Home" },
-  { to: "/testing/chat", icon: MessageSquare, label: "AI Coach" },
-  { to: "/testing/survey", icon: ClipboardList, label: "Assessments" },
-  { to: "/testing/dashboard", icon: BarChart3, label: "Dashboard" },
+  { to: "/testing/journeys", icon: Bot, label: "Journeys" },
+  { to: "/testing/library", icon: BookOpen, label: "Library" },
+  { to: "/testing/profile", icon: LayoutDashboard, label: "Profile" },
+  { to: "/testing/resources", icon: HeartHandshake, label: "Resources" },
   { to: "/testing/settings", icon: Settings, label: "Settings" },
 ];
 

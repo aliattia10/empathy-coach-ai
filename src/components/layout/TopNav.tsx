@@ -1,11 +1,15 @@
 import { Link, useLocation } from "react-router-dom";
-import { Bot, LogIn, LogOut, User } from "lucide-react";
+import { BookOpen, Bot, HeartHandshake, LayoutDashboard, LogIn, LogOut, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 
 const navTabs = [
   { to: "/testing/journeys", icon: Bot, label: "Journeys" },
+  { to: "/testing/library", icon: BookOpen, label: "Library" },
+  { to: "/testing/profile", icon: LayoutDashboard, label: "Profile" },
+  { to: "/testing/resources", icon: HeartHandshake, label: "Resources" },
+  { to: "/testing/settings", icon: Settings, label: "Settings" },
 ];
 
 export default function TopNav() {
@@ -27,16 +31,18 @@ export default function TopNav() {
 
         <nav className="hidden md:flex items-center gap-1">
           {navTabs.map((item) => {
-            const active = location.pathname === item.to || (item.to !== "/testing" && location.pathname.startsWith(item.to));
+            const active =
+              location.pathname === item.to ||
+              (item.to !== "/testing" && location.pathname.startsWith(item.to));
             return (
               <Link
                 key={item.to}
                 to={item.to}
                 className={cn(
-                  "flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200",
+                  "flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium transition-all duration-200",
                   active
                     ? "bg-white/20 text-white"
-                    : "text-white/70 hover:text-white hover:bg-white/10"
+                    : "text-white/70 hover:text-white hover:bg-white/10",
                 )}
               >
                 <item.icon className="w-4 h-4" />
@@ -69,15 +75,6 @@ export default function TopNav() {
               <LogIn className="w-4 h-4" /> Sign in
             </Link>
           )}
-          {user ? (
-            <Link
-              to="/testing/journeys"
-              className="p-2 rounded-xl text-white/80 hover:text-white hover:bg-white/10 transition-colors border border-white/10"
-              aria-label="Your journeys"
-            >
-              <User className="w-5 h-5" />
-            </Link>
-          ) : null}
         </div>
       </div>
     </header>

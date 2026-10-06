@@ -66,6 +66,17 @@ export type JourneyState = {
   sustainability_path: SustainabilityPathItem[];
 };
 
+export type PracticeStateForPrompt = {
+  openWorkbooks?: Array<{ id?: string; workbook_id?: string; status?: string; title?: string }>;
+  completedWorkbooks?: Array<{
+    id?: string;
+    workbook_id?: string;
+    completion_rating?: number | null;
+    completion_description?: string | null;
+  }>;
+  recentReflections?: Array<{ answer?: string | null; skipped?: boolean }>;
+};
+
 export type JourneyContextPayload = {
   platformPhase: PlatformPhase;
   phaseOneStep: PhaseOneStep;
@@ -85,6 +96,8 @@ export type JourneyContextPayload = {
   progressSummary?: string | null;
   userGoals?: UserGoal[];
   phaseChecklist?: PhaseChecklistItem[];
+  /** Phase 3 Development Skills practice layer (feeds check-in / feedback loop). */
+  practiceState?: PracticeStateForPrompt | null;
 };
 
 export const DEFAULT_JOURNEY_STATE: JourneyState = {
@@ -293,7 +306,11 @@ export function normalizePhaseChecklist(raw: unknown): PhaseChecklistItem[] {
 export function toJourneyContextPayload(
   state: JourneyState,
   messageCount: number,
-  opts?: { phaseOneNextElement?: string | null; askedPhaseOneElements?: string | null },
+  opts?: {
+    phaseOneNextElement?: string | null;
+    askedPhaseOneElements?: string | null;
+    practiceState?: PracticeStateForPrompt | null;
+  },
 ): JourneyContextPayload {
   return {
     platformPhase: state.platform_phase,
@@ -314,6 +331,7 @@ export function toJourneyContextPayload(
     progressSummary: state.progress_summary,
     userGoals: state.user_goals,
     phaseChecklist: state.phase_checklist,
+    practiceState: opts?.practiceState ?? null,
   };
 }
 

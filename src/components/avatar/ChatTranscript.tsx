@@ -1,5 +1,5 @@
 import { cn } from "@/lib/utils";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import ReactMarkdown from "react-markdown";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -60,6 +60,8 @@ interface ChatTranscriptProps {
   isThinking?: boolean;
   /** RunPod cold-start — softens the thinking copy. */
   isWarming?: boolean;
+  /** Phase 3 workbook recommendation cards keyed by assistant message id. */
+  recommendationSlotByMessageId?: Record<string, ReactNode>;
 }
 
 const FEEDBACK_TAGS = ["tone", "clarity", "empathy", "relevance", "safety", "too_long", "too_short", "other"];
@@ -85,6 +87,7 @@ export default function ChatTranscript({
   isRegenerating,
   isThinking = false,
   isWarming = false,
+  recommendationSlotByMessageId = {},
 }: ChatTranscriptProps) {
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -129,6 +132,9 @@ export default function ChatTranscript({
                 <div className="prose prose-sm max-w-none [&>p]:m-0 [&>p]:leading-relaxed">
                   <ReactMarkdown>{msg.content}</ReactMarkdown>
                 </div>
+                {msg.role === "assistant" && recommendationSlotByMessageId[msg.id]
+                  ? recommendationSlotByMessageId[msg.id]
+                  : null}
                 {msg.role === "assistant" && isAdmin && isPersistedMessageId(msg.id) && onToggleAdminQualityStar && (
                   <div className="mt-2 flex justify-end">
                     <Button

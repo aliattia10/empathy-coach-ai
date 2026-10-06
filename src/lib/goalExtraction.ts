@@ -5,6 +5,7 @@ import {
   sortGoalsByStep,
 } from "@/types/journey";
 import { mergePhaseChecklistFromAi } from "@/lib/phaseChecklist";
+import { stripWorkbookBlock } from "@/lib/workbookRecommendation";
 
 const PROGRESS_CLOSED_RE = /\[\[PROGRESS\]\]([\s\S]*?)\[\[\/PROGRESS\]\]/gi;
 const PROGRESS_OPEN_RE = /\[\[PROGRESS\]\]/i;
@@ -93,7 +94,7 @@ export function stripProgressBlock(text: string): string {
 }
 
 export function sanitizeAssistantDisplayContent(text: string): string {
-  return stripProgressBlock(text)
+  return stripWorkbookBlock(stripProgressBlock(text))
     .replace(/^\s*Task:\s*/gim, "")
     .replace(/\n{3,}/g, "\n\n")
     .trim();

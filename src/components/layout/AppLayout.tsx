@@ -4,9 +4,11 @@ import AppFooter from "./AppFooter";
 import MobileNav from "./MobileNav";
 import DisclaimerBanner from "../safety/DisclaimerBanner";
 import { cn } from "@/lib/utils";
+import { useActivityTracker } from "@/hooks/useActivityTracker";
 
 export default function AppLayout() {
   const { pathname } = useLocation();
+  useActivityTracker();
   const fullBleed =
     pathname.startsWith("/testing/avatar/session") ||
     /^\/testing\/journeys\/[^/]+$/.test(pathname);

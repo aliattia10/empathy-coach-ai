@@ -346,6 +346,222 @@ export type Database = {
         }
         Relationships: []
       }
+      workbooks: {
+        Row: {
+          id: string
+          skill_id: string | null
+          ei_category: string
+          title: string
+          description: string
+          duration_min: number
+          level: string
+          body: string | null
+          sort_order: number
+          is_active: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id: string
+          skill_id?: string | null
+          ei_category: string
+          title: string
+          description: string
+          duration_min?: number
+          level: string
+          body?: string | null
+          sort_order?: number
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          skill_id?: string | null
+          ei_category?: string
+          title?: string
+          description?: string
+          duration_min?: number
+          level?: string
+          body?: string | null
+          sort_order?: number
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      user_workbooks: {
+        Row: {
+          id: string
+          user_id: string
+          workbook_id: string
+          status: string
+          source: string
+          chat_session_id: string | null
+          started_at: string | null
+          completed_at: string | null
+          completion_rating: number | null
+          completion_description: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          workbook_id: string
+          status: string
+          source: string
+          chat_session_id?: string | null
+          started_at?: string | null
+          completed_at?: string | null
+          completion_rating?: number | null
+          completion_description?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          workbook_id?: string
+          status?: string
+          source?: string
+          chat_session_id?: string | null
+          started_at?: string | null
+          completed_at?: string | null
+          completion_rating?: number | null
+          completion_description?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      workbook_recommendations: {
+        Row: {
+          id: string
+          user_id: string
+          chat_session_id: string
+          message_id: string | null
+          workbook_id: string
+          decision: string | null
+          decided_at: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          chat_session_id: string
+          message_id?: string | null
+          workbook_id: string
+          decision?: string | null
+          decided_at?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          chat_session_id?: string
+          message_id?: string | null
+          workbook_id?: string
+          decision?: string | null
+          decided_at?: string | null
+          created_at?: string
+        }
+        Relationships: []
+      }
+      reflections: {
+        Row: {
+          id: string
+          user_id: string
+          chat_session_id: string | null
+          prompt_key: string
+          answer: string | null
+          skipped: boolean
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          chat_session_id?: string | null
+          prompt_key?: string
+          answer?: string | null
+          skipped?: boolean
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          chat_session_id?: string | null
+          prompt_key?: string
+          answer?: string | null
+          skipped?: boolean
+          created_at?: string
+        }
+        Relationships: []
+      }
+      journal_entries: {
+        Row: {
+          id: string
+          user_id: string
+          chat_session_id: string | null
+          workbook_id: string | null
+          title: string | null
+          body: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          chat_session_id?: string | null
+          workbook_id?: string | null
+          title?: string | null
+          body?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          chat_session_id?: string | null
+          workbook_id?: string | null
+          title?: string | null
+          body?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      user_activity: {
+        Row: {
+          id: string
+          user_id: string
+          started_at: string
+          ended_at: string | null
+          last_heartbeat_at: string
+          path: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          started_at?: string
+          ended_at?: string | null
+          last_heartbeat_at?: string
+          path?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          started_at?: string
+          ended_at?: string | null
+          last_heartbeat_at?: string
+          path?: string | null
+          created_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

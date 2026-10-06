@@ -14,6 +14,12 @@ import SessionWorkspacePage from "./pages/SessionWorkspacePage";
 import JourneysDashboardPage from "./pages/JourneysDashboardPage";
 import AdminChatPage from "./pages/AdminChatPage";
 import LoginPage from "./pages/LoginPage";
+import SkillsLibraryPage from "./pages/SkillsLibraryPage";
+import WorkbookDetailPage from "./pages/WorkbookDetailPage";
+import ProfileDashboardPage from "./pages/ProfileDashboardPage";
+import JournalPage from "./pages/JournalPage";
+import ResourcesPage from "./pages/ResourcesPage";
+import SettingsPage from "./pages/SettingsPage";
 
 const queryClient = new QueryClient();
 
@@ -45,6 +51,13 @@ const App = () => {
                 <Route path="journeys/:journeyId" element={<SessionWorkspacePage />} />
                 <Route path="avatar/session/:journeyId" element={<AvatarSessionPage />} />
                 <Route path="avatar/session" element={<Navigate to="/testing/journeys" replace />} />
+                <Route path="library" element={<SkillsLibraryPage />} />
+                <Route path="library/:workbookId" element={<WorkbookDetailPage />} />
+                <Route path="profile" element={<ProfileDashboardPage />} />
+                <Route path="dashboard" element={<Navigate to="/testing/profile" replace />} />
+                <Route path="journal" element={<JournalPage />} />
+                <Route path="resources" element={<ResourcesPage />} />
+                <Route path="settings" element={<SettingsPage />} />
                 <Route path="*" element={<Navigate to="/testing/journeys" replace />} />
               </Route>
             </Route>

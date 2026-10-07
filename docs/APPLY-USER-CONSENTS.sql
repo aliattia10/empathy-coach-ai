@@ -1,3 +1,6 @@
+-- Paste in Supabase SQL Editor for project wxxwxvauseqftyorhkkp
+-- Fixes: "Couldn't save your consent" (missing table and/or upsert without UPDATE RLS)
+
 create table if not exists public.user_consents (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
@@ -25,3 +28,5 @@ create policy "Users can update own consents"
   with check (auth.uid() = user_id);
 
 grant select, insert, update on public.user_consents to authenticated;
+
+notify pgrst, 'reload schema';

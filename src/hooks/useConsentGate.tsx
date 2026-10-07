@@ -57,7 +57,18 @@ export function useConsentGate() {
     if (!user) return;
     setSaving(true);
     try {
-      await saveUserConsent(user.id);
+      try {
+        await saveUserConsent(user.id);
+      } catch (err) {
+        // Don't block the product if the consent table/migration isn't live yet —
+        // keep a per-user local grant so the modal can dismiss.
+        const message = err instanceof Error ? err.message : String(err ?? "");
+        const storageMissing =
+          message.includes("Consent storage is not available") ||
+          message.toLowerCase().includes("does not exist") ||
+          message.toLowerCase().includes("could not find the table");
+        if (!storageMissing) throw err;
+      }
       writeLocalConsent(user.id);
       setConsented(true);
     } finally {

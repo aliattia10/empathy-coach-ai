@@ -399,19 +399,52 @@ export async function fetchUserConsent(userId: string): Promise<boolean> {
   }
 }
 
+function isMissingConsentTable(error: { code?: string; message?: string } | null): boolean {
+  if (!error) return false;
+  return (
+    error.code === "PGRST205" ||
+    error.code === "42P01" ||
+    Boolean(error.message?.toLowerCase().includes("does not exist")) ||
+    Boolean(error.message?.toLowerCase().includes("could not find the table"))
+  );
+}
+
+/** Persist GDPR consent. Prefer insert (works with insert-only RLS); upsert needs UPDATE policy. */
 export async function saveUserConsent(userId: string): Promise<void> {
-  const { data, error } = await supabase
-    .from("user_consents")
-    .upsert(
-      { user_id: userId, version: CONSENT_VERSION, consented_at: new Date().toISOString() },
-      { onConflict: "user_id,version" },
-    )
-    .select("id");
-  if (error) {
-    if (error.code === "PGRST205" || error.message?.includes("does not exist")) {
-      throw new Error("Consent storage is not available yet.");
-    }
-    throw error;
+  const row = {
+    user_id: userId,
+    version: CONSENT_VERSION,
+    consented_at: new Date().toISOString(),
+  };
+
+  // Plain insert covers first-time consent (current production policies).
+  const inserted = await supabase.from("user_consents").insert(row).select("id");
+  if (!inserted.error && inserted.data?.length) return;
+
+  if (isMissingConsentTable(inserted.error)) {
+    // Table not migrated yet — caller may fall back to local consent cache.
+    throw new Error("Consent storage is not available yet.");
   }
-  if (!data?.length) throw new NotSavedError();
+
+  // Already consented (unique) or insert blocked — try upsert/update path.
+  const upserted = await supabase
+    .from("user_consents")
+    .upsert(row, { onConflict: "user_id,version" })
+    .select("id");
+  if (!upserted.error && upserted.data?.length) return;
+
+  if (isMissingConsentTable(upserted.error)) {
+    throw new Error("Consent storage is not available yet.");
+  }
+
+  // Unique violation on insert with no update privilege: treat existing row as success.
+  const code = inserted.error?.code ?? upserted.error?.code;
+  if (code === "23505") {
+    const existing = await fetchUserConsent(userId);
+    if (existing) return;
+  }
+
+  if (upserted.error) throw upserted.error;
+  if (inserted.error) throw inserted.error;
+  throw new NotSavedError();
 }

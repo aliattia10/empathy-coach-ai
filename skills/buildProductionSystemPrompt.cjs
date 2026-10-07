@@ -12,6 +12,7 @@ const {
   formatWorkbooksForPrompt,
   formatUserWorkbookStateForPrompt,
 } = require("./workbooksLibrary.cjs");
+const { formatKnowledgeForPrompt } = require("./knowledgeBase.cjs");
 
 function sessionRowToJourneyContext(sessionRow, messageCount = 0) {
   if (!sessionRow) return null;
@@ -53,6 +54,7 @@ const INFERENCE_DIRECTIVES = `# Live inference directives (this turn — highest
  * @param {object|null} [opts.journeyContext] - journey payload for formatJourneyContextForPrompt
  * @param {string} [opts.turnFeedback] - single-turn Simon feedback (training export)
  * @param {boolean} [opts.forInference] - slimmer stack for 4k-context RunPod inference
+ * @param {string} [opts.latestUserMessage] - current user turn for KB skill router retrieval
  */
 function buildProductionSystemPrompt(opts = {}) {
   const condensed = !!opts.forInference;
@@ -68,6 +70,12 @@ function buildProductionSystemPrompt(opts = {}) {
 
   const practiceBlock = formatUserWorkbookStateForPrompt(opts.journeyContext?.practiceState);
   if (practiceBlock) content += `\n\n${practiceBlock}\n`;
+
+  const kbBlock = formatKnowledgeForPrompt(opts.latestUserMessage || "", {
+    condensed,
+    limit: condensed ? 1 : 2,
+  });
+  if (kbBlock) content += `\n\n${kbBlock}\n`;
 
   if (condensed) {
     content += `\n\n${INFERENCE_DIRECTIVES}\n`;

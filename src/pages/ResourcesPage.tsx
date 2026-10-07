@@ -1,9 +1,14 @@
 import { motion } from "framer-motion";
 import { BookOpen, ExternalLink, Heart, Phone } from "lucide-react";
-import { CRISIS_RESOURCES } from "@/lib/crisisResources";
+import {
+  CRISIS_RESOURCES,
+  HOPEBOX_BLURB,
+  NHS_CNTW_SELF_HELP_GUIDES,
+  NHS_CNTW_SELF_HELP_URL,
+} from "@/lib/crisisResources";
 
 const iconFor = (name: string) => {
-  if (name.includes("Mind")) return Heart;
+  if (name.includes("Mind") || name.includes("SHOUT")) return Heart;
   return Phone;
 };
 
@@ -25,9 +30,12 @@ export default function ResourcesPage() {
           </div>
         </div>
         <p className="text-muted-foreground mb-6">
-          ShiftED AI is a training simulation, not therapy. If you or someone you know needs support, please use the resources below.
+          ShiftED AI is a training simulation, not therapy. If you or someone you know needs support, please use the
+          resources below.
         </p>
-        <ul className="space-y-3">
+
+        <h2 className="font-display font-semibold text-lg text-foreground mb-3">Crisis & helplines</h2>
+        <ul className="space-y-3 mb-10">
           {CRISIS_RESOURCES.map((r) => {
             const Icon = iconFor(r.name);
             return (
@@ -51,6 +59,31 @@ export default function ResourcesPage() {
               </li>
             );
           })}
+        </ul>
+
+        <h2 className="font-display font-semibold text-lg text-foreground mb-2">Self-soothe / HOPEBOX</h2>
+        <p className="text-sm text-muted-foreground mb-8 leading-relaxed">{HOPEBOX_BLURB}</p>
+
+        <h2 className="font-display font-semibold text-lg text-foreground mb-2">Self-help guides (NHS CNTW)</h2>
+        <p className="text-sm text-muted-foreground mb-4">
+          Public NHS Cumbria, Northumberland, Tyne and Wear self-help booklets. ShiftED links out — we do not host the
+          PDFs.
+        </p>
+        <a
+          href={NHS_CNTW_SELF_HELP_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-2 text-sm font-medium text-primary hover:underline mb-4"
+        >
+          Open NHS CNTW resource library <ExternalLink className="w-3.5 h-3.5" />
+        </a>
+        <ul className="space-y-2">
+          {NHS_CNTW_SELF_HELP_GUIDES.map((g) => (
+            <li key={g.title} className="rounded-xl border border-border bg-card/60 px-4 py-3">
+              <p className="font-medium text-foreground text-sm">{g.title}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">{g.summary}</p>
+            </li>
+          ))}
         </ul>
       </motion.div>
     </div>

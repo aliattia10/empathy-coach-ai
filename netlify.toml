@@ -42,3 +42,4 @@
 
 [functions."chat"]
   timeout = 60
+  included_files = ["knowledge-base/**"]
